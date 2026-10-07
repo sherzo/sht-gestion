@@ -32,9 +32,21 @@ jobs:
             sh -c 'pg_dump --format=custom --no-owner --schema=public "$BACKUP_DATABASE_URL"' > backup.dump
           test -s backup.dump
 
+      # La cuenta de despliegue solo puede crear objetos (no leerlos ni borrarlos), así que
+      # se sube con la API de Cloud Storage: `gcloud storage cp` lee el objeto tras subirlo.
+      # ifGenerationMatch=0 impide sobrescribir un respaldo existente.
       - name: Cifrar y subir
+        env:
+          AGE_PUBLIC_KEY: ${{ vars.AGE_PUBLIC_KEY }}
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
         run: |
-          sudo apt-get install -y age > /dev/null
-          age --recipient "${{ vars.AGE_PUBLIC_KEY }}" --output backup.dump.age backup.dump
+          sudo apt-get install -y age > /dev/null 2>&1
+          age --recipient "$AGE_PUBLIC_KEY" --output backup.dump.age backup.dump
           name="sht-$(TZ=America/Caracas date +%Y%m%d-%H%M).dump.age"
-          gcloud storage cp backup.dump.age "gs://${{ vars.BACKUP_BUCKET }}/$name"
+          curl --fail-with-body --silent --show-error -X POST \
+            -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @backup.dump.age \
+            "https://storage.googleapis.com/upload/storage/v1/b/$BACKUP_BUCKET/o?uploadType=media&ifGenerationMatch=0&name=$name" \
+            > /dev/null
+          echo "Respaldo subido: $name ($(stat -c %s backup.dump.age) bytes)"
