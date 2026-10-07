@@ -1,0 +1,11 @@
+{
+  "name": "sht-gestion",
+  "private": true,
+  "packageManager": "pnpm@12.8.1",
+  "scripts": {
+    "dev:app": "pnpm --filter @sht/frontend dev",
+    "dev:catalog": "pnpm --filter @sht/catalog dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

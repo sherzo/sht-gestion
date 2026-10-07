@@ -1,0 +1,21 @@
+# Entorno local (ADR-0002): Postgres con la misma versión mayor que Supabase.
+# Uso: docker compose up -d
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: sht
+      POSTGRES_PASSWORD: sht
+      POSTGRES_DB: sht
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sht -d sht"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:

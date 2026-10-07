@@ -7,6 +7,11 @@ Cambios por funcionalidad terminada (RNF-09). Formato basado en
 
 ### Añadido
 
+- Despliegue base (etapa 1.0): monorepo con `backend/` (FastAPI, endpoints de salud,
+  Alembic con los dominios decimales de ADR-0004, pruebas, Dockerfile), `frontend/` y
+  `catalog/` (Next.js estático) y `packages/shared/`; Postgres local con Docker Compose;
+  workflows de CI, despliegue de la API en Cloud Run, despliegue web en Cloudflare
+  Pages y respaldo diario cifrado (RNF-06); guía `docs/despliegue.md`.
 - Plan de fases (etapa 1.0): `docs/plan-de-fases.md` con alcance, entregables y
   criterios de terminado por etapa, puesta en uso real por partes y preguntas abiertas
   asignadas a cada etapa.

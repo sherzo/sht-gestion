@@ -1,0 +1,53 @@
+# Despliegue de la app interna y del catálogo en Cloudflare Pages al integrar en main.
+# Configuración previa: docs/despliegue.md. Mientras falte CLOUDFLARE_ACCOUNT_ID, no corre.
+name: Desplegar app y catálogo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "catalog/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: vars.CLOUDFLARE_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Construir
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+        run: pnpm build
+
+      - name: Publicar la app interna
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy frontend/out --project-name=${{ vars.CF_PAGES_APP_PROJECT }} --branch=main
+
+      - name: Publicar el catálogo
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy catalog/out --project-name=${{ vars.CF_PAGES_CATALOG_PROJECT }} --branch=main
