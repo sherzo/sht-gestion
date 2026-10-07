@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.1 |
-| Fecha | 2026-10-05 |
-| Estado | Borrador (etapa 1.0) |
+| Versión | 1.0 |
+| Fecha | 2026-10-07 |
+| Estado | Vigente (aprobada al cerrar la etapa 1.0) |
 | Documentos relacionados | `docs/PRD.md`, `docs/decisiones/`, `.specify/memory/constitution.md` |
 
 > Este documento describe **cómo** se construye el sistema. El **qué** y el **por qué**
@@ -188,10 +188,17 @@ Código en inglés, todo lo demás en español (ADR-0006). Glosario en la secci�
 | Producción | Cloud Run + Supabase + Cloudflare Pages, en planes gratuitos al inicio |
 | Pruebas (staging) | Se crea cuando el negocio empiece a usar el sistema con datos reales |
 
-- **CI (cada PR):** lint y pruebas del backend, lint y pruebas del frontend, casos
-  compartidos de dinero en ambos lenguajes, build de la app y del catálogo.
-- **Despliegue (merge a `main`):** migraciones Alembic → nueva revisión de Cloud Run →
-  publicación de la app en Cloudflare Pages.
+- **CI (cada PR y cada push a `main`):** lint, migraciones (subir, bajar y volver a
+  subir) y pruebas del backend contra Postgres 17; tipos y build de la app y del
+  catálogo. Se sumarán las pruebas del frontend y los casos compartidos de dinero en
+  ambos lenguajes cuando existan (etapa 1.3, ADR-0004).
+- **Despliegue (al integrar en `main`), en dos workflows independientes según qué
+  cambió:**
+  - `backend/` → imagen en Artifact Registry → migraciones Alembic → nueva revisión de
+    Cloud Run → comprobación de `/health` y `/health/db`.
+  - `frontend/`, `catalog/` o `packages/` → build estático → Cloudflare Pages.
+- **Respaldo:** diario a las 03:00 (Caracas), cifrado, en Cloud Storage.
+- Configuración, URLs y procedimientos de operación: `docs/despliegue.md`.
 - **Observabilidad:** logs estructurados en Cloud Run. Las anomalías de negocio (stock
   negativo, diferencias al sincronizar, precio distinto, usuario desactivado con ventas
   pendientes) se registran como alertas que el admin ve en la app.
@@ -243,6 +250,8 @@ Código en inglés, todo lo demás en español (ADR-0006). Glosario en la secci�
 **Preguntas de negocio** (registradas en PRD §10, se responden antes de la etapa
 indicada):
 
+- (1.1b) Precios distintos para mayoristas o talleres (afectaría al modelo de datos:
+  listas de precios).
 - (1.2) Costo promedio con stock previo cero o negativo.
 - (1.3) Venta con stock insuficiente estando en línea: ¿advertir o bloquear?
 - (1.3/1.5) Descuentos sin conexión.
@@ -250,7 +259,8 @@ indicada):
 
 **Técnicos:**
 
-- Verificar, al configurar los servicios, las cifras del nivel gratuito de Cloud Run,
-  Cloud Storage y Artifact Registry, y los términos de uso comercial de Cloudflare Pages
-  Free (ADR-0002).
+- Revisar la factura de Google Cloud al cerrar el primer mes (noviembre de 2026) para
+  confirmar que Cloud Run, Cloud Storage y Artifact Registry quedan dentro del nivel
+  gratuito, y verificar los términos de uso comercial de Cloudflare Pages Free
+  (ADR-0002).
 - Comprar el dominio antes del uso real del negocio (ADR-0005).

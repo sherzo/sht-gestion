@@ -3,7 +3,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.5 |
+| Versión | 0.6 |
 | Fecha | 2026-10-07 |
 | Estado | En revisión por el dueño |
 | Documentos relacionados | `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`, `CLAUDE.md` |
@@ -14,7 +14,7 @@
 
 ## 1. Resumen
 
-Sistema web para gestionar el inventario, las compras, las ventas multimoneda y la caja de un negocio pequeño de mangueras hidráulicas, conexiones, ferrules y ferretería ligera. Incluye un catálogo online público con pedidos por WhatsApp. Debe funcionar en computadora y teléfono, seguir vendiendo cuando se cae el internet y tener un costo de operación cercano a cero.
+Sistema web para gestionar el inventario, las compras, las ventas multimoneda y la caja de un negocio pequeño de mangueras hidráulicas, conexiones, ferrules y ferretería ligera. Incluye un catálogo online público con pedidos por WhatsApp. Debe funcionar en computadora y teléfono, seguir vendiendo cuando se cae el internet y tener un costo de operación bajo: arranca en planes gratuitos y nunca supera 35–40 USD/mes (RNF-03).
 
 ## 2. Contexto y problema
 
@@ -31,7 +31,7 @@ Sistema web para gestionar el inventario, las compras, las ventas multimoneda y 
 3. Cuadrar la caja diaria por método de pago sin cálculos manuales.
 4. Registrar compras con proveedor y costo para conocer márgenes.
 5. Mostrar un catálogo online actualizado que genere pedidos por WhatsApp.
-6. Operar con costo de infraestructura cercano a cero.
+6. Operar con un costo de infraestructura bajo y controlado: gratuito mientras el volumen lo permita y con un tope de 35–40 USD/mes (RNF-03).
 
 ### Métricas de éxito (primeros 3 meses de uso)
 
@@ -317,3 +317,4 @@ El detalle va en `docs/plan-de-fases.md`.
 | 0.3 | 2026-10-03 | Precisadas las ventas fraccionadas por metro: precisión de centímetro e ingreso en cm con conversión automática (RF-05, RF-21). |
 | 0.4 | 2026-10-05 | Respondida la pregunta abierta sobre equipos de mostrador: uno al inicio, posiblemente dos después (sección 2). Presupuesto de infraestructura: arranque gratuito con tope de 35–40 USD/mes (RNF-03). Nuevas preguntas abiertas surgidas de la arquitectura (sección 10). |
 | 0.5 | 2026-10-07 | Definiciones para el modelo de datos: descuentos por ítem o por total, en monto o porcentaje (RF-22); compras confirmadas inmutables y anulación solo por el admin (RN-14, matriz de permisos); corrección auditada de la tasa (RN-15); caja por equipo (RN-16, supuesto 5); precios con IVA incluido (RN-17). |
+| 0.6 | 2026-10-07 | Resumen (§1) y objetivo 6 alineados con el presupuesto de RNF-03 (arranque gratuito, tope de 35–40 USD/mes) en lugar de "costo cercano a cero". |

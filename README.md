@@ -1,10 +1,12 @@
 # 🔧 SHT Gestión
 
+[![CI](https://github.com/sherzo/sht-gestion/actions/workflows/ci.yml/badge.svg)](https://github.com/sherzo/sht-gestion/actions/workflows/ci.yml)
+
 **Sistema de inventario, ventas y catálogo para Suministros Hidráulicos Turmero** 🇻🇪
 
 Mangueras hidráulicas, conexiones, ferrules y ferretería ligera: todo bajo control, desde la computadora o el teléfono. 📱💻
 
-> 🚧 **Estado:** Fase 1, etapa 1.0 (arquitectura y despliegue base). Hay un esqueleto del sistema, todavía sin funcionalidades de negocio.
+> 🚀 **Estado:** Fase 1. La etapa 1.0 (arquitectura, modelo de datos y despliegue base) está terminada y en producción. Siguiente: etapa 1.1a, usuarios, inicio de sesión y permisos.
 
 ---
 
@@ -35,9 +37,18 @@ Un negocio que está comenzando, sin sistema ni códigos de producto, que vende 
 
 ## 🗺️ Hoja de ruta
 
-- **Fase 1 (MVP)** 🚀 Todo lo anterior, construido en etapas de la 1.0 a la 1.7.
+- **Fase 1 (MVP)** 🚀 Todo lo anterior, construido en etapas de la 1.0 a la 1.7 ([plan de fases](docs/plan-de-fases.md)).
 - **Fase 2** 📝 Crédito a clientes, nota de entrega impresa o en PDF y etiquetas con código de barras.
 - **Fase 3** 🏛️ Facturación fiscal (IVA e IGTF).
+
+## 🌐 En producción
+
+| | Enlace |
+|---|---|
+| 🧾 App interna (vendedor, almacén y admin) | https://sht-gestion-app.pages.dev |
+| 🛒 Catálogo público | https://sht-gestion-catalogo.pages.dev |
+
+Por ahora ambos son páginas mínimas: las funcionalidades llegan etapa por etapa.
 
 ## 🧱 Stack
 
@@ -85,6 +96,21 @@ cd backend && uv run ruff check . && uv run pytest
 pnpm typecheck && pnpm build
 ```
 
+> 🪟 **En Windows:** los comandos funcionan igual en PowerShell (`cp` es un alias de `Copy-Item`). Después de instalar una herramienta nueva, reinicia por completo VS Code (o la aplicación desde la que abres la terminal) para que la encuentre. Más particularidades en [`despliegue.md`](docs/despliegue.md#2-herramientas-locales).
+
+## 🚀 Cómo se despliega
+
+- Integrar un cambio en `main` lo despliega solo: la API en Cloud Run si cambió `backend/`, y la app y el catálogo en Cloudflare Pages si cambió el frontend. Antes, la CI corre el lint, las migraciones y las pruebas.
+- Cada noche se guarda un respaldo cifrado de la base de datos (30 días de historial).
+- Configuración de los servicios, secretos y restauración de respaldos: [`docs/despliegue.md`](docs/despliegue.md).
+
+## 🤝 Cómo se trabaja
+
+- **Reglas no negociables:** la [constitución](.specify/memory/constitution.md) (dinero exacto, trazabilidad, ventas sin conexión, permisos en el servidor, costo controlado, pruebas de las reglas críticas).
+- **Una etapa a la vez, con [Spec Kit](https://github.com/github/spec-kit):** especificar → aclarar → planificar → tareas → analizar → implementar. Las reglas de negocio se cambian primero en el [PRD](docs/PRD.md).
+- **Una rama por cambio**, integrada a `main` al terminar; commits en español que citan los requisitos (`RF-XX`, `RN-XX`).
+- Al terminar cada funcionalidad se actualizan `docs/` y el [`CHANGELOG`](CHANGELOG.md).
+
 ## 📚 Documentación
 
 - 📄 [`PRD.md`](docs/PRD.md): qué se construye y por qué.
@@ -93,6 +119,7 @@ pnpm typecheck && pnpm build
 - 🗓️ [`plan-de-fases.md`](docs/plan-de-fases.md): qué entra en cada etapa.
 - 🚀 [`despliegue.md`](docs/despliegue.md): configuración de los servicios y operación.
 - 🧭 [`decisiones/`](docs/decisiones/): decisiones técnicas (ADR).
+- 📝 [`CHANGELOG.md`](CHANGELOG.md): qué cambió en cada etapa.
 
 ## 🤖 Hecho con Claude Code
 
