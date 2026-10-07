@@ -7,6 +7,9 @@ Cambios por funcionalidad terminada (RNF-09). Formato basado en
 
 ### Añadido
 
+- Plan de fases (etapa 1.0): `docs/plan-de-fases.md` con alcance, entregables y
+  criterios de terminado por etapa, puesta en uso real por partes y preguntas abiertas
+  asignadas a cada etapa.
 - Modelo de datos (etapa 1.0): `docs/modelo-de-datos.md` con tablas, dominios
   decimales, reglas de inmutabilidad en la base de datos y previsiones para la Fase 2
   (crédito) y la Fase 3 (IVA/IGTF).

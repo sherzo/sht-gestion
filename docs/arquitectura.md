@@ -250,7 +250,6 @@ indicada):
 
 **Técnicos:**
 
-- `docs/plan-de-fases.md` (etapa 1.0).
 - Verificar, al configurar los servicios, las cifras del nivel gratuito de Cloud Run,
   Cloud Storage y Artifact Registry, y los términos de uso comercial de Cloudflare Pages
   Free (ADR-0002).
