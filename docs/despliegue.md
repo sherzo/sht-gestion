@@ -234,12 +234,31 @@ internos de Supabase no se copian. **Las fotos de Supabase Storage no entran en 
 respaldo**; cómo respaldarlas se decide en la etapa 1.1b, cuando existan.
 
 Se prueba al cierre de cada etapa (plan de fases, definición de terminado). La cuenta de
-despliegue solo puede subir respaldos; leerlos requiere la cuenta propia del dueño:
+despliegue solo puede subir respaldos; leerlos requiere la cuenta propia del dueño.
+Procedimiento probado el 2026-10-07 (PowerShell; en Git Bash, usar `gcloud.cmd` y
+`MSYS_NO_PATHCONV=1` para que `/tmp/...` no se convierta en una ruta de Windows):
 
-```bash
-gcloud storage cp gs://sht-gestion-respaldos/<archivo>.dump.age .
-age --decrypt --identity sht-respaldo.key --output respaldo.dump <archivo>.dump.age
-docker compose up -d
+```powershell
+docker compose up -d --wait
+$tmp = "$env:TEMP\sht-restore"; New-Item -ItemType Directory -Force $tmp | Out-Null
+gcloud storage cp gs://sht-gestion-respaldos/<archivo>.dump.age $tmp\
+age --decrypt --identity "$HOME\Documents\sht-respaldo.key" --output "$tmp\respaldo.dump" "$tmp\<archivo>.dump.age"
+
+docker compose exec -T db dropdb -U sht --if-exists sht_restaurada
 docker compose exec -T db createdb -U sht sht_restaurada
-docker compose exec -T db pg_restore -U sht --no-owner -d sht_restaurada < respaldo.dump
+docker compose exec -T db psql -q -U sht -d sht_restaurada -c "drop schema public cascade"
+docker compose cp "$tmp\respaldo.dump" db:/tmp/respaldo.dump
+docker compose exec -T db pg_restore -U sht --no-owner --no-privileges -d sht_restaurada /tmp/respaldo.dump
+
+# Comprobar: la última migración y algunas tablas o dominios esperados.
+docker compose exec -T db psql -U sht -d sht_restaurada -c "select version_num from alembic_version;"
+
+# Borrar el respaldo descifrado.
+docker compose exec -T db rm /tmp/respaldo.dump
+Remove-Item -Recurse -Force $tmp
 ```
+
+- El archivo se copia con `docker compose cp`: en PowerShell la redirección `<` no existe
+  y además corrompe archivos binarios.
+- `drop schema public cascade` evita el error "schema public already exists" al
+  restaurar, y `--no-privileges` omite los permisos de `sht_api`, que no existe en local.

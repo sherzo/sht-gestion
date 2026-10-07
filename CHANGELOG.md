@@ -7,6 +7,10 @@ Cambios por funcionalidad terminada (RNF-09). Formato basado en
 
 ### Añadido
 
+- **Etapa 1.0 terminada**: producción desplegada (API en
+  https://sht-api-wilmjh5geq-uk.a.run.app, app en https://sht-gestion-app.pages.dev,
+  catálogo en https://sht-gestion-catalogo.pages.dev), respaldo diario cifrado y
+  restauración probada en local (RNF-06).
 - Despliegue base (etapa 1.0): monorepo con `backend/` (FastAPI, endpoints de salud,
   Alembic con los dominios decimales de ADR-0004, pruebas, Dockerfile), `frontend/` y
   `catalog/` (Next.js estático) y `packages/shared/`; Postgres local con Docker Compose;
