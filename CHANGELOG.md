@@ -30,6 +30,10 @@ Cambios por funcionalidad terminada (RNF-09). Formato basado en
 
 ### Cambiado
 
+- Guía de despliegue v0.2 con la configuración real de producción (Google Cloud,
+  Supabase, Cloudflare y GitHub) y las particularidades de Windows; `deploy-web.yml` crea
+  los proyectos de Cloudflare Pages si no existen.
+
 - PRD v0.4: un solo equipo de mostrador al inicio (§2); presupuesto de infraestructura
   con tope de 35–40 USD/mes (RNF-03); nuevas preguntas abiertas surgidas de la
   arquitectura (§10).
