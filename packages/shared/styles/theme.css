@@ -1,0 +1,105 @@
+/*
+ * Tema visual de Suministros Hidráulicos Turmero para Tailwind CSS v4.
+ * Lo importan la app interna y el catálogo. Reglas de uso: docs/guia-de-estilos.md
+ * (ADR-0007). Colores de marca tomados de docs/marca/logo.pdf.
+ */
+
+@theme {
+  /* Solo existen los colores de esta guía: se quita la paleta por defecto de Tailwind. */
+  --color-*: initial;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Azul de marca: #03045e es el 900. */
+  --color-navy-50: #f1f5ff;
+  --color-navy-100: #dee8fd;
+  --color-navy-200: #c3d4f9;
+  --color-navy-300: #9cb7f2;
+  --color-navy-400: #698ee8;
+  --color-navy-500: #3c64d6;
+  --color-navy-600: #2044c2;
+  --color-navy-700: #112ba2;
+  --color-navy-800: #081981;
+  --color-navy-900: #03045e;
+  --color-navy-950: #01023e;
+
+  /* Ámbar de marca: #f7aa00 es el 500. Nunca como texto sobre blanco. */
+  --color-amber-50: #fff9f1;
+  --color-amber-100: #fff0d7;
+  --color-amber-200: #ffe0af;
+  --color-amber-300: #ffcb77;
+  --color-amber-400: #ffb93d;
+  --color-amber-500: #f7aa00;
+  --color-amber-600: #d98b03;
+  --color-amber-700: #b0660c;
+  --color-amber-800: #8a4b0b;
+  --color-amber-900: #6c380d;
+  --color-amber-950: #401f0a;
+
+  /* Grises con un toque azulado. */
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  --color-neutral-950: #020617;
+
+  /* Estados: texto o ícono sobre blanco o sobre su fondo suave (contraste ≥ 4,5:1). */
+  --color-success: #15803d;
+  --color-success-soft: #f0fdf4;
+  --color-warning: #c2410c;
+  --color-warning-soft: #fff7ed;
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fef2f2;
+  --color-info: #0369a1;
+  --color-info-soft: #f0f9ff;
+
+  /* Tokens semánticos: las pantallas usan estos, no la escala directamente. */
+  --color-primary: var(--color-navy-900);
+  --color-primary-hover: var(--color-navy-800);
+  --color-on-primary: var(--color-white);
+  --color-accent: var(--color-amber-500);
+  --color-accent-hover: var(--color-amber-400);
+  --color-on-accent: var(--color-navy-900);
+  --color-canvas: var(--color-neutral-50);
+  --color-surface: var(--color-white);
+  --color-line: var(--color-neutral-200);
+  --color-ink: var(--color-neutral-900);
+  --color-ink-muted: var(--color-neutral-600);
+  --color-focus: var(--color-navy-500);
+
+  /* Fuentes autoalojadas con next/font en cada app (funcionan sin conexión). */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    color: var(--color-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}

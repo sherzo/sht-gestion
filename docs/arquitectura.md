@@ -80,10 +80,12 @@ frontend/         app interna (Next.js, PWA)
     lib/offline/  Dexie, cola de salida, sincronización
     lib/api/      cliente HTTP con tipos generados del OpenAPI
 catalog/          catálogo público (Next.js estático)
-packages/shared/  TypeScript compartido: dinero, formato es-VE, tipos generados
+packages/shared/  TypeScript compartido: dinero, formato es-VE, tipos generados;
+                  tema visual de Tailwind en styles/theme.css (ADR-0007)
 shared/
   test-vectors/   casos JSON que ejecutan las pruebas de Python y de TypeScript
 docs/
+  marca/          logo original (PDF) y SVG extraídos
 .github/workflows/
 docker-compose.yml  entorno local (Postgres)
 ```
@@ -165,6 +167,13 @@ en ADR-0004.
 ### 4.5 Idioma
 
 Código en inglés, todo lo demás en español (ADR-0006). Glosario en la sección 7.
+
+### 4.6 Estilos (RNF-02)
+
+Tailwind CSS v4 con un tema único en `packages/shared/styles/theme.css`, compartido por
+la app y el catálogo. Las pantallas usan los tokens semánticos (`primary`, `accent`,
+`surface`, `ink`…) y solo los colores de la guía; fuentes Montserrat e Inter
+autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 
 ## 5. Seguridad (RNF-05)
 

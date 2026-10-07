@@ -47,6 +47,12 @@ Una etapa está terminada cuando:
 | **Terminada cuando** | Un cambio integrado a `main` se despliega solo; la app abre en el teléfono y llama a la API; el respaldo de la noche anterior existe y se restaura en local |
 | **Estado** | ✅ Terminada el 2026-10-07: API en Cloud Run, app y catálogo en Cloudflare Pages, despliegues automáticos al integrar en `main` y restauración probada con un respaldo lanzado a mano (el respaldo programado corre cada noche a las 03:00) |
 
+### Guía de estilos base (previa a 1.1a)
+
+✅ Terminada el 2026-10-07: paleta derivada del logo, tipografía, Tailwind CSS v4 con
+tema compartido y logo en SVG (`docs/guia-de-estilos.md`, ADR-0007). Los componentes
+de cada pantalla se definen en la etapa que los usa (guía, sección 9).
+
 ### 1.1 — Usuarios, productos e inventario
 
 Se propone dividirla en dos specs:

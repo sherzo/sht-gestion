@@ -23,16 +23,30 @@ export default function Home() {
   }, []);
 
   return (
-    <main>
-      <h1>SHT Gestión</h1>
-      <p>Suministros Hidráulicos Turmero</p>
-      {status.state === "checking" && <p>Comprobando conexión con la API…</p>}
-      {status.state === "ok" && (
-        <p>
-          API conectada: versión {status.version} ({status.environment})
-        </p>
-      )}
-      {status.state === "error" && <p>No se pudo conectar con la API.</p>}
+    <main className="flex min-h-dvh items-center justify-center p-4">
+      <section className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-sm">
+        <img
+          src="/marca/logo-horizontal.svg"
+          alt="Suministros Hidráulicos Turmero"
+          width={240}
+          height={71}
+          className="mb-6 h-auto w-60"
+        />
+        <h1 className="mb-4 text-2xl font-bold">SHT Gestión</h1>
+        {status.state === "checking" && (
+          <p className="text-ink-muted">Comprobando conexión con la API…</p>
+        )}
+        {status.state === "ok" && (
+          <p className="rounded-lg bg-success-soft px-3 py-2 text-success">
+            API conectada: versión {status.version} ({status.environment})
+          </p>
+        )}
+        {status.state === "error" && (
+          <p className="rounded-lg bg-danger-soft px-3 py-2 text-danger">
+            No se pudo conectar con la API.
+          </p>
+        )}
+      </section>
     </main>
   );
 }

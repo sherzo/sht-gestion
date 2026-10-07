@@ -12,6 +12,7 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 - `docs/arquitectura.md`: **cómo** (stack, componentes, flujos, convenciones).
 - `docs/modelo-de-datos.md`: tablas, tipos, inmutabilidad y previsiones para Fase 2/3.
 - `docs/plan-de-fases.md`: alcance, entregables y criterios de terminado de cada etapa; puesta en uso real; preguntas abiertas por etapa.
+- `docs/guia-de-estilos.md`: marca, paleta, tipografía y tokens de Tailwind (tema en `packages/shared/styles/theme.css`, ADR-0007); logo original y SVG en `docs/marca/`.
 - `docs/despliegue.md`: configuración de Google Cloud, Supabase, Cloudflare y GitHub; restauración de respaldos.
 - `.specify/memory/constitution.md`: principios no negociables; cada plan pasa su "Constitution Check".
 - `docs/decisiones/`: registro de decisiones técnicas (ADR).
