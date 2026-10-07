@@ -38,6 +38,18 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
         run: pnpm build
 
+      # Crea los proyectos de Pages la primera vez; si ya existen, el error se ignora y
+      # cualquier otro problema (token, cuenta) aparece en los pasos de publicación.
+      - name: Asegurar los proyectos de Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          for project in "${{ vars.CF_PAGES_APP_PROJECT }}" "${{ vars.CF_PAGES_CATALOG_PROJECT }}"; do
+            npx --yes wrangler pages project create "$project" --production-branch=main \
+              || echo "El proyecto $project ya existe o no se pudo crear"
+          done
+
       - name: Publicar la app interna
         uses: cloudflare/wrangler-action@v3
         with:
