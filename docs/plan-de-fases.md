@@ -45,6 +45,7 @@ Una etapa está terminada cuando:
 | **Entregables** | Documentación de la etapa (hecha); monorepo con `backend/`, `frontend/`, `catalog/`, `packages/shared/`; Docker Compose local; CI (lint + pruebas); API mínima (`/api/v1/health`) en Cloud Run conectada a Supabase; app y catálogo mínimos en Cloudflare Pages; primera migración Alembic con los dominios decimales; respaldo diario funcionando; alerta de presupuesto en Google Cloud |
 | **Requiere del dueño** | Crear las cuentas de Google Cloud (con tarjeta y alerta de presupuesto), Supabase y Cloudflare |
 | **Terminada cuando** | Un cambio integrado a `main` se despliega solo; la app abre en el teléfono y llama a la API; el respaldo de la noche anterior existe y se restaura en local |
+| **Estado** | ✅ Terminada el 2026-10-07: API en Cloud Run, app y catálogo en Cloudflare Pages, despliegues automáticos al integrar en `main` y restauración probada con un respaldo lanzado a mano (el respaldo programado corre cada noche a las 03:00) |
 
 ### 1.1 — Usuarios, productos e inventario
 
