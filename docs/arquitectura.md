@@ -229,7 +229,7 @@ Código en inglés, todo lo demás en español (ADR-0006). Glosario en la secci�
 | Egreso de caja | `cash_outflow` |
 | Cuadre | `reconciliation` |
 | Cliente | `customer` |
-| Usuario | `user` |
+| Usuario | `user` (tabla `app_user`, porque `user` es palabra reservada en Postgres) |
 | Rol: Admin / Vendedor / Almacén | `admin` / `seller` / `warehouse` |
 | Equipo de mostrador | `device` |
 | Serie / correlativo | `series` / `sequence_number` |
@@ -250,8 +250,6 @@ indicada):
 
 **Técnicos:**
 
-- `docs/modelo-de-datos.md` (etapa 1.0): tablas, escalas definitivas y previsión para
-  IVA/IGTF de la Fase 3.
 - `docs/plan-de-fases.md` (etapa 1.0).
 - Verificar, al configurar los servicios, las cifras del nivel gratuito de Cloud Run,
   Cloud Storage y Artifact Registry, y los términos de uso comercial de Cloudflare Pages

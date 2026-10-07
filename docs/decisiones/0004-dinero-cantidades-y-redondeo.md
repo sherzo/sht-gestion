@@ -39,7 +39,9 @@ exactamente el mismo resultado. El principio I prohíbe el punto flotante.
 | Cálculo | Fórmula | Redondeo |
 |---|---|---|
 | Subtotal de línea (USD) | precio unitario × cantidad | 2 decimales |
-| Descuento porcentual (USD) | base × porcentaje | 2 decimales |
+| Descuento por ítem (RF-22) | monto en USD, o subtotal de línea × porcentaje | 2 decimales |
+| Descuento sobre el total (RF-22) | monto en USD, o Σ (subtotal − descuento de ítem) × porcentaje | 2 decimales |
+| Reparto del descuento total entre ítems | proporcional al neto de cada línea; el residuo de redondeo va a la línea de mayor neto | 2 decimales |
 | Total de la venta (USD) | Σ subtotales − descuentos | ya exacto a 2 decimales |
 | Total en Bs (RN-02) | total USD × tasa | 2 decimales, sobre el **total**, no sumando líneas |
 | Precio unitario en Bs (pantalla y catálogo) | precio USD × tasa | 2 decimales |
@@ -49,6 +51,9 @@ exactamente el mismo resultado. El principio I prohíbe el punto flotante.
 | Costo de compra en Bs a USD (RF-15) | costo Bs ÷ tasa de la compra | 6 decimales |
 | Costo promedio ponderado (RN-09) | (stock × costo + cantidad × costo compra) ÷ (stock + cantidad) | 6 decimales |
 
+- El descuento sobre el total se reparte entre los ítems para que el margen por producto
+  (RF-42) y la futura base imponible del IVA (RN-17) sean correctos por línea. La suma
+  de lo repartido es exactamente igual al descuento total.
 - USDT, Zelle y efectivo USD cubren su monto 1:1 en USD (RN-04).
 - La suma de los precios en Bs de cada línea puede diferir en céntimos del total en Bs.
   Prevalece el total; la pantalla lo muestra así.

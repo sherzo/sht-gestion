@@ -3,8 +3,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.4 |
-| Fecha | 2026-10-05 |
+| Versión | 0.5 |
+| Fecha | 2026-10-07 |
 | Estado | En revisión por el dueño |
 | Documentos relacionados | `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`, `CLAUDE.md` |
 
@@ -60,6 +60,7 @@ Sistema web para gestionar el inventario, las compras, las ventas multimoneda y 
 | Registrar venta | ✅ | ✅ | ❌ |
 | Aplicar descuento | ✅ | Solo con autorización del admin | ❌ |
 | Anular venta | ✅ | ❌ | ❌ |
+| Anular compra | ✅ | ❌ | ❌ |
 | Abrir/cerrar caja | ✅ | ✅ | ❌ |
 | Registrar compras y entradas | ✅ | ❌ | ✅ |
 | Ajustes de inventario | ✅ | ❌ | ✅ (con motivo obligatorio) |
@@ -139,7 +140,7 @@ Cada requisito tiene un identificador (`RF-XX`) para poder referenciarlo en tare
 
 - **RF-20** Pantalla de venta: buscar productos, agregar cantidades y ver el total en **USD y en Bs** (tasa BCV vigente).
 - **RF-21** Validar cantidades según la unidad: decimales para metros y enteros para unidades. En productos por metro, el vendedor puede escribir la cantidad en **metros o en centímetros** (ej. 30 cm); el sistema la convierte a metros (0,30 m), calcula el precio (precio por metro × 0,30) y descuenta 0,30 m del inventario.
-- **RF-22** **Descuentos**: el vendedor solo puede aplicarlos con autorización del admin, mediante PIN del admin en el momento o mediante solicitud que el admin aprueba. Queda registrado quién autorizó.
+- **RF-22** **Descuentos**: pueden aplicarse a un ítem o al total de la venta, como monto en USD o como porcentaje. El vendedor solo puede aplicarlos con autorización del admin, mediante PIN del admin en el momento o mediante solicitud que el admin aprueba. Queda registrado quién autorizó.
 - **RF-23** **Pagos mixtos**: una venta puede pagarse con uno o varios métodos hasta cubrir el total.
 - **RF-24** Métodos de pago:
 
@@ -205,6 +206,7 @@ Cada requisito tiene un identificador (`RF-XX`) para poder referenciarlo en tare
 
 Los requisitos exactos se definirán con el contador según la normativa vigente del SENIAT al momento de implementarla.
 
+- Los precios de venta ya incluyen IVA (RN-17); la factura desglosará base imponible e IVA a partir de ellos.
 - **RF-55** Calcular IVA por producto según su alícuota.
 - **RF-56** Calcular IGTF en los pagos en divisas, cuando aplique.
 - **RF-57** Emitir la factura por el medio que exija la normativa (máquina fiscal o imprenta digital autorizada).
@@ -226,6 +228,10 @@ Los requisitos exactos se definirán con el contador según la normativa vigente
 | RN-11 | Los números correlativos de venta no se repiten aunque haya ventas sin conexión en varios equipos (ver arquitectura). |
 | RN-12 | Los registros cerrados (ventas, cierres de caja) no se editan ni se borran; se corrigen con anulaciones o movimientos nuevos. |
 | RN-13 | Toda venta se registra **por producto individual**, cada uno con su propio precio y margen. No existen productos compuestos, kits ni cargos de mano de obra: una manguera con sus conexiones y ferrules son varios ítems en la misma venta. |
+| RN-14 | Las compras confirmadas no se editan ni se borran. Una compra con errores se anula (solo admin, con motivo), lo que genera movimientos inversos de inventario, y se registra de nuevo. Al anular, el costo promedio se recalcula deshaciendo el efecto de esa compra; si el resultado no es válido (stock resultante cero o negativo), se conserva el costo vigente y se alerta al admin. |
+| RN-15 | El admin puede corregir una tasa BCV mal cargada; la corrección queda auditada. Las operaciones ya registradas conservan la tasa con la que se hicieron (RN-05). |
+| RN-16 | Cada equipo de mostrador tiene como máximo una caja abierta. Quien la abre responde por ella; cualquier usuario autorizado a vender que venda desde ese equipo registra la venta en esa caja, y cada venta guarda quién la hizo. |
+| RN-17 | Los precios de venta incluyen IVA. Al implementar la facturación fiscal (Fase 3), la base imponible y el IVA se desglosarán a partir del precio. |
 
 ## 8. Requisitos no funcionales
 
@@ -247,7 +253,7 @@ Estas decisiones se tomaron para avanzar. Si alguna no es correcta, se corrige a
 2. Las compras en Bs se convierten a USD con la tasa BCV del día de la compra.
 3. Los prefijos de SKU por categoría son los de RF-02.
 4. El vuelto puede entregarse en cualquier moneda o método disponible en caja.
-5. Cada vendedor maneja su propia caja; si hay un solo equipo, la caja es compartida por turno.
+5. Confirmado: la caja es por equipo de mostrador (RN-16).
 6. Un producto con stock mayor que cero se muestra como "Disponible" en el catálogo.
 7. Los productos de ferretería no requieren atributos técnicos, solo nombre y descripción.
 
@@ -310,3 +316,4 @@ El detalle va en `docs/plan-de-fases.md`.
 | 0.2 | 2026-10-03 | Eliminadas las mangueras armadas (se vende por producto individual, RN-13). Nota de entrega pasa a Fase 2 y facturación fiscal a Fase 3. Eliminada la verificación automática de USDT. El plan de construcción de la Fase 1 se organiza en etapas. |
 | 0.3 | 2026-10-03 | Precisadas las ventas fraccionadas por metro: precisión de centímetro e ingreso en cm con conversión automática (RF-05, RF-21). |
 | 0.4 | 2026-10-05 | Respondida la pregunta abierta sobre equipos de mostrador: uno al inicio, posiblemente dos después (sección 2). Presupuesto de infraestructura: arranque gratuito con tope de 35–40 USD/mes (RNF-03). Nuevas preguntas abiertas surgidas de la arquitectura (sección 10). |
+| 0.5 | 2026-10-07 | Definiciones para el modelo de datos: descuentos por ítem o por total, en monto o porcentaje (RF-22); compras confirmadas inmutables y anulación solo por el admin (RN-14, matriz de permisos); corrección auditada de la tasa (RN-15); caja por equipo (RN-16, supuesto 5); precios con IVA incluido (RN-17). |

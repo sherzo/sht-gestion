@@ -10,7 +10,8 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 
 - `docs/PRD.md`: **qué** y **por qué**. Requisitos `RF-XX`, reglas `RN-XX`, no funcionales `RNF-XX`. Ante dudas de negocio, consultarlo.
 - `docs/arquitectura.md`: **cómo** (stack, componentes, flujos, convenciones).
-- `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`: pendientes (etapa 1.0).
+- `docs/modelo-de-datos.md`: tablas, tipos, inmutabilidad y previsiones para Fase 2/3.
+- `docs/plan-de-fases.md`: pendiente (etapa 1.0).
 - `.specify/memory/constitution.md`: principios no negociables; cada plan pasa su "Constitution Check".
 - `docs/decisiones/`: registro de decisiones técnicas (ADR).
 - `CHANGELOG.md`: cambios por funcionalidad terminada.
@@ -35,7 +36,10 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 - **Unidades:** `metro` (decimal, precisión de cm; el vendedor puede ingresar cm y se convierte a m) y `unidad` (entero). Mangueras siempre por metro (RF-05, RF-21). Usar tipos decimales exactos para dinero y cantidades, nunca float.
 - **Costo:** promedio ponderado al registrar compras (RN-09). Compras en Bs guardan tasa y equivalente USD.
 - **SKU automático** por categoría: `MAN-`, `CON-`, `FER-`, `FRT-` + correlativo de 4 dígitos (RF-02).
-- **Descuentos del vendedor** requieren autorización del admin (PIN o aprobación), registrando quién autorizó (RN-07).
+- **Descuentos** por ítem o sobre el total, en monto o porcentaje; los del vendedor requieren autorización del admin (PIN o aprobación), registrando quién autorizó (RF-22, RN-07).
+- **Compras confirmadas inmutables** (RN-14): se corrigen anulando (solo admin) y registrando de nuevo.
+- **Precios con IVA incluido** (RN-17); el desglose llega con la facturación fiscal (Fase 3).
+- **Una caja abierta por equipo** (RN-16); cada venta guarda quién la hizo.
 - **Pagos mixtos** con vuelto (método y moneda registrados). Métodos: Efectivo Bs, Pago móvil, Punto de venta, Efectivo USD, Zelle, Binance USDT; todos excepto efectivo exigen referencia (RF-24).
 - **Venta requiere caja abierta** (RF-30). Cierre compara esperado vs. contado por método de pago.
 - **Anular venta:** solo admin, con motivo; devuelve stock y revierte caja (RF-27).
