@@ -38,28 +38,20 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
         run: pnpm build
 
-      # Crea los proyectos de Pages la primera vez; si ya existen, el error se ignora y
-      # cualquier otro problema (token, cuenta) aparece en los pasos de publicación.
-      - name: Asegurar los proyectos de Pages
+      # wrangler se ejecuta con npx: cloudflare/wrangler-action intenta instalarlo en la
+      # raíz del workspace de pnpm y falla.
+      - name: Publicar en Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          APP_PROJECT: ${{ vars.CF_PAGES_APP_PROJECT }}
+          CATALOG_PROJECT: ${{ vars.CF_PAGES_CATALOG_PROJECT }}
         run: |
-          for project in "${{ vars.CF_PAGES_APP_PROJECT }}" "${{ vars.CF_PAGES_CATALOG_PROJECT }}"; do
-            npx --yes wrangler pages project create "$project" --production-branch=main \
+          # Crea los proyectos la primera vez; si ya existen, el error se ignora y cualquier
+          # otro problema (token, cuenta) hace fallar la publicación de abajo.
+          for project in "$APP_PROJECT" "$CATALOG_PROJECT"; do
+            npx --yes wrangler@4 pages project create "$project" --production-branch=main \
               || echo "El proyecto $project ya existe o no se pudo crear"
           done
-
-      - name: Publicar la app interna
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy frontend/out --project-name=${{ vars.CF_PAGES_APP_PROJECT }} --branch=main
-
-      - name: Publicar el catálogo
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy catalog/out --project-name=${{ vars.CF_PAGES_CATALOG_PROJECT }} --branch=main
+          npx --yes wrangler@4 pages deploy frontend/out --project-name="$APP_PROJECT" --branch=main
+          npx --yes wrangler@4 pages deploy catalog/out --project-name="$CATALOG_PROJECT" --branch=main
