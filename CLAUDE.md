@@ -11,7 +11,7 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 - `docs/PRD.md`: **qué** y **por qué**. Requisitos `RF-XX`, reglas `RN-XX`, no funcionales `RNF-XX`. Ante dudas de negocio, consultarlo.
 - `docs/arquitectura.md`: **cómo** (stack, componentes, flujos, convenciones).
 - `docs/modelo-de-datos.md`: tablas, tipos, inmutabilidad y previsiones para Fase 2/3.
-- `docs/plan-de-fases.md`: pendiente (etapa 1.0).
+- `docs/plan-de-fases.md`: alcance, entregables y criterios de terminado de cada etapa; puesta en uso real; preguntas abiertas por etapa.
 - `.specify/memory/constitution.md`: principios no negociables; cada plan pasa su "Constitution Check".
 - `docs/decisiones/`: registro de decisiones técnicas (ADR).
 - `CHANGELOG.md`: cambios por funcionalidad terminada.
