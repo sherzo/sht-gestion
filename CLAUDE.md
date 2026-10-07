@@ -14,15 +14,12 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 - `docs/plan-de-fases.md`: alcance, entregables y criterios de terminado de cada etapa; puesta en uso real; preguntas abiertas por etapa.
 - `docs/despliegue.md`: configuración de Google Cloud, Supabase, Cloudflare y GitHub; restauración de respaldos.
 - `.specify/memory/constitution.md`: principios no negociables; cada plan pasa su "Constitution Check".
-
-## Comandos
-
-- Backend (`backend/`): `uv sync`, `uv run ruff check .`, `uv run ruff format .`, `uv run pytest`, `uv run alembic upgrade head`, `uv run uvicorn app.main:app --reload`.
-- Frontend (raíz): `pnpm install`, `pnpm typecheck`, `pnpm build`, `pnpm dev:app`, `pnpm dev:catalog`.
-- Postgres local: `docker compose up -d` (Postgres 17, usuario/clave/base `sht`).
-- Las pruebas marcadas `db` necesitan `DATABASE_URL`; sin ella se saltan.
 - `docs/decisiones/`: registro de decisiones técnicas (ADR).
 - `CHANGELOG.md`: cambios por funcionalidad terminada.
+
+## Pruebas
+
+- Las pruebas marcadas `db` necesitan `DATABASE_URL`; sin ella se saltan.
 
 ## Reglas de trabajo
 
@@ -67,8 +64,3 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 - **Responsive** (PC, tablet, teléfono); búsqueda < 1 s; fluido en equipos modestos.
 - **Localización:** formato `1.234,56`, fechas `dd/mm/aaaa`, zona horaria `America/Caracas`.
 - Respaldo diario automático y exportación CSV/Excel.
-
-## Plan Fase 1 (MVP)
-
-1.0 arquitectura, modelo de datos y despliegue base · 1.1 usuarios, productos, inventario · 1.2 compras · 1.3 tasa BCV y ventas · 1.4 caja · 1.5 offline · 1.6 catálogo WhatsApp · 1.7 reportes.
-Fase 2: crédito, nota de entrega, etiquetas. Fase 3: facturación fiscal.
