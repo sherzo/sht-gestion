@@ -6,6 +6,18 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así suce
 
 ## [Sin publicar]
 
+### Añadido
+
+- Guía de estilos base (`docs/guia-de-estilos.md`, ADR-0007, RNF-02): paleta derivada
+  del logo (azul `#03045E` y ámbar `#F7AA00`) con escalas, grises, colores de estado y
+  tokens semánticos validados por contraste; tipografía Montserrat + Inter autoalojada;
+  solo tema claro.
+- Logo en SVG extraído del PDF original (`docs/marca/`): versiones vertical, horizontal,
+  negativa, monocromática, isotipo e ícono de la app.
+- Tailwind CSS v4 en la app y el catálogo con el tema compartido
+  `packages/shared/styles/theme.css`; logo, favicon y color de la barra del navegador en
+  ambas páginas mínimas.
+
 ## [0.1.0] — 2026-10-07 — Etapa 1.0: arquitectura, modelo de datos y despliegue base
 
 ### Añadido
