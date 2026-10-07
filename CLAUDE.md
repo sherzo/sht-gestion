@@ -2,7 +2,7 @@
 
 Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online (pedidos por WhatsApp) para un negocio pequeño de mangueras hidráulicas, conexiones, ferrules y ferretería en Venezuela.
 
-**Estado:** Fase 1, etapa 1.0 (arquitectura). Aún no hay código.
+**Estado:** Fase 1, etapa 1.0 (despliegue base). Esqueleto del monorepo sin funcionalidades de negocio.
 
 **Stack:** backend FastAPI (Python) en Cloud Run · frontend Next.js (TypeScript, export estático, app instalable/PWA) en Cloudflare Pages · Supabase solo como Postgres y almacenamiento de fotos (sin Data API ni Supabase Auth). Detalle en `docs/arquitectura.md` y ADRs en `docs/decisiones/`.
 
@@ -12,7 +12,15 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 - `docs/arquitectura.md`: **cómo** (stack, componentes, flujos, convenciones).
 - `docs/modelo-de-datos.md`: tablas, tipos, inmutabilidad y previsiones para Fase 2/3.
 - `docs/plan-de-fases.md`: alcance, entregables y criterios de terminado de cada etapa; puesta en uso real; preguntas abiertas por etapa.
+- `docs/despliegue.md`: configuración de Google Cloud, Supabase, Cloudflare y GitHub; restauración de respaldos.
 - `.specify/memory/constitution.md`: principios no negociables; cada plan pasa su "Constitution Check".
+
+## Comandos
+
+- Backend (`backend/`): `uv sync`, `uv run ruff check .`, `uv run ruff format .`, `uv run pytest`, `uv run alembic upgrade head`, `uv run uvicorn app.main:app --reload`.
+- Frontend (raíz): `pnpm install`, `pnpm typecheck`, `pnpm build`, `pnpm dev:app`, `pnpm dev:catalog`.
+- Postgres local: `docker compose up -d` (Postgres 17, usuario/clave/base `sht`).
+- Las pruebas marcadas `db` necesitan `DATABASE_URL`; sin ella se saltan.
 - `docs/decisiones/`: registro de decisiones técnicas (ADR).
 - `CHANGELOG.md`: cambios por funcionalidad terminada.
 
