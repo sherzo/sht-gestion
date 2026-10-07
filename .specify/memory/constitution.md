@@ -87,10 +87,11 @@ accesible para cualquiera en internet.
 **Razón:** el negocio está empezando y las reglas aún se validan con el dueño; un único
 documento de referencia evita que el código y el negocio diverjan.
 
-### VI. Simplicidad y costo cercano a cero
+### VI. Simplicidad y costo controlado
 
-- La infraestructura MUST operar en planes gratuitos o de muy bajo costo para ~1.000
-  productos y pocos usuarios (RNF-03). Todo servicio con costo se justifica en un ADR.
+- La infraestructura MUST respetar el presupuesto de RNF-03: arranca en planes
+  gratuitos y nunca supera 35–40 USD/mes. Todo servicio pago se justifica en un ADR
+  con el criterio concreto que activa el gasto.
 - Se prefiere la solución más simple que cumpla el requisito (YAGNI). Toda complejidad
   adicional (servicios extra, colas, microservicios) se justifica en el plan.
 - El catálogo público se regenera periódicamente, no en tiempo real (RF-38).
@@ -144,7 +145,7 @@ confianza en el inventario; las pruebas manuales no escalan con cada cambio.
   3. ¿La funcionalidad, si toca ventas, funciona sin conexión sin duplicar? (III)
   4. ¿Los permisos se verifican en el servidor y no se filtran costos? (IV)
   5. ¿Está dentro del alcance de la fase actual y respaldada por el PRD? (V)
-  6. ¿Se mantiene dentro de costo ~0 sin complejidad injustificada? (VI)
+  6. ¿Se mantiene dentro del presupuesto de RNF-03 sin complejidad injustificada? (VI)
   7. ¿Las reglas críticas que toca tienen pruebas automatizadas? (VII)
 
 ## Gobernanza
@@ -164,4 +165,4 @@ confianza en el inventario; las pruebas manuales no escalan con cada cambio.
   verifica los principios afectados. Las excepciones se justifican por escrito en el
   plan o en un ADR.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-05 | **Last Amended**: 2026-10-05
+**Version**: 1.1.0 | **Ratified**: 2026-10-05 | **Last Amended**: 2026-10-05

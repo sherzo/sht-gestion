@@ -2,18 +2,23 @@
 
 Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online (pedidos por WhatsApp) para un negocio pequeño de mangueras hidráulicas, conexiones, ferrules y ferretería en Venezuela.
 
-**Estado:** Fase 1, etapa 1.0 (planificación). Aún no hay código ni stack definido.
+**Estado:** Fase 1, etapa 1.0 (arquitectura). Aún no hay código.
+
+**Stack:** backend FastAPI (Python) en Cloud Run · frontend Next.js (TypeScript, export estático, app instalable/PWA) en Cloudflare Pages · Supabase solo como Postgres y almacenamiento de fotos (sin Data API ni Supabase Auth). Detalle en `docs/arquitectura.md` y ADRs en `docs/decisiones/`.
 
 ## Documentación (fuente de verdad)
 
 - `docs/PRD.md`: **qué** y **por qué**. Requisitos `RF-XX`, reglas `RN-XX`, no funcionales `RNF-XX`. Ante dudas de negocio, consultarlo.
-- `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`: **cómo** (pendientes, etapa 1.0).
+- `docs/arquitectura.md`: **cómo** (stack, componentes, flujos, convenciones).
+- `docs/modelo-de-datos.md`: tablas, tipos, inmutabilidad y previsiones para Fase 2/3.
+- `docs/plan-de-fases.md`: pendiente (etapa 1.0).
+- `.specify/memory/constitution.md`: principios no negociables; cada plan pasa su "Constitution Check".
 - `docs/decisiones/`: registro de decisiones técnicas (ADR).
 - `CHANGELOG.md`: cambios por funcionalidad terminada.
 
 ## Reglas de trabajo
 
-- Todo en **español**: UI, docs, commits y comentarios. Identificadores de código pueden ir en inglés si el stack lo hace más natural; decidirlo una vez en arquitectura y ser consistente.
+- Todo en **español**: UI, docs, commits y comentarios. Identificadores de código (tablas, columnas, Python, TypeScript, rutas de la API) en **inglés**, con el glosario de `docs/arquitectura.md` (ADR-0006).
 - Referenciar `RF-XX` / `RN-XX` en tareas, commits y docs.
 - Al terminar una funcionalidad: actualizar `docs/` y `CHANGELOG.md` (RNF-09).
 - Cambios de alcance o reglas de negocio → primero en `docs/PRD.md`, no inventarlos en el código.
@@ -31,7 +36,10 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 - **Unidades:** `metro` (decimal, precisión de cm; el vendedor puede ingresar cm y se convierte a m) y `unidad` (entero). Mangueras siempre por metro (RF-05, RF-21). Usar tipos decimales exactos para dinero y cantidades, nunca float.
 - **Costo:** promedio ponderado al registrar compras (RN-09). Compras en Bs guardan tasa y equivalente USD.
 - **SKU automático** por categoría: `MAN-`, `CON-`, `FER-`, `FRT-` + correlativo de 4 dígitos (RF-02).
-- **Descuentos del vendedor** requieren autorización del admin (PIN o aprobación), registrando quién autorizó (RN-07).
+- **Descuentos** por ítem o sobre el total, en monto o porcentaje; los del vendedor requieren autorización del admin (PIN o aprobación), registrando quién autorizó (RF-22, RN-07).
+- **Compras confirmadas inmutables** (RN-14): se corrigen anulando (solo admin) y registrando de nuevo.
+- **Precios con IVA incluido** (RN-17); el desglose llega con la facturación fiscal (Fase 3).
+- **Una caja abierta por equipo** (RN-16); cada venta guarda quién la hizo.
 - **Pagos mixtos** con vuelto (método y moneda registrados). Métodos: Efectivo Bs, Pago móvil, Punto de venta, Efectivo USD, Zelle, Binance USDT; todos excepto efectivo exigen referencia (RF-24).
 - **Venta requiere caja abierta** (RF-30). Cierre compara esperado vs. contado por método de pago.
 - **Anular venta:** solo admin, con motivo; devuelve stock y revierte caja (RF-27).
@@ -47,7 +55,7 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 ## Requisitos no funcionales clave
 
 - **Offline (crítico):** el módulo de ventas funciona sin internet y sincroniza sin duplicar ventas; correlativos únicos entre equipos (RN-10, RN-11). Stock negativo tras sincronizar → se registra y alerta al admin.
-- **Costo ~0:** planes gratuitos o muy baratos (~1.000 productos, pocos usuarios). El catálogo se regenera cada X horas, no en tiempo real.
+- **Costo (RNF-03):** arranca en planes gratuitos; tope de 35–40 USD/mes; cada servicio pago se justifica en un ADR (~1.000 productos, pocos usuarios). El catálogo se regenera cada X horas, no en tiempo real.
 - **Responsive** (PC, tablet, teléfono); búsqueda < 1 s; fluido en equipos modestos.
 - **Localización:** formato `1.234,56`, fechas `dd/mm/aaaa`, zona horaria `America/Caracas`.
 - Respaldo diario automático y exportación CSV/Excel.
