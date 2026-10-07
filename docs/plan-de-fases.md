@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.1 |
+| Versión | 1.0 |
 | Fecha | 2026-10-07 |
-| Estado | Borrador (etapa 1.0) |
+| Estado | Vigente (etapa 1.0 terminada; siguiente: 1.1a) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,

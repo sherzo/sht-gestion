@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.1 |
+| Versión | 1.0 |
 | Fecha | 2026-10-07 |
-| Estado | Borrador (etapa 1.0) |
+| Estado | Vigente (aprobado al cerrar la etapa 1.0; cada etapa lo afina y aplica con migraciones) |
 | Documentos relacionados | `docs/PRD.md`, `docs/arquitectura.md`, `docs/decisiones/` |
 
 > Modelo lógico de la base de datos (Postgres). Los nombres de tablas y columnas siguen el
