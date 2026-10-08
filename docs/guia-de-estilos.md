@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.0 |
-| Fecha | 2026-10-07 |
-| Estado | Vigente (base previa a la etapa 1.1a) |
+| Versión | 1.1 |
+| Fecha | 2026-10-08 |
+| Estado | Vigente (base y componentes de la etapa 1.1a) |
 | Documentos relacionados | `docs/decisiones/0007-guia-de-estilos-y-tecnologia-css.md`, `docs/arquitectura.md`, `docs/marca/` |
 
 > Reglas visuales comunes a la app interna (`frontend/`) y al catálogo (`catalog/`).
@@ -176,6 +176,34 @@ Se usa la escala por defecto de Tailwind (múltiplos de 4 px).
 - `themeColor` del viewport: `#03045E` (barra del navegador en el teléfono).
 - Favicon: `src/app/icon.svg` (copia de `docs/marca/icono-app.svg`).
 
+### 7.1 Componentes base (etapa 1.1a)
+
+En `frontend/src/components/ui/`. Las pantallas nuevas los reutilizan en lugar de
+escribir estilos propios.
+
+| Componente | Uso |
+|---|---|
+| `Button` | Variantes `primary` (acción principal), `accent` (acción destacada, p. ej. "Cobrar"), `secondary` (acciones secundarias) y `danger`; alto mínimo de 44 px y estado de carga |
+| `TextField`, `SelectField` | Campo con etiqueta, ayuda y error unidos con `aria-describedby`; el error se muestra en `danger`. Con `type="password"` (contraseñas, PIN, código) agrega a la derecha un botón con ojo para mostrar u ocultar lo escrito |
+| `Alert` | Mensaje de estado (`success`, `warning`, `danger`, `info`) con ícono y texto sobre su fondo suave |
+| `Dialog` | Diálogo modal con `<dialog>` nativo: el resto de la página queda inerte y Escape lo cierra |
+| `DataTable` | Tabla en PC y tarjetas apiladas por debajo de 640 px, sin desplazamiento horizontal |
+
+Otros elementos comunes en `frontend/src/components/`:
+
+- `AppShell`: barra superior `bg-primary` con el logo negativo, nombre y rol del usuario y
+  "Cerrar sesión"; menú lateral en PC y desplegable en el teléfono. El menú muestra solo
+  las secciones del rol (`NAV_ITEMS`); el elemento activo usa `bg-accent text-on-accent`.
+- `AuthCard`: tarjeta centrada con el logo para las pantallas sin sesión.
+- `ReauthDialog`: si la sesión termina durante un trabajo, pide la contraseña sobre la
+  página actual sin perder lo escrito.
+
+### 7.2 Íconos
+
+`lucide-react` (licencia ISC; el build solo incluye los íconos usados). Tamaño `size-5`
+junto a texto y `size-4` dentro de botones; siempre con `aria-hidden` cuando acompañan un
+texto que ya dice lo mismo, o con `aria-label` en botones que solo tienen ícono.
+
 ## 8. Cómo cambiar la guía
 
 1. Ajustar el valor en `theme.css` y la tabla correspondiente de esta guía.
@@ -187,7 +215,7 @@ Se usa la escala por defecto de Tailwind (múltiplos de 4 px).
 
 | Etapa | Se define |
 |---|---|
-| 1.1a | Botones, campos y mensajes de formulario; diseño del inicio de sesión y de la gestión de usuarios; íconos |
+| 1.1a | ✅ Hecho: componentes base (§7.1), íconos (§7.2), pantallas de ingreso, usuarios, mi cuenta y auditoría |
 | 1.3 | Pantalla de venta: lista de productos, totales USD/Bs, teclado numérico, pagos |
 | 1.5 | Íconos de la app instalable (PNG 192/512 y "maskable") a partir de `icono-app.svg`; indicador de sin conexión y pendientes |
 | 1.6 | Diseño del catálogo público: tarjetas de producto, filtros, botón de WhatsApp |

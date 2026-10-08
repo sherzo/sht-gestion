@@ -76,6 +76,7 @@ Requisitos: Python 3.14 con [uv](https://docs.astral.sh/uv/), Node 24 con pnpm y
 docker compose up -d
 
 # API (http://localhost:8000, documentación en /docs)
+# .env incluye JWT_SECRET, SETUP_CODE (código de /instalacion) y la cookie de sesión.
 cd backend
 cp .env.example .env
 uv sync
@@ -92,8 +93,10 @@ pnpm dev:catalog
 Pruebas y verificaciones:
 
 ```bash
-cd backend && uv run ruff check . && uv run pytest
+# Las pruebas `db` vacían las tablas: usar una base dedicada, p. ej. sht_test.
+cd backend && uv run ruff check . && DATABASE_URL=postgresql+psycopg://sht:sht@localhost:5432/sht_test uv run pytest
 pnpm typecheck && pnpm build
+pnpm api:types   # regenera los tipos de la API en packages/shared tras cambiar el backend
 ```
 
 > 🪟 **En Windows:** los comandos funcionan igual en PowerShell (`cp` es un alias de `Copy-Item`). Después de instalar una herramienta nueva, reinicia por completo VS Code (o la aplicación desde la que abres la terminal) para que la encuentre. Más particularidades en [`despliegue.md`](docs/despliegue.md#2-herramientas-locales).

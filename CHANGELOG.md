@@ -8,6 +8,45 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así suce
 
 ### Añadido
 
+- **Etapa 1.1a: usuarios, autenticación y permisos** (RF-44, RF-45, RF-46, RNF-05,
+  RNF-08; especificación en `specs/001-usuarios-autenticacion-permisos/`, ADR-0008):
+  - Instalación del primer administrador con código secreto, solo con la base vacía.
+  - Inicio de sesión con usuario y contraseña (Argon2id), jornada de 12 horas con token
+    de acceso de 15 minutos y token de renovación rotativo en cookie `HttpOnly`; cierre
+    de sesión inmediato; bloqueo de 15 minutos tras 5 fallos, por nombre de usuario,
+    exista o no.
+  - Permisos declarados en cada endpoint y verificados en el servidor contra la base de
+    datos en cada petición: desactivar, cambiar el rol o cerrar sesión rige desde la
+    siguiente operación. Prueba que impide rutas sin declaración y matriz de permisos
+    completa por rol.
+  - Gestión de usuarios por el admin: alta con contraseña temporal (se cambia al
+    entrar), edición, cambio de rol, desactivación y restablecimiento; siempre queda un
+    admin activo. Comando `app.cli reset-password` para recuperar al único admin.
+  - PIN del admin (4 a 6 dígitos) con verificación y bloqueo, listo para los descuentos
+    de la etapa 1.3.
+  - Auditoría de solo inserción (un trigger impide modificarla) en la misma transacción
+    que cada acción, sin contraseñas ni PIN, con consulta filtrada por usuario, acción y
+    fechas de Caracas.
+  - App interna: pantallas de instalación, ingreso, inicio, cambio de contraseña, mi
+    cuenta (PIN), usuarios y auditoría; menú por rol; reingreso sin perder lo escrito si
+    vence la sesión; componentes base de la guía de estilos e íconos `lucide-react`.
+  - Correcciones de la revisión de código: intentos de ingreso en paralelo serializados,
+    cada intento bloqueado auditado, la cuenta de fallos vuelve a cero al vencer un bloqueo,
+    límite de 5 fallos al comprobar la contraseña actual (cierra la sesión), el admin no se
+    restablece su propia contraseña, filtros de auditoría por grupo y aviso cuando la app
+    no puede contactar a la API (migración 0003).
+  - Tipos de la API generados desde el OpenAPI (`pnpm api:types`) y formato de fechas
+    `dd/mm/aaaa hh:mm` en hora de Caracas en `packages/shared`.
+
+### Cambiado
+
+- PRD v0.7: precisiones de RF-44 y RF-45 (jornada de 12 horas, código de instalación,
+  un rol por usuario, contraseña temporal).
+- `docs/arquitectura.md` 1.1, `docs/modelo-de-datos.md` 1.1, `docs/despliegue.md` 0.3 y
+  `docs/guia-de-estilos.md` 1.1 actualizados para la etapa 1.1a.
+- Despliegue de la API: secretos `jwt-secret` y `setup-code`, y cookie de sesión
+  provisional `SameSite=None` mientras no haya dominio propio.
+
 - Guía de estilos base (`docs/guia-de-estilos.md`, ADR-0007, RNF-02): paleta derivada
   del logo (azul `#03045E` y ámbar `#F7AA00`) con escalas, grises, colores de estado y
   tokens semánticos validados por contraste; tipografía Montserrat + Inter autoalojada;

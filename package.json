@@ -6,6 +6,10 @@
     "dev:app": "pnpm --filter @sht/frontend dev",
     "dev:catalog": "pnpm --filter @sht/catalog dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "api:types": "node scripts/api-types.mjs"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
   }
 }

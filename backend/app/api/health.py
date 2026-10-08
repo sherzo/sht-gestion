@@ -1,13 +1,14 @@
 """Endpoints de salud: los usan el despliegue y el monitoreo, no requieren sesión."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.api.deps import public
 from app.core.config import get_settings
 from app.db.session import get_engine
 
-router = APIRouter(prefix="/health", tags=["health"])
+router = APIRouter(prefix="/health", tags=["health"], dependencies=[Depends(public())])
 
 
 @router.get("")

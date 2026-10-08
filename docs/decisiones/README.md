@@ -15,6 +15,7 @@ como "Reemplazada por ADR-XXXX".
 | [0005](0005-autenticacion-y-permisos.md) | Autenticación y permisos | Aceptada |
 | [0006](0006-idioma-de-identificadores.md) | Idioma de identificadores y convenciones | Aceptada |
 | [0007](0007-guia-de-estilos-y-tecnologia-css.md) | Guía de estilos y tecnología CSS | Aceptada |
+| [0008](0008-sesion-y-verificacion-por-peticion.md) | Sesión de jornada y verificación en cada petición | Aceptada |
 
 ## Plantilla
 

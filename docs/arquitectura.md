@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.0 |
-| Fecha | 2026-10-07 |
+| Versión | 1.1 |
+| Fecha | 2026-10-08 |
 | Estado | Vigente (aprobada al cerrar la etapa 1.0) |
 | Documentos relacionados | `docs/PRD.md`, `docs/decisiones/`, `.specify/memory/constitution.md` |
 
@@ -157,7 +157,19 @@ en ADR-0004.
 ### 4.4 API
 
 - Prefijo `/api/v1`. Recursos y campos en inglés (ADR-0006).
-- Errores con código estable en inglés y mensaje en español.
+- Errores con código estable en inglés y mensaje en español:
+  `{"detail": {"code": "...", "message": "..."}}`; los de validación agregan `fields`.
+- **Acceso declarado por endpoint (ADR-0008):** cada ruta usa exactamente una de las
+  dependencias de `backend/app/api/deps.py`: `public()`, `require_authenticated()` o
+  `require_roles(...)`. La prueba `test_route_declarations.py` falla si alguna ruta no
+  declara su acceso, y `test_permissions_matrix.py` verifica cada endpoint con cada rol,
+  sin sesión y con contraseña temporal. Un endpoint nuevo se agrega a esa matriz.
+- **Esquemas de respuesta por rol:** a partir de la etapa 1.1b, los endpoints que
+  devuelvan productos u otros datos con costo tienen un esquema distinto para Vendedor y
+  Almacén, sin los campos de costo ni margen (no se filtran en el código: no existen en
+  el esquema).
+- **Tipos en el frontend:** `pnpm api:types` genera `packages/shared/src/api/schema.d.ts`
+  desde el OpenAPI de FastAPI; se regenera cuando cambia la API.
 - **Compatibilidad con equipos desactualizados:** un equipo sin conexión puede seguir
   con una versión anterior de la app. Las operaciones de la cola llevan
   `schema_version`, y la API acepta al menos la versión anterior. Las migraciones de
@@ -180,6 +192,11 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 - Usuario y contraseña con Argon2id; PIN del admin con límite de intentos; tokens de
   acceso cortos y tokens de renovación en cookie `HttpOnly` sobre dominio propio
   (ADR-0005).
+- Jornada de 12 horas (`user_session`); en cada petición la API lee el usuario y su
+  sesión de la base, así que desactivar, cambiar el rol o cerrar sesión rige desde la
+  siguiente operación (ADR-0008). Contraseñas asignadas por el admin son temporales.
+- Bloqueo de 15 minutos tras 5 fallos de contraseña (por nombre de usuario, exista o no),
+  de PIN o de código de instalación.
 - Permisos por rol en cada endpoint y esquemas de respuesta por rol, sin campos de costo
   para Vendedor y Almacén.
 - La base de datos solo es accesible desde la API, con un rol de permisos mínimos; Data
@@ -246,6 +263,11 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 | Cuadre | `reconciliation` |
 | Cliente | `customer` |
 | Usuario | `user` (tabla `app_user`, porque `user` es palabra reservada en Postgres) |
+| Sesión (jornada de trabajo) | `user_session` |
+| Token de renovación | `refresh_token` |
+| Contraseña temporal | `must_change_password` |
+| Código de instalación | `setup_code` |
+| PIN de autorización | `pin` |
 | Rol: Admin / Vendedor / Almacén | `admin` / `seller` / `warehouse` |
 | Equipo de mostrador | `device` |
 | Serie / correlativo | `series` / `sequence_number` |
