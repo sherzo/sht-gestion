@@ -198,6 +198,9 @@ def test_filtros_por_usuario_accion_y_fecha_de_caracas(
     exact = query(action="user.created")
     assert [item["action"] for item in exact["items"]] == ["user.created"]
 
+    group = query(action="user.created,auth.pin_failed")
+    assert {item["action"] for item in group["items"]} == {"user.created", "auth.pin_failed"}
+
     prefix = query(action="auth.", date_from="2026-09-01", date_to="2026-09-30")
     assert {item["action"] for item in prefix["items"]} == {"auth.pin_failed"}
 

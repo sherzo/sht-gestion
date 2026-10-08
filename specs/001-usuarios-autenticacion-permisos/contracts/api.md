@@ -75,8 +75,9 @@ Errores:
   con el mismo nombre, exista o no (FR-004).
 - `refresh`: `401 session_ended` (cookie ausente, token desconocido, sesión vencida o
   revocada, reutilización detectada).
-- `password`: `400 invalid_current_password`, `422 validation_error` (menos de 8
-  caracteres, o igual a la actual).
+- `password` y `PUT /auth/pin`: `400 invalid_current_password`; al quinto fallo con la
+  contraseña actual en la misma sesión, `401 session_ended` y la sesión se cierra.
+  `password` además `422 validation_error` (menos de 8 caracteres, o igual a la actual).
 
 ### PIN del admin (FR-026 a FR-029)
 
@@ -104,7 +105,8 @@ en la misma transacción.
 `UserSummary`: `{id, username, full_name, role, is_active, must_change_password,
 has_pin, last_login_at, created_at}`.
 
-Errores: `409 username_taken`, `409 last_admin` (desactivar o cambiar el rol del último
+Errores: `409 username_taken`, `409 cannot_reset_own_password` (el admin usa
+`POST /auth/password`), `409 last_admin` (desactivar o cambiar el rol del último
 admin activo), `409 cannot_deactivate_self`, `404 user_not_found`.
 
 ### Auditoría (FR-025)
@@ -114,7 +116,8 @@ admin activo), `409 cannot_deactivate_self`, `404 user_not_found`.
 | `GET /audit-log` | `?user_id=&action=&date_from=&date_to=&page=1&page_size=50` | `200 {"items": [AuditEntry], "total": int, "page": int, "page_size": int}` |
 
 - `date_from` y `date_to` son fechas (`AAAA-MM-DD`) en `America/Caracas`, inclusivas.
-- `action` acepta un código exacto (`user.created`) o un prefijo con punto (`auth.`).
+- `action` acepta un código exacto (`user.created`), varios separados por coma o un
+  prefijo con punto (`auth.`).
 - `page_size` máximo 100. Orden: más recientes primero.
 - `AuditEntry`: `{id, occurred_at, user: {id, username, full_name} | null, action,
   entity_type, entity_id, before, after, reason, details}`.

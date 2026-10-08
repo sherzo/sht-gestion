@@ -12,16 +12,17 @@ from sqlalchemy.orm import Session
 from app.core.clock import utcnow
 from app.core.errors import ApiError
 from app.core.security import hash_secret, verify_dummy, verify_secret
-from app.db.models import AppUser
+from app.db.models import AppUser, UserSession
 from app.domain.lockout import is_locked, register_failure
 from app.domain.roles import Role
 from app.services.audit import record_audit
-from app.services.auth import normalize_username
+from app.services.auth import check_current_password, normalize_username
 
 
-def set_pin(db: Session, *, user: AppUser, current_password: str, pin: str) -> None:
-    if not verify_secret(user.password_hash, current_password):
-        raise ApiError(400, "invalid_current_password", "La contraseña actual no es correcta")
+def set_pin(
+    db: Session, *, user: AppUser, session: UserSession, current_password: str, pin: str
+) -> None:
+    check_current_password(db, user=user, session=session, password=current_password)
     first_time = user.pin_hash is None
     user.pin_hash = hash_secret(pin)
     user.pin_failed_attempts = 0
@@ -70,7 +71,7 @@ def verify_admin_pin(db: Session, *, requester: AppUser, admin_username: str, pi
             user_id=requester.id,
             entity_type="app_user",
             entity_id=admin.id,
-            details={"authorized_by": str(admin.id)},
+            details={"authorized_by": str(admin.id), "admin_username": admin.username},
         )
         return admin
 
@@ -83,7 +84,12 @@ def verify_admin_pin(db: Session, *, requester: AppUser, admin_username: str, pi
     target = db.get(AppUser, admin_id, with_for_update=True) if admin_id else None
     details: dict[str, object] = {"admin_username": name}
     if target is not None:
-        attempts, locked_until = register_failure(target.pin_failed_attempts, now)
+        # Si un bloqueo anterior ya venció, la cuenta de fallos empieza de cero.
+        previous = target.pin_failed_attempts
+        if target.pin_locked_until is not None and target.pin_locked_until <= now:
+            previous = 0
+            target.pin_locked_until = None
+        attempts, locked_until = register_failure(previous, now)
         target.pin_failed_attempts = attempts
         details["consecutive_failures"] = attempts
         if locked_until is not None:

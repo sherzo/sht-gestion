@@ -80,7 +80,7 @@ def test_verificacion_correcta_registra_quien_autorizo(client, make_user, auth_h
     [entry] = audit_entries(db, "auth.pin_verified")
     assert entry.user_id == seller.id
     assert entry.entity_id == admin.id
-    assert entry.details == {"authorized_by": str(admin.id)}
+    assert entry.details == {"authorized_by": str(admin.id), "admin_username": "dueno"}
 
 
 def test_pin_invalido_no_revela_la_causa(client, make_user, auth_headers, db) -> None:
@@ -134,3 +134,30 @@ def test_un_acierto_reinicia_el_contador_del_pin(client, make_user, auth_headers
         _verify(client, headers, "dueno", "0000")
 
     assert _verify(client, headers, "dueno", "2468").status_code == 200
+
+
+def test_al_vencer_el_bloqueo_del_pin_la_cuenta_vuelve_a_cero(
+    client, make_user, auth_headers, advance_clock
+) -> None:
+    """RN-07/FR-028: tras el bloqueo, un solo error no vuelve a bloquear el PIN."""
+    make_user(Role.ADMIN, username="dueno", pin="2468")
+    seller = make_user(Role.SELLER)
+    headers = auth_headers(seller)
+    for _ in range(5):
+        _verify(client, headers, "dueno", "0000")
+    advance_clock(timedelta(minutes=15, seconds=1))
+    headers = auth_headers(seller)
+
+    assert _verify(client, headers, "dueno", "0000").status_code == 403
+    assert _verify(client, headers, "dueno", "2468").status_code == 200
+
+
+def test_definir_el_pin_cuenta_los_fallos_de_contrasena(client, make_user, auth_headers) -> None:
+    """RF-44: la contraseña actual no se puede adivinar desde una sesión abierta."""
+    headers = auth_headers(make_user(Role.ADMIN))
+    for _ in range(4):
+        assert _set_pin(client, headers, "1234", password="incorrecta").status_code == 400
+
+    fifth = _set_pin(client, headers, "1234", password="incorrecta")
+    assert fifth.status_code == 401
+    assert fifth.json()["detail"]["code"] == "session_ended"

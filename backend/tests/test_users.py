@@ -208,3 +208,15 @@ def test_restablecer_contrasena(client, admin, admin_headers, make_user, auth_he
     blocked = client.get("/api/v1/users", headers=bearer(token))
     assert blocked.status_code == 403
     assert blocked.json()["detail"]["code"] == "password_change_required"
+
+
+def test_no_puede_restablecer_su_propia_contrasena(client, admin, admin_headers) -> None:
+    """RF-45: el admin usa "Cambiar contraseña"; restablecerla cerraría su sesión."""
+    response = client.post(
+        f"/api/v1/users/{admin.id}/password",
+        json={"new_password": "temporal-123"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "cannot_reset_own_password"
+    assert client.get("/api/v1/auth/me", headers=admin_headers).status_code == 200

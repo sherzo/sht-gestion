@@ -30,6 +30,11 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así suce
   - App interna: pantallas de instalación, ingreso, inicio, cambio de contraseña, mi
     cuenta (PIN), usuarios y auditoría; menú por rol; reingreso sin perder lo escrito si
     vence la sesión; componentes base de la guía de estilos e íconos `lucide-react`.
+  - Correcciones de la revisión de código: intentos de ingreso en paralelo serializados,
+    cada intento bloqueado auditado, la cuenta de fallos vuelve a cero al vencer un bloqueo,
+    límite de 5 fallos al comprobar la contraseña actual (cierra la sesión), el admin no se
+    restablece su propia contraseña, filtros de auditoría por grupo y aviso cuando la app
+    no puede contactar a la API (migración 0003).
   - Tipos de la API generados desde el OpenAPI (`pnpm api:types`) y formato de fechas
     `dd/mm/aaaa hh:mm` en hora de Caracas en `packages/shared`.
 

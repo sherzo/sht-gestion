@@ -24,7 +24,7 @@ function loginErrorMessage(error: unknown): string {
 }
 
 export default function LoginPage() {
-  const { status, login } = useAuth();
+  const { status, login, connectionError } = useAuth();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -67,6 +67,9 @@ export default function LoginPage() {
     <AuthCard title="Iniciar sesión">
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         {!online && <Alert variant="warning">Para iniciar sesión necesitas conexión a internet.</Alert>}
+        {online && connectionError && (
+          <Alert variant="danger">No se pudo conectar con el servidor. Inténtalo de nuevo en unos minutos.</Alert>
+        )}
         {error && <Alert variant="danger">{error}</Alert>}
         <TextField
           label="Usuario"

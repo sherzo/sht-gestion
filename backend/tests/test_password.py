@@ -81,3 +81,19 @@ def test_con_contrasena_temporal_solo_puede_cambiarla(client, make_user) -> None
 
     assert _change(client, token, DEFAULT_PASSWORD, NEW_PASSWORD).status_code == 204
     assert client.get("/api/v1/_test/any-user", headers=bearer(token)).status_code == 200
+
+
+def test_cinco_fallos_de_la_contrasena_actual_cierran_la_sesion(client, make_user, db) -> None:
+    """RF-44/FR-007: una sesión desatendida no sirve para adivinar la contraseña."""
+    make_user(Role.SELLER, username="maria")
+    token = _token(client, "maria")
+    for _ in range(4):
+        assert _change(client, token, "otra", NEW_PASSWORD).status_code == 400
+
+    fifth = _change(client, token, "otra", NEW_PASSWORD)
+
+    assert fifth.status_code == 401
+    assert fifth.json()["detail"]["code"] == "session_ended"
+    assert client.get("/api/v1/auth/me", headers=bearer(token)).status_code == 401
+    entries = audit_entries(db, "auth.password_check_failed")
+    assert [entry.details["failures"] for entry in entries] == [1, 2, 3, 4, 5]

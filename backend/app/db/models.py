@@ -31,6 +31,7 @@ REVOKED_REASONS = (
     "password_reset",
     "user_deactivated",
     "token_reuse",
+    "too_many_attempts",
 )
 
 

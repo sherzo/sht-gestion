@@ -171,6 +171,14 @@ def reset_password(
     db: Session, *, actor: AppUser | None, user_id: uuid.UUID, new_password: str
 ) -> AppUser:
     """Asigna una contraseña temporal (FR-016a). `actor` es None si lo hace el comando."""
+    if actor is not None and actor.id == user_id:
+        # Restablecer la propia contraseña cerraría la sesión en uso: se usa "Cambiar
+        # contraseña", que pide la actual y conserva la sesión (FR-007).
+        raise ApiError(
+            409,
+            "cannot_reset_own_password",
+            "Para cambiar tu propia contraseña usa la opción Cambiar contraseña",
+        )
     user = db.get(AppUser, user_id, with_for_update=True)
     if user is None:
         raise _not_found()

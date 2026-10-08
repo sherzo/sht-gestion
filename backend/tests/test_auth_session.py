@@ -70,7 +70,8 @@ def test_cinco_fallos_bloquean_15_minutos_aunque_la_clave_sea_correcta(
     assert locked.status_code == 423
     assert locked.json()["detail"]["code"] == "account_locked"
     assert "locked_until" in locked.json()["detail"]
-    assert len(audit_entries(db, "auth.login_locked")) == 1
+    # Uno al empezar el bloqueo y otro por el intento rechazado (R6).
+    assert len(audit_entries(db, "auth.login_locked")) == 2
 
     advance_clock(timedelta(minutes=15, seconds=1))
     assert _login(client, "maria").status_code == 200
@@ -197,3 +198,36 @@ def test_sin_token_o_con_token_invalido(client) -> None:
     invalid = client.get("/api/v1/auth/me", headers=bearer("no-es-un-jwt"))
     assert invalid.status_code == 401
     assert invalid.json()["detail"]["code"] == "not_authenticated"
+
+
+def test_al_vencer_el_bloqueo_la_cuenta_vuelve_a_cero(client, make_user, advance_clock) -> None:
+    """RF-44/FR-004: tras el bloqueo, un solo error no vuelve a bloquear."""
+    make_user(Role.SELLER, username="maria")
+    for _ in range(5):
+        _login(client, "maria", "otra-clave")
+    advance_clock(timedelta(minutes=15, seconds=1))
+
+    assert _login(client, "maria", "otra-clave").status_code == 401
+    assert _login(client, "maria").status_code == 200
+
+
+def test_intentos_en_paralelo_no_superan_el_limite(make_user, db) -> None:
+    """RF-44/FR-004: peticiones simultáneas no prueban más de 5 contraseñas."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    make_user(Role.SELLER, username="maria")
+
+    def attempt(_: int) -> int:
+        with TestClient(app) as local_client:
+            return _login(local_client, "maria", "otra-clave").status_code
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        statuses = list(pool.map(attempt, range(12)))
+
+    assert statuses.count(401) == 5
+    assert statuses.count(423) == 7
+    assert len(audit_entries(db, "auth.login_failed")) == 5

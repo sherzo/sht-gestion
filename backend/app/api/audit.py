@@ -50,7 +50,7 @@ def list_audit(
     current: Admin,
     db: DbSession,
     user_id: uuid.UUID | None = None,
-    action: Annotated[str | None, Query(max_length=100)] = None,
+    action: Annotated[str | None, Query(max_length=500)] = None,
     date_from: date | None = None,
     date_to: date | None = None,
     page: Annotated[int, Query(ge=1)] = 1,

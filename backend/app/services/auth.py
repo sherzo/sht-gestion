@@ -117,21 +117,34 @@ def setup_admin(
 # --- Inicio de sesión (FR-002 a FR-004) ---
 
 
-def _login_failures(db: Session, username: str) -> tuple[int, datetime | None]:
-    """Fallos con ese nombre desde su último acierto, exista o no el usuario (R6)."""
+def _login_state(db: Session, username: str, now: datetime) -> tuple[int, datetime | None]:
+    """Estado del bloqueo de un nombre, exista o no el usuario (R6, ADR-0008).
+
+    Devuelve los fallos seguidos que cuentan y, si está bloqueado, hasta cuándo. Cuentan
+    los fallos posteriores al último acierto y al fin del último bloqueo: al vencer un
+    bloqueo, la cuenta vuelve a cero.
+    """
     name = AuditLog.details["username"].astext
     last_success = db.scalar(
         select(func.max(AuditLog.occurred_at)).where(
             AuditLog.action == "auth.login_succeeded", name == username
         )
     )
-    query = select(func.count(), func.max(AuditLog.occurred_at)).where(
-        AuditLog.action == "auth.login_failed", name == username
+    lock_query = select(func.max(AuditLog.details["locked_until"].astext)).where(
+        AuditLog.action == "auth.login_locked", name == username
     )
     if last_success is not None:
-        query = query.where(AuditLog.occurred_at > last_success)
-    count, last_failure = db.execute(query).one()
-    return count, last_failure
+        lock_query = lock_query.where(AuditLog.occurred_at > last_success)
+    last_lock = db.scalar(lock_query)
+    locked_until = datetime.fromisoformat(last_lock) if last_lock else None
+    if locked_until is not None and now < locked_until:
+        return 0, locked_until
+
+    since = max(filter(None, (last_success, locked_until)), default=None)
+    query = select(func.count()).where(AuditLog.action == "auth.login_failed", name == username)
+    if since is not None:
+        query = query.where(AuditLog.occurred_at > since)
+    return db.scalar(query), None
 
 
 def _locked_error(locked_until: datetime) -> ApiError:
@@ -145,13 +158,27 @@ def _locked_error(locked_until: datetime) -> ApiError:
 
 def login(db: Session, *, username: str, password: str) -> IssuedSession:
     name = normalize_username(username)
+    # Serializa los intentos con un mismo nombre: sin esto, peticiones en paralelo leerían
+    # la misma cuenta de fallos y superarían el límite de 5 (FR-004).
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:name))"), {"name": f"login:{name}"})
     now = utcnow()
-    failures, last_failure = _login_failures(db, name)
-    locked_until = login_locked_until(failures, last_failure)
-    if locked_until is not None and now < locked_until:
+    user = db.scalar(select(AppUser).where(AppUser.username == name))
+    user_id = user.id if user is not None else None
+    entity = {"entity_type": "app_user", "entity_id": user_id} if user_id else {}
+
+    failures, locked_until = _login_state(db, name, now)
+    if locked_until is not None:
+        # Cada intento rechazado queda registrado, para ver si alguien insiste (R6).
+        record_audit(
+            db,
+            action="auth.login_locked",
+            user_id=user_id,
+            details={"username": name, "locked_until": locked_until.isoformat()},
+            **entity,
+        )
+        db.commit()
         raise _locked_error(locked_until)
 
-    user = db.scalar(select(AppUser).where(AppUser.username == name))
     if user is None:
         verify_dummy(password)
         valid = False
@@ -159,8 +186,6 @@ def login(db: Session, *, username: str, password: str) -> IssuedSession:
         valid = verify_secret(user.password_hash, password) and user.is_active
 
     if not valid:
-        user_id = user.id if user is not None else None
-        entity = {"entity_type": "app_user", "entity_id": user_id} if user_id else {}
         failures += 1
         record_audit(
             db,
@@ -279,11 +304,48 @@ def revoke_user_sessions(
 # --- Contraseña propia (FR-007, FR-016a) ---
 
 
+def check_current_password(
+    db: Session, *, user: AppUser, session: UserSession, password: str
+) -> None:
+    """Comprueba la contraseña actual al cambiarla o al definir el PIN.
+
+    Una sesión abierta y desatendida no debe servir para adivinarla: cada fallo se audita
+    y al quinto en la misma sesión esta se cierra.
+    """
+    if verify_secret(user.password_hash, password):
+        return
+    session_id = str(session.id)
+    failures = 1 + db.scalar(
+        select(func.count()).where(
+            AuditLog.action == "auth.password_check_failed",
+            AuditLog.details["session_id"].astext == session_id,
+        )
+    )
+    record_audit(
+        db,
+        action="auth.password_check_failed",
+        user_id=user.id,
+        entity_type="app_user",
+        entity_id=user.id,
+        details={"session_id": session_id, "failures": failures},
+    )
+    if failures >= MAX_ATTEMPTS:
+        session.revoked_at = utcnow()
+        session.revoked_reason = "too_many_attempts"
+        db.commit()
+        raise ApiError(
+            401,
+            "session_ended",
+            "Demasiados intentos con la contraseña actual. Vuelve a iniciar sesión",
+        )
+    db.commit()
+    raise ApiError(400, "invalid_current_password", "La contraseña actual no es correcta")
+
+
 def change_password(
     db: Session, *, user: AppUser, session: UserSession, current_password: str, new_password: str
 ) -> None:
-    if not verify_secret(user.password_hash, current_password):
-        raise ApiError(400, "invalid_current_password", "La contraseña actual no es correcta")
+    check_current_password(db, user=user, session=session, password=current_password)
     if new_password == current_password:
         raise ApiError(
             422,

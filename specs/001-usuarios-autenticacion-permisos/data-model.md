@@ -56,7 +56,7 @@ Una jornada de trabajo de un usuario en un navegador.
 | `started_at` | timestamptz | Momento en que se ingresó la contraseña |
 | `expires_at` | timestamptz | `started_at + 12 h`; `CHECK (expires_at > started_at)` |
 | `revoked_at` | timestamptz, nulo | |
-| `revoked_reason` | text, nulo | `CHECK` en `logout`, `password_changed`, `password_reset`, `user_deactivated`, `token_reuse` |
+| `revoked_reason` | text, nulo | `CHECK` en `logout`, `password_changed`, `password_reset`, `user_deactivated`, `token_reuse`, `too_many_attempts` (migración 0003) |
 | `last_seen_at` | timestamptz | Última renovación |
 
 Vigente si `revoked_at IS NULL AND expires_at > now()`. Índice por `(user_id)` para
@@ -110,8 +110,9 @@ el volumen es bajo (una fila cada 15 minutos por usuario conectado).
 | `auth.login_failed` | El usuario si existe, si no nulo | `app_user` o — | `details`: `username` (normalizado, el probado), `consecutive_failures` |
 | `auth.login_locked` | El usuario si existe, si no nulo | `app_user` o — | `details`: `username`, `locked_until` |
 | `auth.password_changed` | El usuario | `app_user` | — |
+| `auth.password_check_failed` | El usuario | `app_user` | `details`: `session_id`, `failures` (al quinto se cierra la sesión) |
 | `auth.pin_set` | El admin | `app_user` | `details`: `first_time` (bool) |
-| `auth.pin_verified` | Quien pidió la verificación | `app_user` (admin) | `details`: admin que autorizó |
+| `auth.pin_verified` | Quien pidió la verificación | `app_user` (admin) | `details`: `authorized_by`, `admin_username` |
 | `auth.pin_failed` | Quien pidió la verificación | `app_user` (admin) | `details`: intentos |
 | `auth.pin_locked` | Quien pidió la verificación | `app_user` (admin) | `details`: bloqueado hasta |
 | `user.created` | El admin | `app_user` | `after`: usuario, nombre, rol |

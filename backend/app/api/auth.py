@@ -155,7 +155,13 @@ class VerifyPinResponse(BaseModel):
 
 @router.put("/pin", status_code=status.HTTP_204_NO_CONTENT)
 def set_pin(body: SetPinRequest, current: Admin, db: DbSession) -> None:
-    pin_service.set_pin(db, user=current.user, current_password=body.current_password, pin=body.pin)
+    pin_service.set_pin(
+        db,
+        user=current.user,
+        session=current.session,
+        current_password=body.current_password,
+        pin=body.pin,
+    )
 
 
 @router.post("/pin/verify")

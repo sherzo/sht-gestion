@@ -17,6 +17,8 @@ export type AuthState = {
   status: AuthStatus;
   user: SessionUser | null;
   sessionExpiresAt: string | null;
+  /** true si al abrir la app no se pudo contactar a la API. */
+  connectionError: boolean;
 };
 
 export type AuthContextValue = AuthState & {
@@ -50,16 +52,22 @@ async function requestRefresh(): Promise<SessionResponse | null> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ status: "loading", user: null, sessionExpiresAt: null });
+  const [state, setState] = useState<AuthState>({
+    status: "loading",
+    user: null,
+    sessionExpiresAt: null,
+    connectionError: false,
+  });
   const tokenRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endedHandlerRef = useRef<(() => Promise<boolean>) | null>(null);
   const refreshRef = useRef<() => Promise<string | null>>(async () => null);
+  const inFlight = useRef<Promise<string | null> | null>(null);
 
   const clearSession = useCallback((status: AuthStatus = "anonymous") => {
     tokenRef.current = null;
     if (timerRef.current) clearTimeout(timerRef.current);
-    setState({ status, user: null, sessionExpiresAt: null });
+    setState({ status, user: null, sessionExpiresAt: null, connectionError: false });
   }, []);
 
   const setSession = useCallback((session: SessionResponse) => {
@@ -67,14 +75,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (timerRef.current) clearTimeout(timerRef.current);
     const delay = Math.max(session.expires_in - REFRESH_MARGIN_SECONDS, 30) * 1000;
     timerRef.current = setTimeout(() => void refreshRef.current(), delay);
-    setState({ status: "authenticated", user: session.user, sessionExpiresAt: session.session_expires_at });
+    setState({
+      status: "authenticated",
+      user: session.user,
+      sessionExpiresAt: session.session_expires_at,
+      connectionError: false,
+    });
   }, []);
 
-  const refresh = useCallback(async (): Promise<string | null> => {
-    const session = await requestRefresh();
-    if (!session) return null;
-    setSession(session);
-    return session.access_token;
+  // Una sola renovación a la vez: si varias peticiones vencen juntas, comparten esta.
+  const refresh = useCallback((): Promise<string | null> => {
+    inFlight.current ??= requestRefresh()
+      .then((session) => {
+        if (!session) return null;
+        setSession(session);
+        return session.access_token;
+      })
+      .finally(() => {
+        inFlight.current = null;
+      });
+    return inFlight.current;
   }, [setSession]);
   refreshRef.current = refresh;
 
@@ -102,7 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
       } catch {
-        // Sin conexión: se intenta igual la renovación, que también fallará y pedirá ingresar.
+        // No se pudo contactar a la API: se avisa en la pantalla de ingreso.
+        if (cancelled) return;
+        clearSession();
+        setState((current) => ({ ...current, connectionError: true }));
+        return;
       }
       const token = await refresh();
       if (!cancelled && !token) clearSession();

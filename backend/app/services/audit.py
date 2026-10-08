@@ -84,12 +84,17 @@ def query_audit(
     page_size: int = 50,
 ) -> tuple[list[tuple[AuditLog, AppUser | None]], int]:
     """Consulta con filtros, más recientes primero (FR-025). Las fechas son días de
-    negocio en America/Caracas; `action` terminado en punto filtra por prefijo."""
+    negocio en America/Caracas. `action` admite un código, varios separados por coma o
+    un prefijo terminado en punto."""
     conditions = []
     if user_id is not None:
         conditions.append(AuditLog.user_id == user_id)
     if action:
-        if action.endswith("."):
+        if "," in action:
+            # Varias acciones exactas (un grupo de la pantalla de auditoría).
+            codes = [code.strip() for code in action.split(",") if code.strip()]
+            conditions.append(AuditLog.action.in_(codes))
+        elif action.endswith("."):
             conditions.append(AuditLog.action.startswith(action, autoescape=True))
         else:
             conditions.append(AuditLog.action == action)

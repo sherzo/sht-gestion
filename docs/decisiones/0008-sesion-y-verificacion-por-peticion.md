@@ -43,8 +43,13 @@ decisiones que ADR-0005 no cubría:
    15 minutos bloquean la instalación.
 6. **Bloqueo por nombre desde la auditoría.** Los fallos de inicio de sesión se cuentan en
    `audit_log` por nombre de usuario normalizado, exista o no: cinco seguidos bloquean
-   ese nombre 15 minutos con la misma respuesta. El PIN, que solo se verifica con
-   sesión, usa contadores en `app_user`.
+   ese nombre 15 minutos con la misma respuesta. Los intentos de un mismo nombre se
+   serializan con un bloqueo de la base (`pg_advisory_xact_lock`), cada intento
+   rechazado durante el bloqueo se audita y, al vencer, la cuenta vuelve a cero. El PIN,
+   que solo se verifica con sesión, usa contadores en `app_user` con la misma regla.
+7. **Contraseña actual con límite.** Cambiar la contraseña o definir el PIN exige la
+   actual; cada fallo se audita y al quinto en la misma sesión esta se cierra, para que
+   una sesión desatendida no sirva para adivinarla.
 
 ## Alternativas consideradas
 

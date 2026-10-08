@@ -5,7 +5,7 @@
 import { AUDIT_ACTION_GROUPS, ROLE_LABELS, auditActionLabel, formatDateTime, formatTime } from "@sht/shared";
 import type { Role } from "@sht/shared";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { RequireAuth } from "@/components/require-auth";
@@ -73,15 +73,21 @@ function AuditContent() {
       .catch(() => setUsers([]));
   }, []);
 
+  // Solo se muestra la respuesta de la última consulta: una anterior más lenta se descarta.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    const request = ++latest.current;
     setLoading(true);
     setError(null);
     try {
-      setData(await apiFetch<Page>("/audit-log", { query: { ...filters, page, page_size: PAGE_SIZE } }));
+      const result = await apiFetch<Page>("/audit-log", { query: { ...filters, page, page_size: PAGE_SIZE } });
+      if (request === latest.current) setData(result);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "No se pudo cargar la auditoría");
+      if (request === latest.current) {
+        setError(caught instanceof ApiError ? caught.message : "No se pudo cargar la auditoría");
+      }
     } finally {
-      setLoading(false);
+      if (request === latest.current) setLoading(false);
     }
   }, [filters, page]);
 
@@ -105,7 +111,7 @@ function AuditContent() {
   const actionOptions = [
     { value: "", label: "Todas" },
     ...AUDIT_ACTION_GROUPS.flatMap((group) => [
-      { value: `${Object.keys(group.actions)[0].split(".")[0]}.`, label: `${group.label} (todas)` },
+      { value: Object.keys(group.actions).join(","), label: `${group.label} (todas)` },
       ...Object.entries(group.actions).map(([value, label]) => ({ value, label: `  ${label}` })),
     ]),
   ];

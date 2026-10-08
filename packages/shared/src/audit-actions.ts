@@ -16,6 +16,7 @@ export const AUDIT_ACTION_GROUPS = [
       "auth.login_failed": "Inicio de sesión fallido",
       "auth.login_locked": "Inicio de sesión bloqueado",
       "auth.password_changed": "Cambio de contraseña propia",
+      "auth.password_check_failed": "Contraseña actual incorrecta",
     },
   },
   {
