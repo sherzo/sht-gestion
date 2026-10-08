@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.2 |
-| Fecha | 2026-10-07 |
+| Versión | 0.3 |
+| Fecha | 2026-10-08 |
 | Documentos relacionados | `docs/decisiones/0002-hosting-ambientes-y-presupuesto.md`, `docs/arquitectura.md` §6 |
 
 > Configuración inicial (una sola vez) de los servicios de producción y procedimientos
@@ -16,7 +16,7 @@
 |---|---|---|---|
 | API | Cloud Run | `sht-api` → https://sht-api-wilmjh5geq-uk.a.run.app | `us-east4` (Virginia, cerca de Supabase) |
 | Imágenes de la API | Artifact Registry | repositorio `sht` (conserva las 5 más recientes) | `us-east4` |
-| Secreto de conexión de la API | Secret Manager | `database-url` | — |
+| Secretos de la API | Secret Manager | `database-url`, `jwt-secret`, `setup-code` | — |
 | Respaldos | Cloud Storage | `sht-gestion-respaldos` (borra a los 30 días) | `us-east1` |
 | Base de datos y fotos | Supabase | proyecto `sht-gestion` | `us-east-1` (Virginia) |
 | App interna | Cloudflare Pages | `sht-gestion-app` | — |
@@ -177,6 +177,27 @@ gcloud secrets add-iam-policy-binding database-url \
   --member="serviceAccount:$RUNTIME_SA" --role=roles/secretmanager.secretAccessor
 ```
 
+6. **Secretos de la sesión** (etapa 1.1a, ADR-0005 y ADR-0008):
+   - `jwt-secret`: firma de los tokens de acceso. 64 caracteres hexadecimales
+     aleatorios, generados con el comando de PowerShell del §3 paso 3.
+   - `setup-code`: código de instalación del primer administrador (§9.1). Una frase que
+     solo conozca el dueño.
+
+   Crearlos desde la consola web (**+ Crear secreto**, sin pegar el valor en ningún otro
+   lugar) y dar a la API permiso de lectura:
+
+```bash
+for secret in jwt-secret setup-code; do
+  gcloud secrets add-iam-policy-binding $secret \
+    --member="serviceAccount:$RUNTIME_SA" --role=roles/secretmanager.secretAccessor
+done
+```
+
+   `deploy-api.yml` los pasa a Cloud Run como `JWT_SECRET` y `SETUP_CODE`. Deben existir
+   **antes** del primer despliegue que los use, o el despliegue falla. Para rotar
+   `jwt-secret`: **+ Nueva versión**, desplegar de nuevo y destruir la versión vieja;
+   todas las sesiones abiertas se cierran y los usuarios vuelven a entrar.
+
 ## 5. Cloudflare
 
 1. Crear la cuenta en cloudflare.com y anotar el **ID de la cuenta** (Workers & Pages →
@@ -262,3 +283,44 @@ Remove-Item -Recurse -Force $tmp
   y además corrompe archivos binarios.
 - `drop schema public cascade` evita el error "schema public already exists" al
   restaurar, y `--no-privileges` omite los permisos de `sht_api`, que no existe en local.
+
+## 9. Usuarios: instalación, recuperación y cookie de sesión
+
+### 9.1 Instalación del primer administrador (RF-44)
+
+1. Con los secretos del §4 paso 6 creados y la API desplegada, abrir la app. Con la base
+   vacía, redirige a `/instalacion`.
+2. Ingresar el código de `setup-code`, nombre, usuario y contraseña del dueño. Tras 5
+   códigos incorrectos en 15 minutos, la instalación se bloquea 15 minutos. Los intentos
+   quedan en la auditoría.
+3. Después de instalar, el código ya no sirve (solo funciona con la base vacía). Aun así,
+   **reemplazar su valor**: en Secret Manager, `setup-code` → **+ Nueva versión** con un
+   valor aleatorio, y destruir la versión anterior. No se borra el secreto: Cloud Run lo
+   referencia y el siguiente despliegue fallaría.
+
+### 9.2 Recuperar al único administrador
+
+Si el único admin olvida su contraseña, no hay recuperación por correo. Desde la
+computadora del dueño, con la cadena de migraciones (Session pooler, §3):
+
+```bash
+cd backend
+DATABASE_URL="<cadena del Session pooler>" uv run python -m app.cli reset-password <usuario>
+```
+
+El comando imprime una contraseña temporal (el usuario debe cambiarla al entrar), cierra
+sus sesiones y deja el registro `user.password_reset` con origen `cli` en la auditoría.
+Para cualquier otro usuario, el admin lo hace desde la pantalla `/usuarios`.
+
+### 9.3 Cookie de la sesión según el ambiente
+
+| Ambiente | `REFRESH_COOKIE_SAMESITE` | `REFRESH_COOKIE_SECURE` | Por qué |
+|---|---|---|---|
+| Local | `lax` | `false` | `localhost:3000` y `localhost:8000` son el mismo sitio |
+| Producción provisional (`*.pages.dev` y `*.run.app`) | `none` | `true` | App y API en sitios distintos |
+| Producción con dominio propio | `strict` | `true` | ADR-0005 |
+
+**Limitación provisional:** Safari (iPhone y Mac) bloquea la cookie entre sitios. Allí la
+sesión no se renueva y hay que volver a entrar cada 15 minutos. Hasta tener dominio
+propio, probar en Chrome o Edge. Al configurar el dominio, cambiar estas variables en
+`deploy-api.yml` y `CORS_ORIGINS` (§7).

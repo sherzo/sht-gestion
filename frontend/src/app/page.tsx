@@ -1,52 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// Inicio: saludo, rol y vencimiento de la jornada (RF-44/FR-005, FR-030).
+import { ROLE_LABELS, formatDateTime } from "@sht/shared";
 
-type ApiStatus =
-  | { state: "checking" }
-  | { state: "ok"; version: string; environment: string }
-  | { state: "error" };
+import { AppShell } from "@/components/app-shell";
+import { RequireAuth } from "@/components/require-auth";
+import { useAuth } from "@/lib/auth/use-auth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-// Página mínima de la etapa 1.0: comprueba que la app publicada llega a la API.
-export default function Home() {
-  const [status, setStatus] = useState<ApiStatus>({ state: "checking" });
-
-  useEffect(() => {
-    fetch(`${API_URL}/api/v1/health`)
-      .then((response) => (response.ok ? response.json() : Promise.reject(response)))
-      .then((data: { version: string; environment: string }) =>
-        setStatus({ state: "ok", version: data.version, environment: data.environment }),
-      )
-      .catch(() => setStatus({ state: "error" }));
-  }, []);
-
+function HomeContent() {
+  const { user, sessionExpiresAt } = useAuth();
+  if (!user) return null;
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
-      <section className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-sm">
-        <img
-          src="/marca/logo-horizontal.svg"
-          alt="Suministros Hidráulicos Turmero"
-          width={240}
-          height={71}
-          className="mb-6 h-auto w-60"
-        />
-        <h1 className="mb-4 text-2xl font-bold">SHT Gestión</h1>
-        {status.state === "checking" && (
-          <p className="text-ink-muted">Comprobando conexión con la API…</p>
-        )}
-        {status.state === "ok" && (
-          <p className="rounded-lg bg-success-soft px-3 py-2 text-success">
-            API conectada: versión {status.version} ({status.environment})
-          </p>
-        )}
-        {status.state === "error" && (
-          <p className="rounded-lg bg-danger-soft px-3 py-2 text-danger">
-            No se pudo conectar con la API.
-          </p>
-        )}
-      </section>
-    </main>
+    <AppShell>
+      <h1 className="mb-2 text-2xl font-bold">Hola, {user.full_name}</h1>
+      <p className="text-ink-muted">Rol: {ROLE_LABELS[user.role]}</p>
+      {sessionExpiresAt && (
+        <p className="mt-4 rounded-xl border border-line bg-surface p-4">
+          Tu jornada vence el <strong>{formatDateTime(sessionExpiresAt)}</strong>. Después tendrás
+          que volver a ingresar tu contraseña.
+        </p>
+      )}
+    </AppShell>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <RequireAuth>
+      <HomeContent />
+    </RequireAuth>
   );
 }

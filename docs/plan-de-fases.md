@@ -4,7 +4,7 @@
 |---|---|
 | Versión | 1.0 |
 | Fecha | 2026-10-07 |
-| Estado | Vigente (etapa 1.0 terminada; siguiente: 1.1a) |
+| Estado | Vigente (etapa 1.0 terminada; 1.1a implementada, pendiente de integrar) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,
@@ -64,6 +64,7 @@ Se propone dividirla en dos specs:
 | **Requisitos** | RF-44, RF-45, RF-46, RNF-05, RNF-08 |
 | **Entregables** | Inicio de sesión, renovación y cierre de sesión (ADR-0005); PIN del admin con límite de intentos; gestión de usuarios y roles; registro de auditoría; base de permisos por rol para todos los endpoints |
 | **Terminada cuando** | Cada rol solo accede a lo que le permite la matriz del PRD (§4), verificado con pruebas en el servidor |
+| **Estado** | 🚧 Implementada el 2026-10-08 en la rama `001-usuarios-autenticacion-permisos` (`specs/001-usuarios-autenticacion-permisos/`, ADR-0008). Falta: revisión de seguridad y de código, crear los secretos `jwt-secret` y `setup-code`, integrar a `main` y validar en producción |
 
 **1.1b Productos, categorías e inventario**
 

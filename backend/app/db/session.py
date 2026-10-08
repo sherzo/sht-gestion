@@ -6,9 +6,11 @@ modo no admite sentencias preparadas del lado del servidor, así que se desactiv
 (`prepare_threshold=None`).
 """
 
+from collections.abc import Iterator
 from functools import lru_cache
 
 from sqlalchemy import Engine, create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 
@@ -26,3 +28,20 @@ def get_engine() -> Engine:
         pool_pre_ping=True,
         connect_args={"prepare_threshold": None},
     )
+
+
+@lru_cache
+def get_sessionmaker() -> sessionmaker[Session]:
+    # expire_on_commit=False: los objetos siguen legibles después de confirmar, para
+    # construir la respuesta.
+    return sessionmaker(bind=get_engine(), expire_on_commit=False)
+
+
+def get_db() -> Iterator[Session]:
+    """Una sesión por petición. Los servicios confirman con commit() explícito; si algo
+    falla antes, la transacción se deshace al cerrar."""
+    db = get_sessionmaker()()
+    try:
+        yield db
+    finally:
+        db.close()

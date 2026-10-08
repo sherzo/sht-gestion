@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.0 |
-| Fecha | 2026-10-07 |
+| Versión | 1.1 |
+| Fecha | 2026-10-08 |
 | Estado | Vigente (aprobado al cerrar la etapa 1.0; cada etapa lo afina y aplica con migraciones) |
 | Documentos relacionados | `docs/PRD.md`, `docs/arquitectura.md`, `docs/decisiones/` |
 
@@ -104,13 +104,21 @@ erDiagram
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `username` | text | Único, sin distinguir mayúsculas |
-| `full_name` | text | |
-| `role` | text | `admin` \| `seller` \| `warehouse` |
+| `username` | text | Único; se guarda en minúsculas (`^[a-z0-9._-]{3,30}$`) y nunca se reutiliza |
+| `full_name` | text | 1–100 caracteres |
+| `role` | text | `admin` \| `seller` \| `warehouse`; uno por usuario |
 | `password_hash` | text | Argon2id (ADR-0005) |
-| `pin_hash` | text, nulo | Solo admin |
-| `pin_failed_attempts`, `pin_locked_until` | int, timestamptz | Límite de intentos del PIN |
+| `must_change_password` | bool | Contraseña temporal asignada por el admin (RF-45) |
+| `pin_hash` | text, nulo | Solo admin (`CHECK`) |
+| `pin_failed_attempts`, `pin_locked_until` | int, timestamptz | 5 fallos bloquean el PIN 15 minutos |
 | `is_active` | bool | |
+| `last_login_at` | timestamptz, nulo | |
+| `created_at`, `created_by`, `updated_at` | | `created_by` nulo en el admin inicial |
+
+El bloqueo de inicio de sesión (5 fallos, 15 minutos) no tiene columnas: se calcula desde
+`audit_log` por nombre de usuario, exista o no, para no revelar qué usuarios existen
+(ADR-0008). Invariantes del servicio: siempre hay al menos un admin activo y un admin no
+se desactiva a sí mismo.
 
 **`device`** (ADR-0003)
 
@@ -122,13 +130,21 @@ erDiagram
 | `token_hash` | text | Token del equipo |
 | `registered_by`, `registered_at`, `revoked_at` | | |
 
-**`refresh_token`** (ADR-0005): `user_id`, `device_id` (nulo), `token_hash`, `expires_at`,
-`revoked_at`, `replaced_by_id`.
+**`user_session`** (ADR-0008): una jornada de trabajo. `user_id`, `device_id` (nulo hasta
+la etapa 1.3), `started_at`, `expires_at` (`started_at` + 12 h, RF-44), `revoked_at`,
+`revoked_reason` (`logout`, `password_changed`, `password_reset`, `user_deactivated`,
+`token_reuse`), `last_seen_at`. La API la consulta en cada petición.
+
+**`refresh_token`** (ADR-0005, ADR-0008): `session_id`, `token_hash` (SHA-256, único),
+`created_at`, `rotated_at`, `replaced_by_id`. Rota en cada renovación; reutilizar uno ya
+rotado revoca la jornada.
 
 **`audit_log`** (RF-46): `occurred_at`, `user_id`, `device_id`, `action` (ej.
 `product.price_changed`, `exchange_rate.corrected`, `sale.voided`), `entity_type`,
-`entity_id`, `before` jsonb, `after` jsonb, `reason`. Se escribe en la misma transacción
-que la acción.
+`entity_id`, `before` jsonb, `after` jsonb, `reason`, `details` jsonb. Se escribe en la
+misma transacción que la acción y nunca guarda contraseñas ni PIN. Un trigger rechaza
+`UPDATE` y `DELETE`. Las acciones de la etapa 1.1a (instalación, sesión, PIN y usuarios)
+están en `specs/001-usuarios-autenticacion-permisos/data-model.md`.
 
 **`alert`** (RN-10, RN-14, ADR-0003): `type` (`negative_stock`, `price_mismatch`,
 `total_mismatch`, `inactive_user_sync`, `purchase_void_cost`, `discount_review`, …),

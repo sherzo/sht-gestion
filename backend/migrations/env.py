@@ -4,14 +4,15 @@ from logging.config import fileConfig
 
 from alembic import context
 
+from app.db import models  # noqa: F401  (registra las tablas en los metadatos)
+from app.db.base import Base
 from app.db.session import get_engine
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Se completará con los metadatos de los modelos SQLAlchemy a partir de la etapa 1.1.
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

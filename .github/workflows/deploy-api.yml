@@ -52,6 +52,8 @@ jobs:
           uv sync --frozen --no-dev
           uv run alembic upgrade head
 
+      # Cookie de renovación provisional (SameSite=None) mientras la app y la API estén en
+      # sitios distintos; con dominio propio pasa a strict (ADR-0008, research R5).
       - name: Desplegar en Cloud Run
         run: |
           gcloud run deploy sht-api \
@@ -64,8 +66,8 @@ jobs:
             --cpu 1 \
             --memory 512Mi \
             --cpu-boost \
-            --set-secrets DATABASE_URL=database-url:latest \
-            --set-env-vars "^@^ENVIRONMENT=production@APP_VERSION=${GITHUB_SHA::7}@CORS_ORIGINS=${{ vars.CORS_ORIGINS }}"
+            --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,SETUP_CODE=setup-code:latest \
+            --set-env-vars "^@^ENVIRONMENT=production@APP_VERSION=${GITHUB_SHA::7}@CORS_ORIGINS=${{ vars.CORS_ORIGINS }}@REFRESH_COOKIE_SAMESITE=none@REFRESH_COOKIE_SECURE=true"
 
       - name: Comprobar la API desplegada
         run: |

@@ -75,7 +75,7 @@ Deben pasar, como mínimo:
    en frío (R13).
 4. Probar en Chrome o Edge: en Safari la renovación falla hasta tener dominio propio
    (R5).
-5. Destruir el secreto `setup-code` una vez instalado.
+5. Reemplazar el valor del secreto `setup-code` por uno aleatorio una vez instalado (`docs/despliegue.md` §9.1); no se destruye, porque Cloud Run lo referencia.
 
 SC-008 (12 horas sin volver a entrar) se valida en local o en Chrome/Edge hasta tener
 dominio propio.

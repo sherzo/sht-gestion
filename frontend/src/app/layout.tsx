@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { ReauthDialog } from "@/components/reauth-dialog";
+import { AuthProvider } from "@/lib/auth/auth-context";
+
 import { inter, montserrat } from "./fonts";
 import "./globals.css";
 
@@ -17,7 +20,12 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es-VE" className={`${inter.variable} ${montserrat.variable}`}>
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          {children}
+          <ReauthDialog />
+        </AuthProvider>
+      </body>
     </html>
   );
 }

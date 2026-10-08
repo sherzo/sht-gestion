@@ -3,7 +3,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.6 |
+| Versión | 0.7 |
 | Fecha | 2026-10-07 |
 | Estado | En revisión por el dueño |
 | Documentos relacionados | `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`, `CLAUDE.md` |
@@ -184,8 +184,8 @@ Cada requisito tiene un identificador (`RF-XX`) para poder referenciarlo en tare
 
 ### 6.9 Usuarios
 
-- **RF-44** Inicio de sesión con usuario y contraseña, más un PIN de admin para autorizaciones.
-- **RF-45** El admin crea, desactiva y asigna roles a los usuarios.
+- **RF-44** Inicio de sesión con usuario y contraseña, más un PIN de admin para autorizaciones. La sesión dura una jornada: hasta 12 horas desde que se ingresa la contraseña. El primer administrador se crea una sola vez, con el sistema vacío y un código de instalación secreto que conoce el dueño.
+- **RF-45** El admin crea, desactiva y asigna roles a los usuarios (un rol por usuario). La contraseña que asigna el admin, al crear un usuario o al restablecerla, es temporal: el usuario debe cambiarla al entrar antes de hacer cualquier otra cosa.
 - **RF-46** Registro de auditoría de acciones sensibles: cambios de precio, descuentos, anulaciones, ajustes y cambios de tasa.
 
 ### 6.10 Fase 2 — Crédito y cuentas por cobrar
@@ -318,3 +318,4 @@ El detalle va en `docs/plan-de-fases.md`.
 | 0.4 | 2026-10-05 | Respondida la pregunta abierta sobre equipos de mostrador: uno al inicio, posiblemente dos después (sección 2). Presupuesto de infraestructura: arranque gratuito con tope de 35–40 USD/mes (RNF-03). Nuevas preguntas abiertas surgidas de la arquitectura (sección 10). |
 | 0.5 | 2026-10-07 | Definiciones para el modelo de datos: descuentos por ítem o por total, en monto o porcentaje (RF-22); compras confirmadas inmutables y anulación solo por el admin (RN-14, matriz de permisos); corrección auditada de la tasa (RN-15); caja por equipo (RN-16, supuesto 5); precios con IVA incluido (RN-17). |
 | 0.6 | 2026-10-07 | Resumen (§1) y objetivo 6 alineados con el presupuesto de RNF-03 (arranque gratuito, tope de 35–40 USD/mes) en lugar de "costo cercano a cero". |
+| 0.7 | 2026-10-07 | Aclaraciones de la etapa 1.1a: jornada de 12 horas e instalación con código secreto (RF-44); un rol por usuario y contraseña temporal asignada por el admin (RF-45). |
