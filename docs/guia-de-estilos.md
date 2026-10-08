@@ -184,7 +184,7 @@ escribir estilos propios.
 | Componente | Uso |
 |---|---|
 | `Button` | Variantes `primary` (acción principal), `accent` (acción destacada, p. ej. "Cobrar"), `secondary` (acciones secundarias) y `danger`; alto mínimo de 44 px y estado de carga |
-| `TextField`, `SelectField` | Campo con etiqueta, ayuda y error unidos con `aria-describedby`; el error se muestra en `danger` |
+| `TextField`, `SelectField` | Campo con etiqueta, ayuda y error unidos con `aria-describedby`; el error se muestra en `danger`. Con `type="password"` (contraseñas, PIN, código) agrega a la derecha un botón con ojo para mostrar u ocultar lo escrito |
 | `Alert` | Mensaje de estado (`success`, `warning`, `danger`, `info`) con ícono y texto sobre su fondo suave |
 | `Dialog` | Diálogo modal con `<dialog>` nativo: el resto de la página queda inerte y Escape lo cierra |
 | `DataTable` | Tabla en PC y tarjetas apiladas por debajo de 640 px, sin desplazamiento horizontal |
