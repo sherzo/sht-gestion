@@ -10,9 +10,17 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 
 from app.core.clock import utcnow
-from app.db.models import AdjustmentRequest, ProductPhoto, StockCount, StockCountLine
+from app.db.models import (
+    AdjustmentRequest,
+    AttributeDefinition,
+    ProductPhoto,
+    StockCount,
+    StockCountLine,
+    Unit,
+)
 from app.domain.roles import Role
 from tests.conftest import DEFAULT_PASSWORD
 
@@ -88,7 +96,23 @@ MATRIX: list[Row] = [
     Row("GET", "/api/v1/audit-log", ADMIN_ONLY),
     # Configuración del inventario (RF-03 a RF-05; specs/002 contracts/api.md)
     Row("GET", "/api/v1/units", ANY_ROLE),
+    Row("POST", "/api/v1/units", ADMIN_ONLY, {"code": "caja", "name": "caja", "decimals": 0}),
+    Row("PATCH", "/api/v1/units/{unit_id}", ADMIN_ONLY, {"name": "unidad suelta"}),
     Row("GET", "/api/v1/categories", ANY_ROLE),
+    Row(
+        "POST",
+        "/api/v1/categories",
+        ADMIN_ONLY,
+        {"name": "Aceites", "sku_prefix": "ACE", "default_unit_id": "{unit_id}"},
+    ),
+    Row("PATCH", "/api/v1/categories/{category_id}", ADMIN_ONLY, {"name": "Ferretería general"}),
+    Row(
+        "POST",
+        "/api/v1/categories/{category_id}/attributes",
+        ADMIN_ONLY,
+        {"key": "material", "label": "Material", "data_type": "text"},
+    ),
+    Row("PATCH", "/api/v1/attributes/{attribute_id}", ADMIN_ONLY, {"label": "Tipo de manguera"}),
     # Productos (RF-01, RF-02, RF-06, RF-07)
     Row("GET", "/api/v1/products", ANY_ROLE),
     Row("POST", "/api/v1/products", ADMIN_WAREHOUSE, {"category_id": "{category_id}", "name": "X"}),
@@ -214,6 +238,10 @@ def actor_headers(make_user, auth_headers, make_product, give_stock, category_id
         "line_id": str(line.id),
         "other_product_id": str(other.id),
         "category_id": str(category_id("FRT")),
+        "unit_id": str(db.scalar(select(Unit.id).where(Unit.code == "u"))),
+        "attribute_id": str(
+            db.scalar(select(AttributeDefinition.id).where(AttributeDefinition.key == "hose_type"))
+        ),
     }
     return headers_for
 

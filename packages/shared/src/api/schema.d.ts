@@ -270,7 +270,8 @@ export interface paths {
         /** List Units */
         get: operations["list_units_api_v1_units_get"];
         put?: never;
-        post?: never;
+        /** Create Unit */
+        post: operations["create_unit_api_v1_units_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -287,11 +288,80 @@ export interface paths {
         /** List Categories */
         get: operations["list_categories_api_v1_categories_get"];
         put?: never;
-        post?: never;
+        /** Create Category */
+        post: operations["create_category_api_v1_categories_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/units/{unit_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Unit */
+        patch: operations["update_unit_api_v1_units__unit_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Category */
+        patch: operations["update_category_api_v1_categories__category_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/categories/{category_id}/attributes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Attribute */
+        post: operations["create_attribute_api_v1_categories__category_id__attributes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attributes/{attribute_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Attribute */
+        patch: operations["update_attribute_api_v1_attributes__attribute_id__patch"];
         trace?: never;
     };
     "/api/v1/products": {
@@ -971,6 +1041,52 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** CreateAttributeRequest */
+        CreateAttributeRequest: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Data Type
+             * @enum {string}
+             */
+            data_type: "text" | "number" | "option";
+            /** Options */
+            options?: components["schemas"]["AttributeOption"][] | null;
+            /**
+             * Is Required
+             * @default false
+             */
+            is_required: boolean;
+            /**
+             * Is Filterable
+             * @default false
+             */
+            is_filterable: boolean;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** CreateCategoryRequest */
+        CreateCategoryRequest: {
+            /** Name */
+            name: string;
+            /** Sku Prefix */
+            sku_prefix: string;
+            /**
+             * Default Unit Id
+             * Format: uuid
+             */
+            default_unit_id: string;
+            /**
+             * Unit Locked
+             * @default false
+             */
+            unit_locked: boolean;
+        };
         /** CreateProductRequest */
         CreateProductRequest: {
             /**
@@ -999,6 +1115,18 @@ export interface components {
              * @default 0
              */
             min_stock: number | string;
+        };
+        /** CreateUnitRequest */
+        CreateUnitRequest: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Decimals
+             * @enum {integer}
+             */
+            decimals: 0 | 2;
         };
         /** CreateUserRequest */
         CreateUserRequest: {
@@ -1623,6 +1751,37 @@ export interface components {
             /** Decimals */
             decimals: number;
         };
+        /**
+         * UpdateAttributeRequest
+         * @description La clave y el tipo no se cambian; las opciones se agregan o se desactivan.
+         */
+        UpdateAttributeRequest: {
+            /** Label */
+            label?: string | null;
+            /** Options */
+            options?: components["schemas"]["AttributeOption"][] | null;
+            /** Is Required */
+            is_required?: boolean | null;
+            /** Is Filterable */
+            is_filterable?: boolean | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /** UpdateCategoryRequest */
+        UpdateCategoryRequest: {
+            /** Name */
+            name?: string | null;
+            /** Sku Prefix */
+            sku_prefix?: string | null;
+            /** Default Unit Id */
+            default_unit_id?: string | null;
+            /** Unit Locked */
+            unit_locked?: boolean | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
         /** UpdateProductRequest */
         UpdateProductRequest: {
             /** Name */
@@ -1643,6 +1802,16 @@ export interface components {
             is_active?: boolean | null;
             /** Updated At */
             updated_at?: string | null;
+        };
+        /**
+         * UpdateUnitRequest
+         * @description El código y los decimales no se cambian: enviarlos es un error de validación.
+         */
+        UpdateUnitRequest: {
+            /** Name */
+            name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
         };
         /** UpdateUserRequest */
         UpdateUserRequest: {
@@ -2249,6 +2418,39 @@ export interface operations {
             };
         };
     };
+    create_unit_api_v1_units_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUnitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_categories_api_v1_categories_get: {
         parameters: {
             query?: {
@@ -2267,6 +2469,179 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_category_api_v1_categories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCategoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_unit_api_v1_units__unit_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateUnitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_category_api_v1_categories__category_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCategoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_attribute_api_v1_categories__category_id__attributes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAttributeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttributeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_attribute_api_v1_attributes__attribute_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attribute_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAttributeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttributeOut"];
                 };
             };
             /** @description Validation Error */
