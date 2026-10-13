@@ -281,8 +281,6 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 **Preguntas de negocio** (registradas en PRD §10, se responden antes de la etapa
 indicada):
 
-- (1.1b) Precios distintos para mayoristas o talleres (afectaría al modelo de datos:
-  listas de precios).
 - (1.2) Costo promedio con stock previo cero o negativo.
 - (1.3) Venta con stock insuficiente estando en línea: ¿advertir o bloquear?
 - (1.3/1.5) Descuentos sin conexión.

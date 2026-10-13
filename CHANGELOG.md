@@ -42,6 +42,12 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así suce
 
 - PRD v0.7: precisiones de RF-44 y RF-45 (jornada de 12 horas, código de instalación,
   un rol por usuario, contraseña temporal).
+- PRD v0.8, para especificar la etapa 1.1b (`specs/002-productos-inventario/`): costo
+  inicial fijado por el admin mientras el producto no tenga compras confirmadas (RN-09)
+  y un solo precio de venta por producto, sin precios de mayorista en la Fase 1
+  (RN-18); las salidas de inventario del Almacén necesitan aprobación del admin y los
+  conteos los aplica solo el admin (RN-19, matriz de permisos); solo el admin publica
+  en el catálogo y el vendedor no ve el kardex (matriz de permisos).
 - `docs/arquitectura.md` 1.1, `docs/modelo-de-datos.md` 1.1, `docs/despliegue.md` 0.3 y
   `docs/guia-de-estilos.md` 1.1 actualizados para la etapa 1.1a.
 - Despliegue de la API: secretos `jwt-secret` y `setup-code`, y cookie de sesión

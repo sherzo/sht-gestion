@@ -2,7 +2,7 @@
 
 Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online (pedidos por WhatsApp) para un negocio pequeño de mangueras hidráulicas, conexiones, ferrules y ferretería en Venezuela.
 
-**Estado:** Fase 1. Etapa 1.0 terminada (arquitectura, modelo de datos y despliegue base en producción). Etapa 1.1a (usuarios, autenticación y permisos) integrada a `main` (`specs/001-usuarios-autenticacion-permisos/`), pendiente de validar en producción; siguiente: 1.1b (productos, categorías e inventario).
+**Estado:** Fase 1. Etapa 1.0 terminada (arquitectura, modelo de datos y despliegue base en producción). Etapa 1.1a (usuarios, autenticación y permisos) integrada a `main` (`specs/001-usuarios-autenticacion-permisos/`), pendiente de validar en producción; siguiente: 1.1b (productos, categorías e inventario), especificada y planificada en `specs/002-productos-inventario/`.
 
 **Stack:** backend FastAPI (Python) en Cloud Run · frontend Next.js (TypeScript, export estático, app instalable/PWA) en Cloudflare Pages · Supabase solo como Postgres y almacenamiento de fotos (sin Data API ni Supabase Auth). Detalle en `docs/arquitectura.md` y ADRs en `docs/decisiones/`.
 
@@ -40,7 +40,8 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 - **Registros cerrados son inmutables** (ventas, cierres de caja): se corrigen con anulaciones o movimientos nuevos (RN-12, RF-33).
 - **Sin productos compuestos/kits** (RN-13): una manguera armada = varios ítems individuales en la venta.
 - **Unidades:** `metro` (decimal, precisión de cm; el vendedor puede ingresar cm y se convierte a m) y `unidad` (entero). Mangueras siempre por metro (RF-05, RF-21). Usar tipos decimales exactos para dinero y cantidades, nunca float.
-- **Costo:** promedio ponderado al registrar compras (RN-09). Compras en Bs guardan tasa y equivalente USD.
+- **Costo:** promedio ponderado al registrar compras (RN-09). Compras en Bs guardan tasa y equivalente USD. Sin compras confirmadas, solo el admin fija un costo inicial (auditado).
+- **Un solo precio de venta por producto** (RN-18): sin precios de mayorista en Fase 1, pero el modelo debe admitir listas de precios después.
 - **SKU automático** por categoría: `MAN-`, `CON-`, `FER-`, `FRT-` + correlativo de 4 dígitos (RF-02).
 - **Descuentos** por ítem o sobre el total, en monto o porcentaje; los del vendedor requieren autorización del admin (PIN o aprobación), registrando quién autorizó (RF-22, RN-07).
 - **Compras confirmadas inmutables** (RN-14): se corrigen anulando (solo admin) y registrando de nuevo.
@@ -53,8 +54,8 @@ Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online 
 ## Roles (permisos verificados en el servidor, no solo en la UI)
 
 - **Admin:** todo (precios, costos, márgenes, tasa, usuarios, anulaciones, autorizaciones).
-- **Vendedor:** ventas y su caja; sin costos ni márgenes; reportes solo de sus ventas del día.
-- **Almacén:** productos (sin precio de venta), compras, ajustes y conteos; reportes de inventario.
+- **Vendedor:** ventas y su caja; sin costos, márgenes ni kardex (solo stock actual); reportes solo de sus ventas del día.
+- **Almacén:** productos (sin precio de venta), compras, ajustes y conteos; reportes de inventario. Sus ajustes negativos esperan aprobación del admin y sus conteos los aplica el admin (RN-19).
 - **Público:** catálogo sin login; nunca exponer costos ni cantidades exactas (solo "Disponible"/"Agotado").
 - Auditar acciones sensibles: precios, descuentos, anulaciones, ajustes, tasas (RF-46).
 
