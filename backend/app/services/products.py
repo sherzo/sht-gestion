@@ -22,8 +22,17 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
 from app.core.errors import ApiError
-from app.db.models import AppUser, AttributeDefinition, Category, Product, ProductPhoto, Unit
+from app.db.models import (
+    AppUser,
+    AttributeDefinition,
+    Category,
+    Product,
+    ProductPhoto,
+    ProductPrice,
+    Unit,
+)
 from app.domain.attributes import AttributeSpec, AttributeValidationError, validate_attributes
+from app.domain.money import validate_cost, validate_price
 from app.domain.roles import Role
 from app.domain.search import build_search_text, search_tokens
 from app.domain.sku import format_sku
@@ -444,3 +453,109 @@ def _set_active(db: Session, actor: AppUser, product: Product, is_active: bool) 
         entity_id=product.id,
         details=details,
     )
+
+
+# --- Precio, costo y publicación: solo el Admin (FR-009, FR-011 a FR-013; R6) ---------
+
+
+def set_price(db: Session, *, actor: AppUser, product_id: uuid.UUID, price: Decimal) -> Product:
+    """Fija el precio vigente y lo agrega al historial, que no se edita (FR-012)."""
+    product = lock_product(db, product_id)
+    try:
+        value = validate_price(price)
+    except ValueError as exc:
+        raise validation_error({"sale_price_usd": str(exc)}) from exc
+    before = product.sale_price_usd
+    now = utcnow()
+    product.sale_price_usd = value
+    product.updated_at = now
+    product.updated_by = actor.id
+    db.add(ProductPrice(product_id=product.id, price_usd=value, valid_from=now, set_by=actor.id))
+    record_audit(
+        db,
+        action="product.price_set",
+        user_id=actor.id,
+        entity_type="product",
+        entity_id=product.id,
+        before={"sale_price_usd": None if before is None else str(before)},
+        after={"sale_price_usd": str(value)},
+        details={"sku": product.sku},
+    )
+    db.commit()
+    return product
+
+
+def list_prices(db: Session, product_id: uuid.UUID) -> list[ProductPrice]:
+    if db.get(Product, product_id) is None:
+        raise product_not_found()
+    return list(
+        db.scalars(
+            select(ProductPrice)
+            .where(ProductPrice.product_id == product_id)
+            .order_by(ProductPrice.valid_from.desc(), ProductPrice.id.desc())
+        )
+    )
+
+
+def set_initial_cost(
+    db: Session, *, actor: AppUser, product_id: uuid.UUID, cost: Decimal
+) -> Product:
+    """Costo inicial a mano, solo sin compras confirmadas; después lo cambian las compras
+    con el promedio ponderado (RN-09/FR-013)."""
+    product = lock_product(db, product_id)
+    if product.cost_locked:
+        raise ApiError(
+            409,
+            "cost_locked",
+            "El producto ya tiene compras confirmadas: su costo solo lo cambian las compras",
+        )
+    try:
+        value = validate_cost(cost)
+    except ValueError as exc:
+        raise validation_error({"avg_cost_usd": str(exc)}) from exc
+    before = product.avg_cost_usd
+    product.avg_cost_usd = value
+    product.updated_at = utcnow()
+    product.updated_by = actor.id
+    record_audit(
+        db,
+        action="product.initial_cost_set",
+        user_id=actor.id,
+        entity_type="product",
+        entity_id=product.id,
+        before={"avg_cost_usd": None if before is None else str(before)},
+        after={"avg_cost_usd": str(value)},
+        details={"sku": product.sku},
+    )
+    db.commit()
+    return product
+
+
+def set_publication(
+    db: Session, *, actor: AppUser, product_id: uuid.UUID, is_published: bool
+) -> Product:
+    """Publica o retira del catálogo; publicar exige producto activo y con precio
+    (RF-07/FR-009). Mostrar el catálogo es de la etapa 1.6."""
+    product = lock_product(db, product_id)
+    if is_published and (not product.is_active or product.sale_price_usd is None):
+        raise ApiError(
+            409,
+            "not_publishable",
+            "Solo se publica un producto activo y con precio de venta",
+            is_active=product.is_active,
+            has_price=product.sale_price_usd is not None,
+        )
+    if is_published != product.is_published:
+        product.is_published = is_published
+        product.updated_at = utcnow()
+        product.updated_by = actor.id
+        record_audit(
+            db,
+            action="product.published" if is_published else "product.unpublished",
+            user_id=actor.id,
+            entity_type="product",
+            entity_id=product.id,
+            details={"sku": product.sku},
+        )
+    db.commit()
+    return product

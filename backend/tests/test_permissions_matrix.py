@@ -102,6 +102,11 @@ MATRIX: list[Row] = [
         ADMIN_WAREHOUSE,
         {"photo_ids": ["{photo_id}"]},
     ),
+    # Precio, costo y publicación (RF-01, RF-07, RN-09)
+    Row("PUT", "/api/v1/products/{product_id}/price", ADMIN_ONLY, {"sale_price_usd": "10.00"}),
+    Row("GET", "/api/v1/products/{product_id}/prices", ADMIN_ONLY),
+    Row("PUT", "/api/v1/products/{product_id}/initial-cost", ADMIN_ONLY, {"avg_cost_usd": "1"}),
+    Row("PUT", "/api/v1/products/{product_id}/publication", ADMIN_ONLY, {"is_published": False}),
     # Kardex y ajustes (RF-08 a RF-10, RN-19)
     Row("GET", "/api/v1/products/{product_id}/movements", ADMIN_WAREHOUSE),
     Row(

@@ -69,6 +69,8 @@ LEAK_CASES: list[LeakCase] = [
         (WAREHOUSE,),
         body={"product_id": "{product_id}", "quantity_delta": "-1", "reason": "loss"},
     ),
+    # Ficha de un producto publicado con precio y costo definidos (US4)
+    LeakCase("GET", "/api/v1/products/{published_id}"),
     # Búsqueda y stock bajo (US3)
     LeakCase("GET", "/api/v1/products?q=producto&low_stock=true"),
     LeakCase("GET", "/api/v1/inventory/low-stock", (WAREHOUSE,)),
@@ -111,6 +113,9 @@ def leak_context(
     """Datos con precio y costo definidos para que una fuga se note."""
     product = make_product("MAN", sale_price="12.50", avg_cost="7.250000", min_stock="50")
     give_stock(product, "10")
+    published = make_product(
+        "CON", sale_price="4.00", avg_cost="1.500000", min_stock="2", is_published=True
+    )
     headers = {
         SELLER: auth_headers(make_user(SELLER, username="vendedor_fuga")),
         WAREHOUSE: auth_headers(make_user(WAREHOUSE, username="almacen_fuga")),
@@ -119,6 +124,7 @@ def leak_context(
         "headers": headers,
         "product": product,
         "product_id": str(product.id),
+        "published_id": str(published.id),
         "frt_category_id": str(category_id("FRT")),
     }
 

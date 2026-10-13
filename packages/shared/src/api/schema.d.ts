@@ -405,6 +405,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{product_id}/price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Price */
+        put: operations["set_price_api_v1_products__product_id__price_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{product_id}/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Prices
+         * @description Historial de precios, más reciente primero (FR-012).
+         */
+        get: operations["list_prices_api_v1_products__product_id__prices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{product_id}/initial-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Initial Cost */
+        put: operations["set_initial_cost_api_v1_products__product_id__initial_cost_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{product_id}/publication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Publication */
+        put: operations["set_publication_api_v1_products__product_id__publication_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/adjustments": {
         parameters: {
             query?: never;
@@ -807,6 +878,11 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InitialCostRequest */
+        InitialCostRequest: {
+            /** Avg Cost Usd */
+            avg_cost_usd: number | string;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Username */
@@ -849,6 +925,27 @@ export interface components {
             width: number;
             /** Height */
             height: number;
+        };
+        /** PriceOut */
+        PriceOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Price Usd */
+            price_usd: string;
+            /**
+             * Valid From
+             * Format: date-time
+             */
+            valid_from: string;
+            set_by: components["schemas"]["UserRef"] | null;
+        };
+        /** PriceRequest */
+        PriceRequest: {
+            /** Sale Price Usd */
+            sale_price_usd: number | string;
         };
         /** ProductAdmin */
         ProductAdmin: {
@@ -1000,6 +1097,11 @@ export interface components {
              * @default []
              */
             warnings: string[];
+        };
+        /** PublicationRequest */
+        PublicationRequest: {
+            /** Is Published */
+            is_published: boolean;
         };
         /** RejectBody */
         RejectBody: {
@@ -2101,6 +2203,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MovementPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_price_api_v1_products__product_id__price_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductAdmin"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_prices_api_v1_products__product_id__prices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_initial_cost_api_v1_products__product_id__initial_cost_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InitialCostRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductAdmin"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_publication_api_v1_products__product_id__publication_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductAdmin"];
                 };
             };
             /** @description Validation Error */

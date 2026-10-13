@@ -17,10 +17,13 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.api.deps import CurrentUser, DbSession, require_authenticated, require_roles
 from app.api.product_schemas import (
+    ProductAdmin,
     ProductOut,
     StockMovementOut,
+    UserRef,
     movement_for_role,
     product_for_role,
+    user_ref,
 )
 from app.core.config import get_settings
 from app.db.models import Product, Unit
@@ -34,6 +37,7 @@ router = APIRouter(prefix="/products", tags=["products"])
 
 AnyUser = Annotated[CurrentUser, Depends(require_authenticated())]
 Editor = Annotated[CurrentUser, Depends(require_roles(Role.ADMIN, Role.WAREHOUSE))]
+Admin = Annotated[CurrentUser, Depends(require_roles(Role.ADMIN))]
 
 ProductName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
@@ -249,3 +253,77 @@ def list_movements(
         for movement in rows
     ]
     return MovementPage(items=items, total=total, page=page, page_size=page_size)
+
+
+# --- Precio, costo y publicación: solo el Admin (FR-009, FR-011 a FR-013) --------------
+
+
+class PriceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sale_price_usd: Decimal
+
+
+class InitialCostRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    avg_cost_usd: Decimal
+
+
+class PublicationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    is_published: bool
+
+
+class PriceOut(BaseModel):
+    id: uuid.UUID
+    price_usd: str
+    valid_from: datetime
+    set_by: UserRef | None
+
+
+@router.put("/{product_id}/price")
+def set_price(
+    product_id: uuid.UUID, body: PriceRequest, current: Admin, db: DbSession
+) -> ProductAdmin:
+    product = products_service.set_price(
+        db, actor=current.user, product_id=product_id, price=body.sale_price_usd
+    )
+    return product_out(db, current, product)
+
+
+@router.get("/{product_id}/prices")
+def list_prices(product_id: uuid.UUID, current: Admin, db: DbSession) -> list[PriceOut]:
+    """Historial de precios, más reciente primero (FR-012)."""
+    prices = products_service.list_prices(db, product_id)
+    users = users_by_id(db, {price.set_by for price in prices})
+    return [
+        PriceOut(
+            id=price.id,
+            price_usd=str(price.price_usd),
+            valid_from=price.valid_from,
+            set_by=user_ref(users.get(price.set_by)),
+        )
+        for price in prices
+    ]
+
+
+@router.put("/{product_id}/initial-cost")
+def set_initial_cost(
+    product_id: uuid.UUID, body: InitialCostRequest, current: Admin, db: DbSession
+) -> ProductAdmin:
+    product = products_service.set_initial_cost(
+        db, actor=current.user, product_id=product_id, cost=body.avg_cost_usd
+    )
+    return product_out(db, current, product)
+
+
+@router.put("/{product_id}/publication")
+def set_publication(
+    product_id: uuid.UUID, body: PublicationRequest, current: Admin, db: DbSession
+) -> ProductAdmin:
+    product = products_service.set_publication(
+        db, actor=current.user, product_id=product_id, is_published=body.is_published
+    )
+    return product_out(db, current, product)

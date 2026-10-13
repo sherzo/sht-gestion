@@ -2,6 +2,7 @@
 
 // Ficha de producto (FR-035): datos, fotos y, según el rol, precio, costo y kardex. La
 // ruta es estática y recibe el producto en `?id=` (export estático, research R13).
+import { formatUsd } from "@sht/shared";
 import { ArrowLeft, Pencil, Power, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -10,6 +11,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { KardexTable } from "@/components/products/kardex-table";
 import { PhotoGallery } from "@/components/products/photo-gallery";
+import { PriceCostPanel } from "@/components/products/price-cost-panel";
 import { ProductForm } from "@/components/products/product-form";
 import { ProductStatus } from "@/components/products/product-status";
 import { RequireAuth } from "@/components/require-auth";
@@ -20,7 +22,7 @@ import { Tabs } from "@/components/ui/tabs";
 import type { TabItem } from "@/components/ui/tabs";
 import { ApiError, apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/use-auth";
-import { WARNING_MESSAGES, quantityWithUnit, useCatalogConfig } from "@/lib/products";
+import { WARNING_MESSAGES, hasCost, hasPrice, quantityWithUnit, useCatalogConfig } from "@/lib/products";
 import type { Category, Product } from "@/lib/products";
 
 function attributeLabel(category: Category | undefined, key: string): string {
@@ -48,6 +50,8 @@ function ProductData({ product, category }: { product: Product; category?: Categ
     ["Unidad", `${product.unit.name} (${product.unit.code})`],
     ["Stock", quantityWithUnit(product.stock, product.unit)],
     ["Stock mínimo", quantityWithUnit(product.min_stock, product.unit)],
+    // El precio solo llega a Admin y Vendedor (research R6).
+    ...(hasPrice(product) ? [["Precio de venta", product.sale_price_usd ? `${formatUsd(product.sale_price_usd)} USD` : "Sin precio"] as [string, string]] : []),
     ...attributes.map(([key, value]): [string, string] => [attributeLabel(category, key), value]),
   ];
   return (
@@ -131,6 +135,7 @@ function ProductDetail({ id }: { id: string }) {
   const tabs: TabItem[] = [
     { id: "data", label: "Datos" },
     { id: "photos", label: `Fotos (${product.photos.length})` },
+    ...(hasCost(product) ? [{ id: "price", label: "Precio y costo" }] : []),
     // El Vendedor solo ve el stock actual, no el kardex (FR-022).
     ...(canEdit ? [{ id: "kardex", label: "Kardex" }] : []),
   ];
@@ -183,6 +188,7 @@ function ProductDetail({ id }: { id: string }) {
             ))}
           {tab === "photos" && <PhotoGallery product={product} editable={canEdit} onChanged={setProduct} />}
           {tab === "kardex" && canEdit && <KardexTable product={product} />}
+          {tab === "price" && hasCost(product) && <PriceCostPanel product={product} onChanged={setProduct} />}
         </div>
       </Tabs>
       <Dialog open={toggling} title={product.is_active ? "Desactivar producto" : "Reactivar producto"} onClose={() => setToggling(false)}>
