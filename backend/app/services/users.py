@@ -195,3 +195,11 @@ def reset_password(
     )
     db.commit()
     return user
+
+
+def users_by_id(db: Session, ids: set[uuid.UUID | None]) -> dict[uuid.UUID, AppUser]:
+    """Usuarios por id, para mostrar quién hizo cada operación sin una consulta por fila."""
+    wanted = {user_id for user_id in ids if user_id is not None}
+    if not wanted:
+        return {}
+    return {user.id: user for user in db.scalars(select(AppUser).where(AppUser.id.in_(wanted)))}

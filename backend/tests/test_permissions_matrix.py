@@ -6,11 +6,13 @@ acceso. Cada historia agrega aquí las filas de sus endpoints.
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 import pytest
 
-from app.db.models import ProductPhoto
+from app.core.clock import utcnow
+from app.db.models import AdjustmentRequest, ProductPhoto
 from app.domain.roles import Role
 from tests.conftest import DEFAULT_PASSWORD
 
@@ -100,15 +102,39 @@ MATRIX: list[Row] = [
         ADMIN_WAREHOUSE,
         {"photo_ids": ["{photo_id}"]},
     ),
+    # Kardex y ajustes (RF-08 a RF-10, RN-19)
+    Row("GET", "/api/v1/products/{product_id}/movements", ADMIN_WAREHOUSE),
+    Row(
+        "POST",
+        "/api/v1/inventory/adjustments",
+        ADMIN_WAREHOUSE,
+        {"product_id": "{product_id}", "quantity_delta": "1", "reason": "correction"},
+    ),
+    Row("GET", "/api/v1/inventory/adjustment-requests", ADMIN_WAREHOUSE),
+    Row("POST", "/api/v1/inventory/adjustment-requests/{request_id}/approve", ADMIN_ONLY),
+    Row(
+        "POST",
+        "/api/v1/inventory/adjustment-requests/{request_id}/reject",
+        ADMIN_ONLY,
+        {"reason": "No corresponde"},
+    ),
+    Row("POST", "/api/v1/inventory/adjustment-requests/{request_id}/withdraw", WAREHOUSE_ONLY),
 ]
 
 
 @pytest.fixture
-def actor_headers(make_user, auth_headers, make_product, category_id, db, photo_dir):
+def actor_headers(make_user, auth_headers, make_product, give_stock, category_id, db, photo_dir):
     """Crea los usuarios de cada actor y los datos de las rutas, y devuelve el encabezado
     del pedido."""
     target = make_user(Role.SELLER, username="objetivo")
+    users = {
+        ADMIN: make_user(Role.ADMIN, username="actor_admin"),
+        SELLER: make_user(Role.SELLER, username="actor_seller"),
+        WAREHOUSE: make_user(Role.WAREHOUSE, username="actor_warehouse"),
+        TEMPORARY: make_user(Role.ADMIN, username="temporal", must_change_password=True),
+    }
     product = make_product("FRT")
+    give_stock(product, "5")
     photo = ProductPhoto(
         product_id=product.id,
         storage_path=f"products/{product.id}/foto.webp",
@@ -117,22 +143,28 @@ def actor_headers(make_user, auth_headers, make_product, category_id, db, photo_
         size_bytes=100,
         sort_order=0,
     )
-    db.add(photo)
+    # Solicitud pendiente del mismo Almacén que actúa, para que pueda retirarla.
+    request = AdjustmentRequest(
+        product_id=product.id,
+        quantity_delta=Decimal("-1"),
+        adjustment_reason="loss",
+        status="pending",
+        requested_by=users[WAREHOUSE].id,
+        requested_at=utcnow(),
+    )
+    db.add_all([photo, request])
     db.commit()
 
     def headers_for(actor: str) -> dict[str, str]:
         if actor == ANONYMOUS:
             return {}
-        if actor == TEMPORARY:
-            user = make_user(Role.ADMIN, username="temporal", must_change_password=True)
-        else:
-            user = make_user(Role(actor), username=f"actor_{actor}")
-        return auth_headers(user, DEFAULT_PASSWORD)
+        return auth_headers(users[actor], DEFAULT_PASSWORD)
 
     headers_for.ids = {  # type: ignore[attr-defined]
         "user_id": str(target.id),
         "product_id": str(product.id),
         "photo_id": str(photo.id),
+        "request_id": str(request.id),
         "category_id": str(category_id("FRT")),
     }
     return headers_for

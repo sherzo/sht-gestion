@@ -8,20 +8,27 @@ enviar aquí (FR-003, FR-009).
 
 import uuid
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, UploadFile, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.api.deps import CurrentUser, DbSession, require_authenticated, require_roles
-from app.api.product_schemas import ProductOut, product_for_role
+from app.api.product_schemas import (
+    ProductOut,
+    StockMovementOut,
+    movement_for_role,
+    product_for_role,
+)
 from app.core.config import get_settings
-from app.db.models import Product
+from app.db.models import Product, Unit
 from app.domain.roles import Role
+from app.services import inventory as inventory_service
 from app.services import photos as photos_service
 from app.services import products as products_service
+from app.services.users import users_by_id
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -31,6 +38,7 @@ Editor = Annotated[CurrentUser, Depends(require_roles(Role.ADMIN, Role.WAREHOUSE
 ProductName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
 AttributeValues = dict[str, str | int | None]
+MovementType = Literal["purchase", "sale", "sale_void", "purchase_void", "adjustment"]
 
 
 class CreateProductRequest(BaseModel):
@@ -175,3 +183,44 @@ def reorder_photos(
         db, actor=current.user, product_id=product_id, photo_ids=body.photo_ids
     )
     return product_out(db, current, product)
+
+
+class MovementPage(BaseModel):
+    items: list[StockMovementOut]
+    total: int
+    page: int
+    page_size: int
+
+
+@router.get("/{product_id}/movements")
+def list_movements(
+    product_id: uuid.UUID,
+    current: Editor,
+    db: DbSession,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    type: MovementType | None = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> MovementPage:
+    """Kardex del producto para Admin y Almacén; el Vendedor solo ve el stock (FR-022)."""
+    rows, total = inventory_service.list_movements(
+        db,
+        product_id=product_id,
+        date_from=date_from,
+        date_to=date_to,
+        type=type,
+        page=page,
+        page_size=page_size,
+    )
+    product = db.get(Product, product_id)
+    unit = db.get(Unit, product.unit_id)
+    requesters = inventory_service.requesters_of(db, rows)
+    users = users_by_id(db, {movement.created_by for movement in rows} | set(requesters.values()))
+    items = [
+        movement_for_role(
+            current.role, movement, unit=unit, users=users, requested_by=requesters.get(movement.id)
+        )
+        for movement in rows
+    ]
+    return MovementPage(items=items, total=total, page=page, page_size=page_size)

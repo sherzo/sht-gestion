@@ -33,7 +33,7 @@ class LeakCase:
 
     @property
     def id(self) -> str:
-        return f"{self.method} {self.path}"
+        return f"{self.method} {self.path} {self.body or ''}"
 
 
 LEAK_CASES: list[LeakCase] = [
@@ -53,6 +53,21 @@ LEAK_CASES: list[LeakCase] = [
         "/api/v1/products/{product_id}/photos/order",
         (WAREHOUSE,),
         body={"photo_ids": []},
+    ),
+    # Kardex y ajustes (US2)
+    LeakCase("GET", "/api/v1/products/{product_id}/movements", (WAREHOUSE,)),
+    LeakCase("GET", "/api/v1/inventory/adjustment-requests", (WAREHOUSE,)),
+    LeakCase(
+        "POST",
+        "/api/v1/inventory/adjustments",
+        (WAREHOUSE,),
+        body={"product_id": "{product_id}", "quantity_delta": "1", "reason": "correction"},
+    ),
+    LeakCase(
+        "POST",
+        "/api/v1/inventory/adjustments",
+        (WAREHOUSE,),
+        body={"product_id": "{product_id}", "quantity_delta": "-1", "reason": "loss"},
     ),
 ]
 

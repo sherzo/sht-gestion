@@ -381,10 +381,184 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{product_id}/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Movements
+         * @description Kardex del producto para Admin y Almacén; el Vendedor solo ve el stock (FR-022).
+         */
+        get: operations["list_movements_api_v1_products__product_id__movements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register Adjustment */
+        post: operations["register_adjustment_api_v1_inventory_adjustments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Adjustment Requests */
+        get: operations["list_adjustment_requests_api_v1_inventory_adjustment_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests/{request_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Request */
+        post: operations["approve_request_api_v1_inventory_adjustment_requests__request_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests/{request_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Request */
+        post: operations["reject_request_api_v1_inventory_adjustment_requests__request_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/adjustment-requests/{request_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw Request */
+        post: operations["withdraw_request_api_v1_inventory_adjustment_requests__request_id__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdjustmentRequestBody */
+        AdjustmentRequestBody: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Quantity Delta */
+            quantity_delta: number | string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "physical_count" | "damage" | "loss" | "correction";
+            /** Note */
+            note?: string | null;
+        };
+        /** AdjustmentRequestOut */
+        AdjustmentRequestOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            product: components["schemas"]["RequestProduct"];
+            /** Quantity Delta */
+            quantity_delta: string;
+            /** Adjustment Reason */
+            adjustment_reason: string;
+            /** Note */
+            note: string | null;
+            /** Status */
+            status: string;
+            requested_by: components["schemas"]["UserRef"];
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            decided_by: components["schemas"]["UserRef"] | null;
+            /** Decided At */
+            decided_at: string | null;
+            /** Rejection Reason */
+            rejection_reason: string | null;
+            /** Stock Movement Id */
+            stock_movement_id: string | null;
+        };
+        /** AdjustmentRequestPage */
+        AdjustmentRequestPage: {
+            /** Items */
+            items: components["schemas"]["AdjustmentRequestOut"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** AdjustmentResultOut */
+        AdjustmentResultOut: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "pending";
+            /** Movement */
+            movement?: components["schemas"]["StockMovementAdmin"] | components["schemas"]["StockMovementWarehouse"] | null;
+            request?: components["schemas"]["AdjustmentRequestOut"] | null;
+        };
         /** AttributeOption */
         AttributeOption: {
             /** Value */
@@ -596,6 +770,17 @@ export interface components {
              */
             session_expires_at: string;
         };
+        /** MovementPage */
+        MovementPage: {
+            /** Items */
+            items: (components["schemas"]["StockMovementAdmin"] | components["schemas"]["StockMovementWarehouse"])[];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
         /** PhotoOut */
         PhotoOut: {
             /**
@@ -763,10 +948,30 @@ export interface components {
              */
             warnings: string[];
         };
+        /** RejectBody */
+        RejectBody: {
+            /** Reason */
+            reason: string;
+        };
         /** ReorderPhotosRequest */
         ReorderPhotosRequest: {
             /** Photo Ids */
             photo_ids: string[];
+        };
+        /** RequestProduct */
+        RequestProduct: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            unit: components["schemas"]["UnitRef"];
+            /** Stock */
+            stock: string;
         };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
@@ -834,6 +1039,68 @@ export interface components {
             /** Setup Required */
             setup_required: boolean;
         };
+        /** StockMovementAdmin */
+        StockMovementAdmin: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Type */
+            type: string;
+            /** Quantity Delta */
+            quantity_delta: string;
+            /** Balance After */
+            balance_after: string;
+            /** Adjustment Reason */
+            adjustment_reason: string | null;
+            /** Note */
+            note: string | null;
+            /** Reference Type */
+            reference_type: string | null;
+            /** Reference Id */
+            reference_id: string | null;
+            created_by: components["schemas"]["UserRef"] | null;
+            requested_by: components["schemas"]["UserRef"] | null;
+            /** Cost Before Usd */
+            cost_before_usd: string | null;
+            /** Cost After Usd */
+            cost_after_usd: string | null;
+        };
+        /** StockMovementWarehouse */
+        StockMovementWarehouse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Type */
+            type: string;
+            /** Quantity Delta */
+            quantity_delta: string;
+            /** Balance After */
+            balance_after: string;
+            /** Adjustment Reason */
+            adjustment_reason: string | null;
+            /** Note */
+            note: string | null;
+            /** Reference Type */
+            reference_type: string | null;
+            /** Reference Id */
+            reference_id: string | null;
+            created_by: components["schemas"]["UserRef"] | null;
+            requested_by: components["schemas"]["UserRef"] | null;
+        };
         /** UnitOut */
         UnitOut: {
             /**
@@ -893,6 +1160,16 @@ export interface components {
             role?: ("admin" | "seller" | "warehouse") | null;
             /** Is Active */
             is_active?: boolean | null;
+        };
+        /** UserRef */
+        UserRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Full Name */
+            full_name: string;
         };
         /** UserSummary */
         UserSummary: {
@@ -1722,6 +1999,215 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductAdmin"] | components["schemas"]["ProductSeller"] | components["schemas"]["ProductWarehouse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_movements_api_v1_products__product_id__movements_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                type?: ("purchase" | "sale" | "sale_void" | "purchase_void" | "adjustment") | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovementPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_adjustment_api_v1_inventory_adjustments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentResultOut"];
+                };
+            };
+            /** @description Salida pendiente */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_adjustment_requests_api_v1_inventory_adjustment_requests_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "approved" | "rejected" | "withdrawn") | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_request_api_v1_inventory_adjustment_requests__request_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_request_api_v1_inventory_adjustment_requests__request_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_request_api_v1_inventory_adjustment_requests__request_id__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestOut"];
                 };
             };
             /** @description Validation Error */

@@ -2,12 +2,13 @@
 
 // Ficha de producto (FR-035): datos, fotos y, según el rol, precio, costo y kardex. La
 // ruta es estática y recibe el producto en `?id=` (export estático, research R13).
-import { ArrowLeft, Pencil, Power } from "lucide-react";
+import { ArrowLeft, Pencil, Power, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { KardexTable } from "@/components/products/kardex-table";
 import { PhotoGallery } from "@/components/products/photo-gallery";
 import { ProductForm } from "@/components/products/product-form";
 import { ProductStatus } from "@/components/products/product-status";
@@ -130,6 +131,8 @@ function ProductDetail({ id }: { id: string }) {
   const tabs: TabItem[] = [
     { id: "data", label: "Datos" },
     { id: "photos", label: `Fotos (${product.photos.length})` },
+    // El Vendedor solo ve el stock actual, no el kardex (FR-022).
+    ...(canEdit ? [{ id: "kardex", label: "Kardex" }] : []),
   ];
 
   return (
@@ -144,6 +147,12 @@ function ProductDetail({ id }: { id: string }) {
         </div>
         {canEdit && !editing && (
           <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/inventario/ajuste/?producto=${product.id}`}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-surface px-4 font-semibold text-ink hover:bg-neutral-100"
+            >
+              <SlidersHorizontal aria-hidden className="size-4" /> Ajustar stock
+            </Link>
             <Button variant="secondary" onClick={() => { setTab("data"); setEditing(true); }}>
               <Pencil aria-hidden className="size-4" /> Editar
             </Button>
@@ -173,6 +182,7 @@ function ProductDetail({ id }: { id: string }) {
               <ProductData product={product} category={category} />
             ))}
           {tab === "photos" && <PhotoGallery product={product} editable={canEdit} onChanged={setProduct} />}
+          {tab === "kardex" && canEdit && <KardexTable product={product} />}
         </div>
       </Tabs>
       <Dialog open={toggling} title={product.is_active ? "Desactivar producto" : "Reactivar producto"} onClose={() => setToggling(false)}>

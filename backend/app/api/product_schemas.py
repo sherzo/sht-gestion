@@ -17,7 +17,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.db.models import Category, Product, ProductPhoto, Unit
+from app.db.models import AppUser, Category, Product, ProductPhoto, StockMovement, Unit
 from app.domain.roles import Role
 from app.domain.units import format_quantity
 from app.services.photo_storage import get_photo_storage
@@ -147,3 +147,65 @@ def product_for_role(
         avg_cost_usd=decimal_str(product.avg_cost_usd),
         cost_locked=product.cost_locked,
     )
+
+
+# --- Kardex (FR-017, FR-022): el Almacén no recibe los costos del movimiento ---------
+
+
+class StockMovementWarehouse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    occurred_at: datetime
+    type: str
+    quantity_delta: str
+    balance_after: str
+    adjustment_reason: str | None
+    note: str | None
+    reference_type: str | None
+    reference_id: uuid.UUID | None
+    created_by: UserRef | None
+    # Quién pidió la salida, si el movimiento viene de una solicitud aprobada (RN-19).
+    requested_by: UserRef | None
+
+
+class StockMovementAdmin(StockMovementWarehouse):
+    cost_before_usd: str | None
+    cost_after_usd: str | None
+
+
+StockMovementOut = StockMovementAdmin | StockMovementWarehouse
+
+
+def user_ref(user: AppUser | None) -> UserRef | None:
+    return None if user is None else UserRef(id=user.id, full_name=user.full_name)
+
+
+def movement_for_role(
+    role: Role,
+    movement: StockMovement,
+    *,
+    unit: Unit,
+    users: dict[uuid.UUID, AppUser],
+    requested_by: uuid.UUID | None = None,
+) -> StockMovementOut:
+    common = {
+        "id": movement.id,
+        "occurred_at": movement.occurred_at,
+        "type": movement.type,
+        "quantity_delta": format_quantity(movement.quantity_delta, unit.decimals),
+        "balance_after": format_quantity(movement.balance_after, unit.decimals),
+        "adjustment_reason": movement.adjustment_reason,
+        "note": movement.note,
+        "reference_type": movement.reference_type,
+        "reference_id": movement.reference_id,
+        "created_by": user_ref(users.get(movement.created_by)) if movement.created_by else None,
+        "requested_by": user_ref(users.get(requested_by)) if requested_by else None,
+    }
+    if role == Role.ADMIN:
+        return StockMovementAdmin(
+            **common,
+            cost_before_usd=decimal_str(movement.cost_before_usd),
+            cost_after_usd=decimal_str(movement.cost_after_usd),
+        )
+    return StockMovementWarehouse(**common)

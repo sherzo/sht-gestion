@@ -4,7 +4,16 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import audit, auth, catalog_config, health, products, setup, users
+from app.api import (
+    audit,
+    auth,
+    catalog_config,
+    health,
+    inventory,
+    products,
+    setup,
+    users,
+)
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 
@@ -31,6 +40,7 @@ def create_app() -> FastAPI:
     api_v1.include_router(audit.router)
     api_v1.include_router(catalog_config.router)
     api_v1.include_router(products.router)
+    api_v1.include_router(inventory.router)
     app.include_router(api_v1)
 
     # Fotos en disco solo en desarrollo y pruebas; en producción las sirve Supabase (R9).
