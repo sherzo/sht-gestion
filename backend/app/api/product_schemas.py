@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.db.models import Category, Product, ProductPhoto, Unit
 from app.domain.roles import Role
@@ -50,6 +50,10 @@ class UserRef(BaseModel):
 
 
 class ProductWarehouse(BaseModel):
+    # Sin campos extra: un producto de Admin nunca se confunde con el de otro rol al
+    # validar la respuesta contra la unión de esquemas.
+    model_config = ConfigDict(extra="forbid")
+
     id: uuid.UUID
     sku: str
     name: str
@@ -65,6 +69,8 @@ class ProductWarehouse(BaseModel):
     has_movements: bool
     photos: list[PhotoOut]
     updated_at: datetime
+    # Avisos que no bloquean: duplicate_name, has_stock, stale_data (research R10, R15).
+    warnings: list[str] = []
 
 
 class ProductSeller(ProductWarehouse):

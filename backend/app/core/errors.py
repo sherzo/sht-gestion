@@ -36,6 +36,15 @@ _VALIDATION_MESSAGES = {
     "date_parsing": "La fecha no es válida",
     "bool_parsing": "Debe ser verdadero o falso",
     "json_invalid": "El cuerpo de la petición no es JSON válido",
+    "extra_forbidden": "Este campo no se puede enviar",
+    "decimal_parsing": "Debe ser un número",
+    "decimal_type": "Debe ser un número",
+    "dict_type": "Debe ser un objeto",
+    "list_type": "Debe ser una lista",
+    "bool_type": "Debe ser verdadero o falso",
+    "uuid_type": "El identificador no es válido",
+    "datetime_from_date_parsing": "La fecha no es válida",
+    "datetime_parsing": "La fecha no es válida",
 }
 
 

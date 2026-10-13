@@ -1,0 +1,177 @@
+"""Endpoints de productos (RF-01, RF-02, RF-06, RF-07; FR-001 a FR-015, FR-032, FR-033).
+
+Contrato: specs/002-productos-inventario/contracts/api.md. Las respuestas usan el
+esquema del rol leído de la base (principio IV, research R6). Los esquemas de entrada
+rechazan campos desconocidos: el SKU, el precio, el costo y la publicación no se pueden
+enviar aquí (FR-003, FR-009).
+"""
+
+import uuid
+from collections.abc import Iterable
+from datetime import datetime
+from decimal import Decimal
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, UploadFile, status
+from pydantic import BaseModel, ConfigDict, StringConstraints
+
+from app.api.deps import CurrentUser, DbSession, require_authenticated, require_roles
+from app.api.product_schemas import ProductOut, product_for_role
+from app.core.config import get_settings
+from app.db.models import Product
+from app.domain.roles import Role
+from app.services import photos as photos_service
+from app.services import products as products_service
+
+router = APIRouter(prefix="/products", tags=["products"])
+
+AnyUser = Annotated[CurrentUser, Depends(require_authenticated())]
+Editor = Annotated[CurrentUser, Depends(require_roles(Role.ADMIN, Role.WAREHOUSE))]
+
+ProductName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
+AttributeValues = dict[str, str | int | None]
+
+
+class CreateProductRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    category_id: uuid.UUID
+    unit_id: uuid.UUID | None = None
+    name: ProductName
+    description: Description = ""
+    attributes: AttributeValues = {}
+    min_stock: Decimal = Decimal("0")
+
+
+class UpdateProductRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: ProductName | None = None
+    description: Description | None = None
+    attributes: AttributeValues | None = None
+    min_stock: Decimal | None = None
+    category_id: uuid.UUID | None = None
+    unit_id: uuid.UUID | None = None
+    is_active: bool | None = None
+    # El `updated_at` que leyó la pantalla, para avisar si editó sobre datos viejos (R15).
+    updated_at: datetime | None = None
+
+
+class ReorderPhotosRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    photo_ids: list[uuid.UUID]
+
+
+class ProductPage(BaseModel):
+    items: list[ProductOut]
+    total: int
+    page: int
+    page_size: int
+
+
+def products_out(
+    db: DbSession, role: Role, products: list[Product], warnings: Iterable[str] = ()
+) -> list[ProductOut]:
+    views = products_service.build_views(db, products)
+    result = []
+    for view in views:
+        out = product_for_role(
+            role, view.product, category=view.category, unit=view.unit, photos=view.photos
+        )
+        out.warnings = list(warnings)
+        result.append(out)
+    return result
+
+
+def product_out(
+    db: DbSession, current: CurrentUser, product: Product, warnings: Iterable[str] = ()
+) -> ProductOut:
+    db.refresh(product)
+    return products_out(db, current.role, [product], warnings)[0]
+
+
+@router.get("")
+def list_products(
+    current: AnyUser,
+    db: DbSession,
+    category_id: uuid.UUID | None = None,
+    is_active: bool | None = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> ProductPage:
+    rows, total = products_service.list_products(
+        db,
+        role=current.role,
+        category_id=category_id,
+        is_active=is_active,
+        page=page,
+        page_size=page_size,
+    )
+    return ProductPage(
+        items=products_out(db, current.role, rows), total=total, page=page, page_size=page_size
+    )
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+def create_product(body: CreateProductRequest, current: Editor, db: DbSession) -> ProductOut:
+    product, warnings = products_service.create_product(
+        db,
+        actor=current.user,
+        category_id=body.category_id,
+        unit_id=body.unit_id,
+        name=body.name,
+        description=body.description,
+        attributes=body.attributes,
+        min_stock=body.min_stock,
+    )
+    return product_out(db, current, product, warnings)
+
+
+@router.get("/{product_id}")
+def get_product(product_id: uuid.UUID, current: AnyUser, db: DbSession) -> ProductOut:
+    product = products_service.get_product(db, product_id, role=current.role)
+    return product_out(db, current, product)
+
+
+@router.patch("/{product_id}")
+def update_product(
+    product_id: uuid.UUID, body: UpdateProductRequest, current: Editor, db: DbSession
+) -> ProductOut:
+    changes = {
+        key: value
+        for key, value in body.model_dump(exclude_unset=True, exclude={"updated_at"}).items()
+        if value is not None
+    }
+    product, warnings = products_service.update_product(
+        db, actor=current.user, product_id=product_id, changes=changes, updated_at=body.updated_at
+    )
+    return product_out(db, current, product, warnings)
+
+
+@router.post("/{product_id}/photos", status_code=status.HTTP_201_CREATED)
+def add_photo(
+    product_id: uuid.UUID, file: UploadFile, current: Editor, db: DbSession
+) -> ProductOut:
+    # Se lee como máximo un byte más del límite: basta para saber si lo supera.
+    data = file.file.read(get_settings().photo_max_upload_bytes + 1)
+    product = photos_service.add_photo(db, actor=current.user, product_id=product_id, data=data)
+    return product_out(db, current, product)
+
+
+@router.delete("/{product_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_photo(
+    product_id: uuid.UUID, photo_id: uuid.UUID, current: Editor, db: DbSession
+) -> None:
+    photos_service.remove_photo(db, actor=current.user, product_id=product_id, photo_id=photo_id)
+
+
+@router.put("/{product_id}/photos/order")
+def reorder_photos(
+    product_id: uuid.UUID, body: ReorderPhotosRequest, current: Editor, db: DbSession
+) -> ProductOut:
+    product = photos_service.reorder_photos(
+        db, actor=current.user, product_id=product_id, photo_ids=body.photo_ids
+    )
+    return product_out(db, current, product)

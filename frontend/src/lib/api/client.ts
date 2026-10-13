@@ -40,7 +40,7 @@ export function connectSession(next: SessionBridge | null): void {
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
-  query?: Record<string, string | number | boolean | undefined | null>;
+  query?: Record<string, string | number | boolean | undefined | null> | URLSearchParams;
   /** false para endpoints públicos (instalación, ingreso). */
   authenticated?: boolean;
   /** true para no abrir el reingreso si la sesión ya terminó (por ejemplo, al cerrar sesión). */
@@ -49,22 +49,32 @@ type RequestOptions = {
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
   const url = new URL(`${API_URL}/api/v1${path}`, window.location.origin);
-  for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+  // URLSearchParams permite repetir claves (filtros `attr.<clave>` de la búsqueda).
+  const entries = query instanceof URLSearchParams ? [...query.entries()] : Object.entries(query ?? {});
+  for (const [key, value] of entries) {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.append(key, String(value));
   }
   return url.toString();
 }
 
+function requestBody(options: RequestOptions): BodyInit | undefined {
+  // Los archivos (fotos) viajan en multipart/form-data; el navegador pone el encabezado.
+  if (options.body instanceof FormData) return options.body;
+  if (options.body !== undefined) return JSON.stringify(options.body);
+  return options.method === "POST" ? "{}" : undefined;
+}
+
 async function send(path: string, options: RequestOptions, token: string | null): Promise<Response> {
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (options.body !== undefined || options.method === "POST") headers["Content-Type"] = "application/json";
+  const isForm = options.body instanceof FormData;
+  if (!isForm && (options.body !== undefined || options.method === "POST")) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
   // La cookie de renovación solo viaja a /auth y /setup (ruta de la cookie).
   const withCookie = path.startsWith("/auth") || path.startsWith("/setup");
   return fetch(buildUrl(path, options.query), {
     method: options.method ?? "GET",
     headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : options.method === "POST" ? "{}" : undefined,
+    body: requestBody(options),
     credentials: withCookie ? "include" : "same-origin",
   });
 }

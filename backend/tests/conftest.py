@@ -105,13 +105,18 @@ SEEDED_TABLES = ("unit", "category", "attribute_definition")
 
 @pytest.fixture(scope="session")
 def _migrated() -> None:
-    """Aplica las migraciones y copia los datos iniciales de la 0004 en tablas
-    `test_seed_*`, para restaurarlos rápido dentro de la base antes de cada prueba."""
+    """Recrea el esquema con las migraciones y copia sus datos iniciales en tablas
+    `test_seed_*`, para restaurarlos rápido dentro de la base antes de cada prueba. Se
+    parte de cero porque la última prueba de la sesión anterior deja datos."""
     config = Config(str(BACKEND_DIR / "alembic.ini"))
-    command.upgrade(config, "head")
     with get_sessionmaker()() as db:
         for table in SEEDED_TABLES:
             db.execute(text(f"DROP TABLE IF EXISTS test_seed_{table}"))
+        db.commit()
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+    with get_sessionmaker()() as db:
+        for table in SEEDED_TABLES:
             db.execute(text(f"CREATE TABLE test_seed_{table} AS SELECT * FROM {table}"))
         db.commit()
 

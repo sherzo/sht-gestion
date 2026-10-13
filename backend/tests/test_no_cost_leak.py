@@ -36,7 +36,25 @@ class LeakCase:
         return f"{self.method} {self.path}"
 
 
-LEAK_CASES: list[LeakCase] = []
+LEAK_CASES: list[LeakCase] = [
+    # Productos (US1)
+    LeakCase("GET", "/api/v1/products"),
+    LeakCase("GET", "/api/v1/products/{product_id}"),
+    LeakCase(
+        "POST",
+        "/api/v1/products",
+        (WAREHOUSE,),
+        body={"category_id": "{frt_category_id}", "name": "Teflón"},
+    ),
+    LeakCase("PATCH", "/api/v1/products/{product_id}", (WAREHOUSE,), body={"description": "x"}),
+    LeakCase("POST", "/api/v1/products/{product_id}/photos", (WAREHOUSE,), photo=True),
+    LeakCase(
+        "PUT",
+        "/api/v1/products/{product_id}/photos/order",
+        (WAREHOUSE,),
+        body={"photo_ids": []},
+    ),
+]
 
 
 def forbidden_keys(data: Any, role: Role, path: str = "") -> list[str]:
@@ -68,7 +86,9 @@ def test_detector_de_claves_prohibidas() -> None:
 
 
 @pytest.fixture
-def leak_context(make_user, auth_headers, make_product, give_stock) -> dict[str, Any]:
+def leak_context(
+    make_user, auth_headers, make_product, give_stock, category_id, photo_dir
+) -> dict[str, Any]:
     """Datos con precio y costo definidos para que una fuga se note."""
     product = make_product("MAN", sale_price="12.50", avg_cost="7.250000", min_stock="50")
     give_stock(product, "10")
@@ -76,7 +96,12 @@ def leak_context(make_user, auth_headers, make_product, give_stock) -> dict[str,
         SELLER: auth_headers(make_user(SELLER, username="vendedor_fuga")),
         WAREHOUSE: auth_headers(make_user(WAREHOUSE, username="almacen_fuga")),
     }
-    return {"headers": headers, "product_id": str(product.id), "product": product}
+    return {
+        "headers": headers,
+        "product": product,
+        "product_id": str(product.id),
+        "frt_category_id": str(category_id("FRT")),
+    }
 
 
 @pytest.mark.parametrize("case", LEAK_CASES, ids=lambda case: case.id)
@@ -90,7 +115,10 @@ def test_sin_costos_para_vendedor_ni_precio_para_almacen(
         if case.photo:
             kwargs["files"] = {"file": ("foto.jpg", jpeg_bytes(), "image/jpeg")}
         elif case.body is not None:
-            kwargs["json"] = case.body
+            kwargs["json"] = {
+                key: value.format(**values) if isinstance(value, str) else value
+                for key, value in case.body.items()
+            }
         response = client.request(case.method, path, **kwargs)
         assert response.status_code < 300, f"{role} en {case.id}: {response.text}"
         leaks = forbidden_keys(response.json(), role) if response.content else []
