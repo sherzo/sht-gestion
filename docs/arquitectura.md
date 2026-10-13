@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.1 |
-| Fecha | 2026-10-08 |
+| Versión | 1.2 |
+| Fecha | 2026-10-13 |
 | Estado | Vigente (aprobada al cerrar la etapa 1.0) |
 | Documentos relacionados | `docs/PRD.md`, `docs/decisiones/`, `.specify/memory/constitution.md` |
 
@@ -49,6 +49,8 @@ flowchart LR
     API --> ST
     CAT -- "WhatsApp (RF-37)" --> WA["WhatsApp del negocio"]
     GHA -- "pg_dump diario" --> GCS
+    GHA -- "fotos nuevas (rclone)" --> GCS
+    ST -. "copia" .-> GHA
     GHA -- "lee datos públicos y reconstruye cada X horas" --> API
     GHA -- publica --> PAGES_CAT
 ```
@@ -57,7 +59,7 @@ flowchart LR
 |---|---|---|---|
 | API | FastAPI (Python) en Cloud Run | Toda la lógica de negocio, permisos, auditoría; única puerta a los datos | 0001, 0002, 0005 |
 | Base de datos | Postgres en Supabase | Persistencia; sin Data API expuesta | 0001 |
-| Fotos | Supabase Storage | Fotos de productos | 0001, 0002 |
+| Fotos | Supabase Storage | Fotos de productos en WebP, bucket público; solo la API escribe | 0001, 0002, 0009 |
 | App interna | Next.js estático + PWA en Cloudflare Pages | Ventas (con y sin conexión), caja, administración, inventario, compras, reportes | 0001, 0003 |
 | Catálogo | Next.js estático en Cloudflare Pages | Catálogo público y pedido por WhatsApp; regenerado cada X horas | 0001, 0002 |
 | Automatización | GitHub Actions | CI, despliegues, respaldo diario, regeneración del catálogo | 0002 |
@@ -118,6 +120,23 @@ La app llama a la API directamente. Cada caso de uso es una transacción: por ej
 confirmar una compra crea los movimientos de entrada, recalcula el costo promedio con
 bloqueo de fila del producto (RN-09) y audita, todo o nada.
 
+- **Kardex (RN-08, etapa 1.1b):** todo cambio de stock pasa por
+  `services/inventory.py::post_movement`, que bloquea el producto e inserta el
+  movimiento; un trigger verifica el saldo y actualiza `product.stock`, y otro rechaza
+  cualquier escritura directa del stock. Las salidas del Almacén quedan como solicitudes
+  pendientes hasta que el Admin las aprueba, y los conteos físicos los aplica solo el
+  Admin (RN-19).
+- **Búsqueda de productos (RF-06, RNF-04):** la API guarda en `product.search_text` el
+  nombre, la descripción, el SKU y los atributos normalizados (minúsculas, sin acentos)
+  con `domain/search.py`, y cada palabra de la consulta se busca con `LIKE`, en cualquier
+  orden. Sin extensiones de Postgres: con ~1.000 productos responde en milisegundos; si
+  el catálogo supera ~10.000 se agrega un índice `pg_trgm` sin cambiar la API. La
+  búsqueda sin conexión del mostrador (1.5) replicará la normalización en TypeScript.
+- **Fotos (ADR-0009):** el navegador reduce la foto a 1.600 px y la sube a
+  `POST /products/{id}/photos`; la API valida el tipo real, la normaliza con Pillow a
+  WebP de 1.200 px sin metadatos y la guarda en Supabase Storage con la clave del
+  servidor. La app y el catálogo usan la URL pública.
+
 ### 3.3 Catálogo público (RF-34 a RF-38)
 
 1. Un workflow programado (cada X horas, configurable) llama a un endpoint de solo
@@ -132,7 +151,9 @@ bloqueo de fila del producto (RN-09) y audita, todo o nada.
 ### 3.4 Respaldo diario (RNF-06)
 
 `pg_dump` diario desde GitHub Actions, cifrado y guardado en Cloud Storage, con 30 días
-de retención. La restauración se prueba al cierre de cada etapa (ADR-0002).
+de retención. En el mismo workflow, `rclone` copia las fotos nuevas de Supabase Storage a
+`fotos/` del mismo bucket, que se conservan (ADR-0009). La restauración se prueba al
+cierre de cada etapa (ADR-0002).
 
 ## 4. Convenciones transversales
 
@@ -164,10 +185,15 @@ en ADR-0004.
   `require_roles(...)`. La prueba `test_route_declarations.py` falla si alguna ruta no
   declara su acceso, y `test_permissions_matrix.py` verifica cada endpoint con cada rol,
   sin sesión y con contraseña temporal. Un endpoint nuevo se agrega a esa matriz.
-- **Esquemas de respuesta por rol:** a partir de la etapa 1.1b, los endpoints que
-  devuelvan productos u otros datos con costo tienen un esquema distinto para Vendedor y
-  Almacén, sin los campos de costo ni margen (no se filtran en el código: no existen en
-  el esquema).
+- **Esquemas de respuesta por rol (etapa 1.1b):** los endpoints que devuelven productos,
+  kardex o conteos tienen un esquema por rol: Admin (precio y costo), Vendedor (precio,
+  sin costo) y Almacén (sin precio ni costo, y en los conteos sin el stock esperado ni la
+  diferencia). Los campos no se filtran en el código: no existen en el esquema, que no
+  admite campos extra. La prueba `test_no_cost_leak.py` recorre esos endpoints con
+  Vendedor y Almacén y falla si aparece una clave prohibida en cualquier nivel.
+- **Entradas estrictas:** los esquemas de entrada de la etapa 1.1b rechazan campos
+  desconocidos (422): el SKU, el precio, el costo y la publicación no se pueden colar en
+  la edición de un producto.
 - **Tipos en el frontend:** `pnpm api:types` genera `packages/shared/src/api/schema.d.ts`
   desde el OpenAPI de FastAPI; se regenera cuando cambia la API.
 - **Compatibilidad con equipos desactualizados:** un equipo sin conexión puede seguir
@@ -223,7 +249,8 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
   - `backend/` → imagen en Artifact Registry → migraciones Alembic → nueva revisión de
     Cloud Run → comprobación de `/health` y `/health/db`.
   - `frontend/`, `catalog/` o `packages/` → build estático → Cloudflare Pages.
-- **Respaldo:** diario a las 03:00 (Caracas), cifrado, en Cloud Storage.
+- **Respaldo:** diario a las 03:00 (Caracas), cifrado, en Cloud Storage, más la copia de
+  las fotos nuevas (ADR-0009).
 - Configuración, URLs y procedimientos de operación: `docs/despliegue.md`.
 - **Observabilidad:** logs estructurados en Cloud Run. Las anomalías de negocio (stock
   negativo, diferencias al sincronizar, precio distinto, usuario desactivado con ventas
@@ -237,12 +264,22 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 |---|---|
 | Producto | `product` |
 | Categoría | `category` |
-| Atributo | `attribute` |
+| Atributo | `attribute` (definición: `attribute_definition`) |
 | Unidad de medida | `unit` |
 | SKU | `sku` |
+| Precio de venta / historial de precios | `sale_price_usd` / `product_price` |
+| Costo promedio / costo inicial | `avg_cost_usd` / `initial_cost` |
+| Foto de producto | `product_photo` |
+| Publicado en el catálogo | `is_published` |
+| Stock mínimo / stock bajo | `min_stock` / `low_stock` |
 | Movimiento de inventario (kardex) | `stock_movement` |
 | Ajuste | `adjustment` |
+| Motivo del ajuste | `adjustment_reason` (`physical_count`, `damage`, `loss`, `correction`) |
+| Solicitud de ajuste (salida del Almacén) | `adjustment_request` |
+| Aprobar / rechazar / retirar | `approve` / `reject` / `withdraw` |
 | Conteo físico | `stock_count` |
+| Listo para revisión | `ready_for_review` |
+| Aplicar (un conteo) | `apply` |
 | Proveedor | `supplier` |
 | Compra | `purchase` |
 | Tasa de cambio (BCV) | `exchange_rate` |

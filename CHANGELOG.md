@@ -8,6 +8,39 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así suce
 
 ### Añadido
 
+- **Etapa 1.1b: productos, categorías e inventario** (RF-01 a RF-12, RN-08, RN-09, RN-13,
+  RN-18, RN-19, RNF-04; especificación en `specs/002-productos-inventario/`, ADR-0009):
+  - Categorías Mangueras, Conexiones, Ferrules y Ferretería con sus atributos y las
+    unidades metro y unidad, instaladas por la migración `0004`; el admin crea y edita
+    categorías, atributos (opciones que se agregan o desactivan) y unidades.
+  - Productos con SKU automático por categoría que nunca se repite (`MAN-0001`…),
+    atributos validados, mangueras siempre por metro, categoría y unidad fijas tras el
+    primer movimiento, desactivación sin borrar y avisos de nombre repetido, producto
+    inactivo con stock y edición sobre datos viejos.
+  - Fotos (hasta 5) normalizadas en el servidor a WebP de 1.200 px sin metadatos,
+    guardadas en Supabase Storage con la clave solo en la API.
+  - Precio de venta en USD con IVA incluido e historial de solo inserción; costo
+    inicial solo del admin mientras no haya compras; publicación en el catálogo solo de
+    productos activos con precio. Esquemas de respuesta por rol: el vendedor no recibe
+    costos y el almacén tampoco recibe precios (prueba transversal de fuga).
+  - Kardex impuesto en la base: el stock solo cambia al insertar un movimiento (trigger
+    que verifica el saldo y rechaza escrituras directas); movimientos y precios de solo
+    inserción.
+  - Ajustes con motivo; las salidas del almacén quedan pendientes hasta que el admin
+    las aprueba (revalidando el stock del momento) o rechaza con motivo; el almacén ve
+    y puede retirar sus solicitudes. Cada ajuste se audita con el stock antes y después.
+  - Conteo físico a ciegas para el almacén (sin stock del sistema ni diferencias), con
+    revisión y aplicación solo del admin; un producto en un solo conteo abierto a la vez;
+    la diferencia se calcula contra el stock al anotar.
+  - Búsqueda sin mayúsculas ni acentos por nombre, descripción, SKU y atributos, con
+    filtros; menos de 200 ms en el servidor con 1.000 productos. Stock bajo, pendientes
+    del admin y tarjetas del inicio.
+  - App interna: productos (lista, alta y ficha con datos, fotos, precio y costo, y
+    kardex), ajuste de inventario, pendientes, mis solicitudes, stock bajo, conteos y
+    configuración; componentes `DecimalInput`, `StatusChip` y `Tabs`; formato de
+    números `1.234,56` en `packages/shared`.
+  - Respaldo diario de las fotos con rclone a `fotos/` del bucket de respaldos; comando
+    `app.cli seed-demo-products` (solo local).
 - **Etapa 1.1a: usuarios, autenticación y permisos** (RF-44, RF-45, RF-46, RNF-05,
   RNF-08; especificación en `specs/001-usuarios-autenticacion-permisos/`, ADR-0008):
   - Instalación del primer administrador con código secreto, solo con la base vacía.
@@ -50,6 +83,12 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así suce
   en el catálogo y el vendedor no ve el kardex (matriz de permisos).
 - `docs/arquitectura.md` 1.1, `docs/modelo-de-datos.md` 1.1, `docs/despliegue.md` 0.3 y
   `docs/guia-de-estilos.md` 1.1 actualizados para la etapa 1.1a.
+- `docs/arquitectura.md` 1.2, `docs/modelo-de-datos.md` 1.2, `docs/despliegue.md` 0.4 y
+  `docs/guia-de-estilos.md` 1.2 actualizados para la etapa 1.1b: búsqueda con texto
+  normalizado sin extensiones de Postgres (en lugar de `tsvector` y trigram), tabla
+  `adjustment_request`, estados de conteo, flujo y respaldo de fotos.
+- Despliegue de la API: secreto `supabase-storage-key` y variables de fotos; la regla de
+  borrado a los 30 días del bucket de respaldos se limita a los volcados (`sht-*`).
 - Despliegue de la API: secretos `jwt-secret` y `setup-code`, y cookie de sesión
   provisional `SameSite=None` mientras no haya dominio propio.
 

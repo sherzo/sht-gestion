@@ -278,7 +278,8 @@ ADR-0008 (permisos por petición) y el código de la etapa 1.1a.
 - **Decisión:** acciones nuevas con `record_audit` en la misma transacción:
   `product.created`, `product.updated`, `product.category_changed` (SKU anterior y
   nuevo), `product.activated`/`deactivated`, `product.published`/`unpublished`,
-  `product.price_set`, `product.initial_cost_set`, `product.photo_added`/`removed`,
+  `product.price_set`, `product.initial_cost_set`, `product.photo_added`/`removed`/
+  `photos_reordered`,
   `inventory.adjustment_applied`, `inventory.adjustment_requested`,
   `inventory.adjustment_approved`/`rejected`/`withdrawn`,
   `stock_count.opened`/`ready`/`returned`/`applied`/`cancelled`,

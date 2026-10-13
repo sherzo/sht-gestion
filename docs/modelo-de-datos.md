@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.1 |
-| Fecha | 2026-10-08 |
+| Versión | 1.2 |
+| Fecha | 2026-10-13 |
 | Estado | Vigente (aprobado al cerrar la etapa 1.0; cada etapa lo afina y aplica con migraciones) |
 | Documentos relacionados | `docs/PRD.md`, `docs/arquitectura.md`, `docs/decisiones/` |
 
@@ -53,10 +53,14 @@ Se definen como **dominios** de Postgres, para declarar la escala en un solo lug
 | `purchase`, `purchase_item` | Editables en borrador; inmutables una vez confirmadas (RN-14) |
 | `cash_session` | Editable solo para cerrarla; inmutable una vez cerrada (RF-33) |
 | `outbox_operation` | Inmutable una vez procesada |
+| `adjustment_request` | Solo pasa de `pending` a un estado final (`approved`, `rejected`, `withdrawn`) sin cambiar sus datos (RN-19) |
+| `stock_count`, `stock_count_line` | Inmutables una vez `applied` o `cancelled`; las líneas se anotan solo con el conteo `open` |
+| `product` (columnas `stock` y `has_movements`) | Solo las cambia el trigger de `stock_movement` (RN-08) |
 
 La regla se impone **en la base de datos**, no solo en el código: el rol de la API no
 tiene permiso `DELETE` sobre estas tablas, y hay triggers que rechazan `UPDATE` (o lo
-permiten solo en el estado editable).
+permiten solo en el estado editable). Los de la etapa 1.1b están en la migración
+`0004_productos_e_inventario`.
 
 ## 2. Diagrama
 
@@ -68,6 +72,8 @@ erDiagram
     product ||--o{ product_price : historial
     product ||--o{ product_photo : tiene
     product ||--o{ stock_movement : kardex
+    product ||--o{ adjustment_request : "salidas del Almacén"
+    adjustment_request |o--o| stock_movement : "al aprobarse"
 
     supplier ||--o{ purchase : provee
     purchase ||--|{ purchase_item : contiene
@@ -140,11 +146,13 @@ la etapa 1.3), `started_at`, `expires_at` (`started_at` + 12 h, RF-44), `revoked
 rotado revoca la jornada.
 
 **`audit_log`** (RF-46): `occurred_at`, `user_id`, `device_id`, `action` (ej.
-`product.price_changed`, `exchange_rate.corrected`, `sale.voided`), `entity_type`,
+`product.price_set`, `exchange_rate.corrected`, `sale.voided`), `entity_type`,
 `entity_id`, `before` jsonb, `after` jsonb, `reason`, `details` jsonb. Se escribe en la
 misma transacción que la acción y nunca guarda contraseñas ni PIN. Un trigger rechaza
 `UPDATE` y `DELETE`. Las acciones de la etapa 1.1a (instalación, sesión, PIN y usuarios)
-están en `specs/001-usuarios-autenticacion-permisos/data-model.md`.
+están en `specs/001-usuarios-autenticacion-permisos/data-model.md`, y las de la 1.1b
+(productos, inventario y configuración) en `specs/002-productos-inventario/research.md`
+R14.
 
 **`alert`** (RN-10, RN-14, ADR-0003): `type` (`negative_stock`, `price_mismatch`,
 `total_mismatch`, `inactive_user_sync`, `purchase_void_cost`, `discount_review`, …),
@@ -152,16 +160,19 @@ están en `specs/001-usuarios-autenticacion-permisos/data-model.md`.
 
 ### 3.2 Productos (RF-01 a RF-07)
 
+Detalle de columnas, reglas y triggers: `specs/002-productos-inventario/data-model.md`
+(migración `0004_productos_e_inventario`).
+
 **`category`**
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `name` | text | Mangueras, Conexiones, Ferrules, Ferretería (RF-03) |
-| `sku_prefix` | text | Único: `MAN`, `CON`, `FER`, `FRT` (RF-02) |
+| `name` | text | Mangueras, Conexiones, Ferrules, Ferretería (RF-03); único entre activas |
+| `sku_prefix` | text | Único, `^[A-Z]{3}$`: `MAN`, `CON`, `FER`, `FRT` (RF-02); no cambia si la categoría tiene productos (trigger) |
 | `next_sku_number` | int | Contador; se lee con bloqueo de fila al crear un producto |
 | `default_unit_id` | uuid → `unit` | Unidad sugerida |
 | `unit_locked` | bool | `true` en Mangueras: siempre por metro (RF-05) |
-| `is_active` | bool | |
+| `is_active` | bool | Inactiva: no admite productos nuevos |
 
 **`attribute_definition`** (RF-04): define qué atributos tiene cada categoría; el admin
 los edita.
@@ -169,36 +180,44 @@ los edita.
 | Columna | Tipo | Notas |
 |---|---|---|
 | `category_id` | uuid → `category` | |
-| `key` | text | Identificador en inglés, único por categoría (ej. `hose_type`, `thread`) |
+| `key` | text | Identificador en inglés, único por categoría (ej. `hose_type`, `thread`); no cambia |
 | `label` | text | Texto en español (ej. "Tipo", "Rosca") |
-| `data_type` | text | `text` \| `number` \| `option` |
-| `options` | jsonb, nulo | Valores permitidos si es `option` (ej. R1, R2, R3) |
-| `is_filterable` | bool | Aparece como filtro en el catálogo (RF-36) |
-| `sort_order`, `is_active` | | |
+| `data_type` | text | `text` \| `number` \| `option`; no cambia |
+| `options` | jsonb, nulo | Si es `option`: lista de `{"value", "is_active"}`; se agregan o desactivan, nunca se borran |
+| `is_required` | bool | Obligatorio al crear o editar productos |
+| `is_filterable` | bool | Filtro en la búsqueda y en el catálogo (RF-36) |
+| `sort_order`, `is_active` | | Desactivar no altera los valores guardados en los productos |
 
-**`unit`** (RF-05): `code` (`m`, `u`), `name` (metro, unidad), `decimals` (2 y 0),
-`is_active`. El admin puede agregar unidades (caja, paquete).
+**`unit`** (RF-05): `code` (`m`, `u`), `name` (metro, unidad), `decimals` (2 y 0;
+`CHECK` 0 o 2, no cambia), `is_active`. El admin puede agregar unidades (caja, paquete);
+una unidad en uso no se desactiva.
 
 **`product`**
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `sku` | text | Único, `{prefijo}-{4 dígitos}`, generado (RF-02) |
-| `category_id`, `unit_id` | uuid | |
-| `name`, `description` | text | |
-| `attributes` | jsonb | Valores según `attribute_definition`; validados por la API; índice GIN |
-| `sale_price_usd` | `usd_amount` | Precio vigente con IVA incluido (RN-17); cada cambio crea un `product_price` |
-| `avg_cost_usd` | `usd_cost` | Costo promedio ponderado (RN-09) |
-| `stock` | `quantity` | Copia del saldo del kardex, actualizada en la misma transacción que cada movimiento |
-| `min_stock` | `quantity` | Alerta de stock bajo (RF-11) |
-| `is_active`, `is_published` | bool | `is_published`: aparece en el catálogo (RF-07) |
-| `search_text` | tsvector generado | Búsqueda por nombre, descripción, SKU y atributos (RF-06); además índice trigram |
+| `sku` | text | Único, `{prefijo}-{al menos 4 dígitos}`, generado (RF-02); cambia solo al cambiar de categoría sin movimientos |
+| `category_id`, `unit_id` | uuid | Cambian solo mientras `has_movements` es falso (FR-004) |
+| `name`, `description` | text | 1–120 y 0–2.000 caracteres |
+| `attributes` | jsonb | Valores según `attribute_definition`; validados por la API |
+| `search_text` | text | Nombre, descripción, SKU y valores de atributos normalizados sin acentos ni mayúsculas, calculado por la API (RF-06) |
+| `sale_price_usd` | `usd_amount`, nulo | Precio vigente con IVA incluido (RN-17); nulo = sin precio; cada cambio crea un `product_price` |
+| `avg_cost_usd` | `usd_cost`, nulo | Costo promedio ponderado (RN-09); nulo = sin costo, distinto de `0` |
+| `cost_locked` | bool | La etapa 1.2 lo activa con la primera compra confirmada; desde entonces el costo inicial ya no se edita (RN-09) |
+| `stock` | `quantity` | Copia del saldo del kardex; solo la cambia el trigger de `stock_movement` |
+| `has_movements` | bool | Lo activa el trigger con el primer movimiento |
+| `min_stock` | `quantity` | Alerta de stock bajo (RF-11), con los decimales de la unidad |
+| `is_active`, `is_published` | bool | Publicar exige producto activo y con precio (`CHECK`, RF-07) |
+| `updated_at`, `updated_by` | | Aviso de edición sobre datos viejos |
 
 **`product_price`**: `product_id`, `price_usd`, `valid_from`, `set_by`. Histórico de
-precios: sirve a la auditoría y a la validación de precios de ventas sin conexión
-(ADR-0003).
+precios de solo inserción: sirve a la auditoría y a la validación de precios de ventas
+sin conexión (ADR-0003). Previsión RN-18: las listas de precios agregarían aquí
+`price_list_id` nulo (nulo = precio general).
 
-**`product_photo`**: `product_id`, `storage_path` (Supabase Storage), `sort_order`.
+**`product_photo`** (ADR-0009): `product_id`, `storage_path`
+(`products/{producto}/{foto}.webp` en Supabase Storage), `width`, `height`, `size_bytes`,
+`sort_order` (la menor es la principal), `removed_at`, `removed_by`. Máximo 5 activas.
 
 ### 3.3 Inventario (RF-08 a RF-12)
 
@@ -217,13 +236,30 @@ precios: sirve a la auditoría y a la validación de precios de ventas sin conex
 | `occurred_at` | timestamptz | |
 | `created_by`, `device_id` | uuid | |
 
-**`stock_count`** (RF-12): `status` (`open` \| `applied` \| `cancelled`), `started_by`,
-`started_at`, `applied_by`, `applied_at`, `notes`.
+Un trigger `BEFORE INSERT` verifica `balance_after = stock + quantity_delta` y actualiza
+`product.stock`; otro rechaza `UPDATE` y `DELETE`. La API solo escribe movimientos con
+`services/inventory.py::post_movement`.
 
-**`stock_count_line`**: `stock_count_id`, `product_id`, `expected_quantity`,
-`counted_quantity`. Al aplicar el conteo, cada diferencia genera un ajuste con motivo
-`physical_count`. Cómo tratar las ventas ocurridas durante el conteo se define en la spec
-de la etapa 1.1.
+**`adjustment_request`** (RN-19): salida de inventario del Almacén que espera la decisión
+del Admin. `product_id`, `quantity_delta` (`< 0`), `adjustment_reason`, `note`, `status`
+(`pending` \| `approved` \| `rejected` \| `withdrawn`), `requested_by`, `requested_at`,
+`decided_by`, `decided_at`, `rejection_reason` (obligatorio si `rejected`) y
+`stock_movement_id` (obligatorio si `approved`). Mientras está pendiente no toca el stock;
+al aprobarla se revalida con el stock del momento.
+
+**`stock_count`** (RF-12, RN-19): `status` (`open` \| `ready_for_review` \| `applied` \|
+`cancelled`), `scope` jsonb (todo, categorías o productos), `notes`, `started_by`,
+`started_at`, `ready_by`, `ready_at`, `closed_by`, `closed_at`, `cancel_reason`
+(obligatorio si `cancelled`). Solo el Admin aplica; el Almacén abre, anota, marca listo y
+cancela conteos abiertos.
+
+**`stock_count_line`**: `stock_count_id`, `product_id`, `counted_quantity`,
+`expected_quantity`, `counted_by`, `counted_at`, `stock_movement_id`, `is_open`. Al
+anotar se guarda el stock del sistema de ese momento en `expected_quantity` y la
+diferencia se calcula contra él: las compras o ventas ocurridas durante el conteo se
+conservan sin duplicarse. Al aplicar, cada diferencia genera un ajuste con motivo
+`physical_count` (puede dejar saldo negativo, que se informa). El Almacén cuenta a
+ciegas: no recibe `expected_quantity` ni la diferencia.
 
 ### 3.4 Compras (RF-13 a RF-16, RN-14)
 
@@ -382,14 +418,19 @@ jsonb, `received_at`, `processed_at`, `status` (`processed` \| `failed`), `resul
   `(sale.series, sale.sequence_number)`, `purchase.number`,
   `(exchange_rate.rate_type, business_date)`, `sale_void.sale_id`,
   `purchase_void.purchase_id`, `customer.document_id`, `supplier.rif`.
-- Único parcial: una `cash_session` con `status = 'open'` por `device_id`.
+- Único parcial: una `cash_session` con `status = 'open'` por `device_id`; una
+  `stock_count_line` con `is_open` por producto (un producto en un solo conteo abierto);
+  `lower(category.name)` entre categorías activas.
 - `CHECK`: cantidades positivas en ítems y compras; `adjustment_reason` obligatorio en
   ajustes; `reference` obligatoria cuando el método la exige (validado en la API, porque
   depende de otra tabla); porcentajes entre 0 y 100.
 - Decimales permitidos por unidad (`unit.decimals`): validados en la API.
-- Índices: `stock_movement (product_id, occurred_at)`, `sale (business_date)`,
-  `sale (seller_id, business_date)`, `payment (cash_session_id)`, GIN sobre
-  `product.attributes` y `product.search_text`, trigram sobre `product.name`.
+- Índices: `stock_movement (product_id, occurred_at DESC)`, `product (category_id,
+  is_active)`, `product (is_active, stock)`, `adjustment_request (status, requested_at)`,
+  `sale (business_date)`, `sale (seller_id, business_date)`, `payment (cash_session_id)`.
+- Búsqueda (RF-06): sin índice ni extensiones. Con ~1.000 productos, un recorrido con
+  `LIKE` sobre `product.search_text` responde en milisegundos; si el catálogo supera
+  ~10.000 productos se agrega un índice `pg_trgm` sin cambiar la API (arquitectura §5).
 
 ## 5. Previsiones para fases posteriores
 
