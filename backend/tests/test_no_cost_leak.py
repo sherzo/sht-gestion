@@ -75,7 +75,19 @@ LEAK_CASES: list[LeakCase] = [
     LeakCase("GET", "/api/v1/products?q=producto&low_stock=true"),
     LeakCase("GET", "/api/v1/inventory/low-stock", (WAREHOUSE,)),
     LeakCase("GET", "/api/v1/inventory/summary", (WAREHOUSE,)),
+    # Conteos físicos (US5): el Almacén tampoco recibe el stock esperado ni la diferencia
+    LeakCase("GET", "/api/v1/stock-counts", (WAREHOUSE,)),
+    LeakCase("GET", "/api/v1/stock-counts/{count_id}", (WAREHOUSE,)),
+    LeakCase(
+        "PUT",
+        "/api/v1/stock-counts/{count_id}/lines/{line_id}",
+        (WAREHOUSE,),
+        body={"counted_quantity": "7"},
+    ),
 ]
+
+# Claves que el Almacén no recibe en un conteo, porque cuenta a ciegas (FR-025).
+BLIND_KEYS = ("expected", "difference")
 
 
 def forbidden_keys(data: Any, role: Role, path: str = "") -> list[str]:
@@ -84,7 +96,10 @@ def forbidden_keys(data: Any, role: Role, path: str = "") -> list[str]:
     if isinstance(data, dict):
         for key, value in data.items():
             name = str(key).lower()
-            if "cost" in name or "margin" in name or (role == WAREHOUSE and "price" in name):
+            warehouse_only = role == WAREHOUSE and (
+                "price" in name or any(blind in name for blind in BLIND_KEYS)
+            )
+            if "cost" in name or "margin" in name or warehouse_only:
                 found.append(f"{path}{key}")
             found.extend(forbidden_keys(value, role, f"{path}{key}."))
     elif isinstance(data, list):
@@ -108,23 +123,33 @@ def test_detector_de_claves_prohibidas() -> None:
 
 @pytest.fixture
 def leak_context(
-    make_user, auth_headers, make_product, give_stock, category_id, photo_dir
+    client, make_user, auth_headers, make_product, give_stock, category_id, photo_dir
 ) -> dict[str, Any]:
     """Datos con precio y costo definidos para que una fuga se note."""
     product = make_product("MAN", sale_price="12.50", avg_cost="7.250000", min_stock="50")
     give_stock(product, "10")
+    counted = make_product("FER")
+    give_stock(counted, "4")
+    headers_warehouse_user = make_user(WAREHOUSE, username="almacen_fuga")
+    count = client.post(
+        "/api/v1/stock-counts",
+        json={"scope": {"type": "products", "ids": [str(counted.id)]}},
+        headers=auth_headers(make_user(Role.ADMIN, username="admin_fuga")),
+    ).json()
     published = make_product(
         "CON", sale_price="4.00", avg_cost="1.500000", min_stock="2", is_published=True
     )
     headers = {
         SELLER: auth_headers(make_user(SELLER, username="vendedor_fuga")),
-        WAREHOUSE: auth_headers(make_user(WAREHOUSE, username="almacen_fuga")),
+        WAREHOUSE: auth_headers(headers_warehouse_user),
     }
     return {
         "headers": headers,
         "product": product,
         "product_id": str(product.id),
         "published_id": str(published.id),
+        "count_id": count["id"],
+        "line_id": count["lines"][0]["id"],
         "frt_category_id": str(category_id("FRT")),
     }
 

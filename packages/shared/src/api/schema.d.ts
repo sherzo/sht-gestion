@@ -601,6 +601,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stock-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Counts */
+        get: operations["list_counts_api_v1_stock_counts_get"];
+        put?: never;
+        /** Open Count */
+        post: operations["open_count_api_v1_stock_counts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{count_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Count */
+        get: operations["get_count_api_v1_stock_counts__count_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{count_id}/lines/{line_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Record Line */
+        put: operations["record_line_api_v1_stock_counts__count_id__lines__line_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{count_id}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Ready */
+        post: operations["mark_ready_api_v1_stock_counts__count_id__ready_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{count_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen */
+        post: operations["reopen_api_v1_stock_counts__count_id__reopen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{count_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Count */
+        post: operations["apply_count_api_v1_stock_counts__count_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-counts/{count_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Count */
+        post: operations["cancel_count_api_v1_stock_counts__count_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -682,6 +802,22 @@ export interface components {
             pending_adjustments: number;
             /** Counts Ready For Review */
             counts_ready_for_review: number;
+        };
+        /** ApplyRequest */
+        ApplyRequest: {
+            /**
+             * Acknowledge Uncounted
+             * @default false
+             */
+            acknowledge_uncounted: boolean;
+        };
+        /** ApplyResult */
+        ApplyResult: {
+            count: components["schemas"]["StockCountAdmin"];
+            /** Adjustments */
+            adjustments: number;
+            /** Negative Products */
+            negative_products: components["schemas"]["NegativeProduct"][];
         };
         /** AttributeOption */
         AttributeOption: {
@@ -786,6 +922,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** CancelRequest */
+        CancelRequest: {
+            /** Reason */
+            reason: string;
+        };
         /** CategoryOut */
         CategoryOut: {
             /**
@@ -883,6 +1024,26 @@ export interface components {
             /** Avg Cost Usd */
             avg_cost_usd: number | string;
         };
+        /** LineProduct */
+        LineProduct: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            unit: components["schemas"]["LineUnit"];
+        };
+        /** LineUnit */
+        LineUnit: {
+            /** Code */
+            code: string;
+            /** Decimals */
+            decimals: number;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Username */
@@ -909,6 +1070,24 @@ export interface components {
             page: number;
             /** Page Size */
             page_size: number;
+        };
+        /** NegativeProduct */
+        NegativeProduct: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+        };
+        /** OpenCountRequest */
+        OpenCountRequest: {
+            scope: components["schemas"]["Scope"];
+            /** Notes */
+            notes?: string | null;
         };
         /** PhotoOut */
         PhotoOut: {
@@ -1103,6 +1282,11 @@ export interface components {
             /** Is Published */
             is_published: boolean;
         };
+        /** RecordLineRequest */
+        RecordLineRequest: {
+            /** Counted Quantity */
+            counted_quantity: number | string;
+        };
         /** RejectBody */
         RejectBody: {
             /** Reason */
@@ -1132,6 +1316,19 @@ export interface components {
         ResetPasswordRequest: {
             /** New Password */
             new_password: string;
+        };
+        /** Scope */
+        Scope: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "all" | "categories" | "products";
+            /**
+             * Ids
+             * @default []
+             */
+            ids: string[];
         };
         /** SessionResponse */
         SessionResponse: {
@@ -1193,6 +1390,146 @@ export interface components {
         SetupStatus: {
             /** Setup Required */
             setup_required: boolean;
+        };
+        /** StockCountAdmin */
+        StockCountAdmin: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /** Scope */
+            scope: {
+                [key: string]: unknown;
+            };
+            /** Notes */
+            notes: string | null;
+            started_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ready At */
+            ready_at: string | null;
+            closed_by: components["schemas"]["UserRef"] | null;
+            /** Closed At */
+            closed_at: string | null;
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Lines Total */
+            lines_total: number;
+            /** Lines Counted */
+            lines_counted: number;
+            /** Lines */
+            lines: components["schemas"]["StockCountLineOut"][];
+            /** Lines With Difference */
+            lines_with_difference: number;
+        };
+        /**
+         * StockCountLineBlind
+         * @description Línea para el Almacén: sin stock esperado ni diferencia (conteo a ciegas).
+         */
+        StockCountLineBlind: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            product: components["schemas"]["LineProduct"];
+            /** Counted Quantity */
+            counted_quantity: string | null;
+            /** Counted At */
+            counted_at: string | null;
+            counted_by: components["schemas"]["UserRef"] | null;
+        };
+        /** StockCountLineOut */
+        StockCountLineOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            product: components["schemas"]["LineProduct"];
+            /** Counted Quantity */
+            counted_quantity: string | null;
+            /** Counted At */
+            counted_at: string | null;
+            counted_by: components["schemas"]["UserRef"] | null;
+            /** Expected Quantity */
+            expected_quantity: string | null;
+            /** Difference */
+            difference: string | null;
+        };
+        /** StockCountSummary */
+        StockCountSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /** Scope */
+            scope: {
+                [key: string]: unknown;
+            };
+            /** Notes */
+            notes: string | null;
+            started_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ready At */
+            ready_at: string | null;
+            closed_by: components["schemas"]["UserRef"] | null;
+            /** Closed At */
+            closed_at: string | null;
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Lines Total */
+            lines_total: number;
+            /** Lines Counted */
+            lines_counted: number;
+        };
+        /** StockCountWarehouse */
+        StockCountWarehouse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /** Scope */
+            scope: {
+                [key: string]: unknown;
+            };
+            /** Notes */
+            notes: string | null;
+            started_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ready At */
+            ready_at: string | null;
+            closed_by: components["schemas"]["UserRef"] | null;
+            /** Closed At */
+            closed_at: string | null;
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Lines Total */
+            lines_total: number;
+            /** Lines Counted */
+            lines_counted: number;
+            /** Lines */
+            lines: components["schemas"]["StockCountLineBlind"][];
         };
         /** StockMovementAdmin */
         StockMovementAdmin: {
@@ -2560,6 +2897,269 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminSummary"] | components["schemas"]["WarehouseSummary"];
+                };
+            };
+        };
+    };
+    list_counts_api_v1_stock_counts_get: {
+        parameters: {
+            query?: {
+                status?: ("open" | "ready_for_review" | "applied" | "cancelled") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_count_api_v1_stock_counts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenCountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountAdmin"] | components["schemas"]["StockCountWarehouse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_count_api_v1_stock_counts__count_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                count_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountAdmin"] | components["schemas"]["StockCountWarehouse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_line_api_v1_stock_counts__count_id__lines__line_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                count_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordLineRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountLineOut"] | components["schemas"]["StockCountLineBlind"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_ready_api_v1_stock_counts__count_id__ready_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                count_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountAdmin"] | components["schemas"]["StockCountWarehouse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopen_api_v1_stock_counts__count_id__reopen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                count_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountAdmin"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_count_api_v1_stock_counts__count_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                count_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_count_api_v1_stock_counts__count_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                count_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockCountAdmin"] | components["schemas"]["StockCountWarehouse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

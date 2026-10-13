@@ -1,7 +1,8 @@
 "use client";
 
-// Pendientes del Admin (RN-19/FR-019b): salidas del Almacén por aprobar. Aprobar genera el
-// movimiento con el stock de ese momento; rechazar exige un motivo que el Almacén verá.
+// Pendientes del Admin (RN-19/FR-019b): salidas del Almacén por aprobar y conteos listos
+// para revisión. Aprobar genera el movimiento con el stock de ese momento; rechazar exige
+// un motivo que el Almacén verá.
 import { formatDateTime, formatQuantity } from "@sht/shared";
 import { Check, X } from "lucide-react";
 import Link from "next/link";
@@ -19,6 +20,8 @@ import { TextAreaField } from "@/components/ui/field";
 import { ApiError, apiFetch } from "@/lib/api/client";
 import type { Schemas } from "@/lib/api/client";
 import { ADJUSTMENT_REASON_LABELS } from "@/lib/products";
+import { scopeLabel } from "@/lib/stock-counts";
+import type { CountSummary } from "@/lib/stock-counts";
 
 type AdjustmentRequest = Schemas["AdjustmentRequestOut"];
 type RequestPage = Schemas["AdjustmentRequestPage"];
@@ -188,12 +191,53 @@ function AdjustmentRequests() {
   );
 }
 
+function CountsReady() {
+  const [counts, setCounts] = useState<CountSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch<CountSummary[]>("/stock-counts", { query: { status: "ready_for_review" } })
+      .then(setCounts)
+      .catch((caught) => setError(caught instanceof ApiError ? caught.message : "No se pudieron cargar los conteos"));
+  }, []);
+
+  const columns: Column<CountSummary>[] = [
+    {
+      key: "count",
+      header: "Conteo",
+      render: (count) => (
+        <Link href={`/inventario/conteo/?id=${count.id}`} className="font-medium text-primary underline-offset-2 hover:underline">
+          {scopeLabel(count.scope)}
+          {count.notes && <span className="block text-sm font-normal text-ink-muted">{count.notes}</span>}
+        </Link>
+      ),
+    },
+    { key: "progress", header: "Anotados", className: "tabular-nums", render: (count) => `${count.lines_counted} de ${count.lines_total}` },
+    {
+      key: "ready",
+      header: "Listo desde",
+      render: (count) => (count.ready_at ? formatDateTime(count.ready_at) : "—"),
+    },
+  ];
+
+  return (
+    <section aria-labelledby="pendientes-conteos" className="flex flex-col gap-3">
+      <h2 id="pendientes-conteos" className="text-xl font-semibold">
+        Conteos listos para revisión
+      </h2>
+      {error && <Alert variant="danger">{error}</Alert>}
+      {counts && <DataTable caption="Conteos listos para revisión" columns={columns} rows={counts} rowKey={(count) => count.id} emptyMessage="No hay conteos por revisar." />}
+    </section>
+  );
+}
+
 function PendingContent() {
   return (
     <AppShell>
       <h1 className="mb-4 text-2xl font-bold">Pendientes</h1>
       <div className="flex flex-col gap-8">
         <AdjustmentRequests />
+        <CountsReady />
       </div>
     </AppShell>
   );

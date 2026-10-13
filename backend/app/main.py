@@ -12,6 +12,7 @@ from app.api import (
     inventory,
     products,
     setup,
+    stock_counts,
     users,
 )
 from app.core.config import get_settings
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     api_v1.include_router(catalog_config.router)
     api_v1.include_router(products.router)
     api_v1.include_router(inventory.router)
+    api_v1.include_router(stock_counts.router)
     app.include_router(api_v1)
 
     # Fotos en disco solo en desarrollo y pruebas; en producción las sirve Supabase (R9).

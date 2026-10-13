@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from app.core.clock import utcnow
-from app.db.models import AdjustmentRequest, ProductPhoto
+from app.db.models import AdjustmentRequest, ProductPhoto, StockCount, StockCountLine
 from app.domain.roles import Role
 from tests.conftest import DEFAULT_PASSWORD
 
@@ -127,6 +127,30 @@ MATRIX: list[Row] = [
     # Stock bajo y resumen del inicio (RF-11)
     Row("GET", "/api/v1/inventory/low-stock", ADMIN_WAREHOUSE),
     Row("GET", "/api/v1/inventory/summary", ADMIN_WAREHOUSE),
+    # Conteos físicos (RF-12, RN-19)
+    Row("GET", "/api/v1/stock-counts", ADMIN_WAREHOUSE),
+    Row(
+        "POST",
+        "/api/v1/stock-counts",
+        ADMIN_WAREHOUSE,
+        {"scope": {"type": "products", "ids": ["{other_product_id}"]}},
+    ),
+    Row("GET", "/api/v1/stock-counts/{count_id}", ADMIN_WAREHOUSE),
+    Row(
+        "PUT",
+        "/api/v1/stock-counts/{count_id}/lines/{line_id}",
+        ADMIN_WAREHOUSE,
+        {"counted_quantity": "3"},
+    ),
+    Row("POST", "/api/v1/stock-counts/{count_id}/ready", ADMIN_WAREHOUSE),
+    Row("POST", "/api/v1/stock-counts/{count_id}/reopen", ADMIN_ONLY),
+    Row(
+        "POST",
+        "/api/v1/stock-counts/{count_id}/apply",
+        ADMIN_ONLY,
+        {"acknowledge_uncounted": True},
+    ),
+    Row("POST", "/api/v1/stock-counts/{count_id}/cancel", ADMIN_WAREHOUSE, {"reason": "x"}),
 ]
 
 
@@ -162,6 +186,19 @@ def actor_headers(make_user, auth_headers, make_product, give_stock, category_id
     )
     db.add_all([photo, request])
     db.commit()
+    # Conteo abierto con una línea, y otro producto libre para abrir uno nuevo.
+    other = make_product("FRT")
+    count = StockCount(
+        status="open",
+        scope={"type": "products", "ids": [str(product.id)]},
+        started_by=users[WAREHOUSE].id,
+        started_at=utcnow(),
+    )
+    db.add(count)
+    db.flush()
+    line = StockCountLine(stock_count_id=count.id, product_id=product.id, is_open=True)
+    db.add(line)
+    db.commit()
 
     def headers_for(actor: str) -> dict[str, str]:
         if actor == ANONYMOUS:
@@ -173,6 +210,9 @@ def actor_headers(make_user, auth_headers, make_product, give_stock, category_id
         "product_id": str(product.id),
         "photo_id": str(photo.id),
         "request_id": str(request.id),
+        "count_id": str(count.id),
+        "line_id": str(line.id),
+        "other_product_id": str(other.id),
         "category_id": str(category_id("FRT")),
     }
     return headers_for
