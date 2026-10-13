@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     # Instalación del primer administrador (FR-001, research R7).
     setup_code: SecretStr | None = None
 
+    # Fotos de productos (research R9): disco local en desarrollo y pruebas, bucket
+    # público de Supabase Storage en staging y producción.
+    photo_storage: Literal["local", "supabase"] = "local"
+    photo_local_dir: str = ".media"
+    # URL pública de las fotos locales (la API las sirve en /media, solo en local).
+    photo_local_base_url: str = "http://localhost:8000/media"
+    supabase_url: str | None = None
+    supabase_storage_key: SecretStr | None = None
+    photo_bucket: str = "product-photos"
+    photo_max_upload_bytes: int = 5 * 1024 * 1024
+
     # Argon2id (research R1). Por defecto, los valores de argon2-cffi.
     argon2_time_cost: int = 3
     argon2_memory_cost: int = 65536
@@ -48,6 +59,12 @@ class Settings(BaseSettings):
     def _require_secrets(self) -> Settings:
         if self.environment in ("staging", "production") and self.jwt_secret is None:
             raise ValueError("Falta la variable de entorno JWT_SECRET")
+        if self.photo_storage == "supabase" and (
+            not self.supabase_url or self.supabase_storage_key is None
+        ):
+            raise ValueError("Faltan las variables SUPABASE_URL y SUPABASE_STORAGE_KEY")
+        if self.photo_storage == "local" and self.environment in ("staging", "production"):
+            raise ValueError("PHOTO_STORAGE=local solo se permite en local y pruebas")
         return self
 
 

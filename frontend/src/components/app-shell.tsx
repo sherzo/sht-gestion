@@ -4,7 +4,22 @@
 // (RF-44, US2 escenario 5). El menú solo oculta; los permisos los verifica el servidor.
 import { ROLE_LABELS } from "@sht/shared";
 import type { Role } from "@sht/shared";
-import { History, Home, LogOut, Menu, UserCog, Users, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ClipboardCheck,
+  ClipboardList,
+  History,
+  Home,
+  Inbox,
+  LogOut,
+  Menu,
+  Package,
+  Settings,
+  SlidersHorizontal,
+  UserCog,
+  Users,
+  X,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,6 +34,13 @@ const ALL_ROLES: Role[] = ["admin", "seller", "warehouse"];
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Inicio", icon: Home, roles: ALL_ROLES },
+  { href: "/productos/", label: "Productos", icon: Package, roles: ALL_ROLES },
+  { href: "/inventario/ajuste/", label: "Ajuste de inventario", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
+  { href: "/inventario/stock-bajo/", label: "Stock bajo", icon: AlertTriangle, roles: ["admin", "warehouse"] },
+  { href: "/inventario/conteos/", label: "Conteos", icon: ClipboardCheck, roles: ["admin", "warehouse"] },
+  { href: "/inventario/mis-solicitudes/", label: "Mis solicitudes", icon: ClipboardList, roles: ["warehouse"] },
+  { href: "/pendientes/", label: "Pendientes", icon: Inbox, roles: ["admin"] },
+  { href: "/configuracion/categorias/", label: "Configuración", icon: Settings, roles: ["admin"] },
   { href: "/usuarios/", label: "Usuarios", icon: Users, roles: ["admin"] },
   { href: "/auditoria/", label: "Auditoría", icon: History, roles: ["admin"] },
   { href: "/mi-cuenta/", label: "Mi cuenta", icon: UserCog, roles: ALL_ROLES },

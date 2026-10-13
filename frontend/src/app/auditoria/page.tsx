@@ -2,7 +2,7 @@
 
 // Consulta de la auditoría para el admin (RF-46/FR-025): filtros por usuario, tipo de
 // acción y fechas (días de Caracas), más recientes primero.
-import { AUDIT_ACTION_GROUPS, ROLE_LABELS, auditActionLabel, formatDateTime, formatTime } from "@sht/shared";
+import { AUDIT_ACTION_GROUPS, ROLE_LABELS, auditActionLabel, formatDateTime, formatDecimal, formatTime } from "@sht/shared";
 import type { Role } from "@sht/shared";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -55,7 +55,48 @@ function summarize(entry: Entry): string {
     case "setup.failed":
       return "Código incorrecto";
     default:
-      return entry.reason ?? "";
+      return summarizeInventory(entry, before, after, details);
+  }
+}
+
+function text(value: unknown): string {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function amount(value: unknown, decimals: number, empty: string): string {
+  return typeof value === "string" ? formatDecimal(value, decimals) : empty;
+}
+
+/** Productos, inventario y configuración (etapa 1.1b, FR-034). */
+function summarizeInventory(entry: Entry, before: Json, after: Json, details: Json): string {
+  const sku = text(details?.sku);
+  const qty = (value: unknown) => amount(value, Number(details?.unit_decimals ?? 2), "");
+  const prefix = sku ? `${sku} · ` : "";
+  switch (entry.action) {
+    case "product.created":
+      return `${text(after?.sku)} · ${text(after?.name)}`;
+    case "product.category_changed":
+      return `${text(before?.sku)} → ${text(after?.sku)}`;
+    case "product.price_set":
+      return `${prefix}${amount(before?.sale_price_usd, 2, "Sin precio")} → ${amount(after?.sale_price_usd, 2, "")} USD`;
+    case "product.initial_cost_set":
+      return `${prefix}${amount(before?.avg_cost_usd, 6, "Sin costo")} → ${amount(after?.avg_cost_usd, 6, "")} USD`;
+    case "inventory.adjustment_applied":
+    case "inventory.adjustment_approved":
+      return `${prefix}${qty(details?.quantity_delta)} · stock ${qty(before?.stock)} → ${qty(after?.stock)}`;
+    case "inventory.adjustment_requested":
+    case "inventory.adjustment_withdrawn":
+      return `${prefix}${qty(details?.quantity_delta)}`;
+    case "inventory.adjustment_rejected":
+      return `${prefix}${qty(details?.quantity_delta)} · ${entry.reason ?? ""}`;
+    case "stock_count.applied":
+      return `${text(details?.adjustments)} ajuste(s) de ${text(details?.lines)} producto(s)`;
+    case "category.created":
+    case "unit.created":
+    case "attribute.created":
+      return text(after?.name ?? after?.label);
+    default:
+      return [sku, entry.reason].filter(Boolean).join(" · ");
   }
 }
 

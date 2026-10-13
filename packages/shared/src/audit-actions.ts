@@ -39,6 +39,49 @@ export const AUDIT_ACTION_GROUPS = [
       "user.password_reset": "Contraseña restablecida",
     },
   },
+  {
+    label: "Productos",
+    actions: {
+      "product.created": "Producto creado",
+      "product.updated": "Producto modificado",
+      "product.category_changed": "Cambio de categoría (SKU nuevo)",
+      "product.activated": "Producto reactivado",
+      "product.deactivated": "Producto desactivado",
+      "product.published": "Publicado en el catálogo",
+      "product.unpublished": "Retirado del catálogo",
+      "product.price_set": "Precio de venta fijado",
+      "product.initial_cost_set": "Costo inicial fijado",
+      "product.photo_added": "Foto agregada",
+      "product.photo_removed": "Foto quitada",
+      "product.photos_reordered": "Fotos reordenadas",
+    },
+  },
+  {
+    label: "Inventario",
+    actions: {
+      "inventory.adjustment_applied": "Ajuste de inventario",
+      "inventory.adjustment_requested": "Salida solicitada (pendiente)",
+      "inventory.adjustment_approved": "Salida aprobada",
+      "inventory.adjustment_rejected": "Salida rechazada",
+      "inventory.adjustment_withdrawn": "Salida retirada",
+      "stock_count.opened": "Conteo abierto",
+      "stock_count.ready": "Conteo listo para revisión",
+      "stock_count.returned": "Conteo devuelto para recontar",
+      "stock_count.applied": "Conteo aplicado",
+      "stock_count.cancelled": "Conteo cancelado",
+    },
+  },
+  {
+    label: "Configuración",
+    actions: {
+      "category.created": "Categoría creada",
+      "category.updated": "Categoría modificada",
+      "attribute.created": "Atributo creado",
+      "attribute.updated": "Atributo modificado",
+      "unit.created": "Unidad creada",
+      "unit.updated": "Unidad modificada",
+    },
+  },
 ] as const;
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = Object.fromEntries(
