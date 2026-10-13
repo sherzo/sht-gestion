@@ -1,20 +1,21 @@
 "use client";
 
-// Lista de productos (RF-01, RF-06): todos los roles la ven, cada uno con su esquema; el
-// precio solo aparece para Admin y Vendedor (research R6).
+// Lista y búsqueda de productos (RF-01, RF-06/FR-032, FR-033): todos los roles la ven,
+// cada uno con su esquema; el precio solo aparece para Admin y Vendedor (research R6).
 import { formatUsd } from "@sht/shared";
 import { ChevronLeft, ChevronRight, PackagePlus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { EMPTY_FILTERS, ProductSearch, searchParams } from "@/components/products/product-search";
+import type { SearchFilters } from "@/components/products/product-search";
 import { ProductStatus } from "@/components/products/product-status";
 import { RequireAuth } from "@/components/require-auth";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import type { Column } from "@/components/ui/data-table";
-import { SelectField } from "@/components/ui/field";
 import { ApiError, apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/use-auth";
 import { hasPrice, quantityWithUnit, useCatalogConfig } from "@/lib/products";
@@ -25,7 +26,7 @@ const PAGE_SIZE = 50;
 function ProductsContent() {
   const { user } = useAuth();
   const { categories } = useCatalogConfig();
-  const [filters, setFilters] = useState({ category_id: "", is_active: "true" });
+  const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ProductPage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +37,7 @@ function ProductsContent() {
     const request = ++latest.current;
     setError(null);
     try {
-      const query = { ...filters, is_active: canEdit ? filters.is_active : undefined, page, page_size: PAGE_SIZE };
+      const query = searchParams({ ...filters, is_active: canEdit ? filters.is_active : "" }, { page, page_size: PAGE_SIZE });
       const result = await apiFetch<ProductPage>("/products", { query });
       if (request === latest.current) setData(result);
     } catch (caught) {
@@ -48,10 +49,10 @@ function ProductsContent() {
     void load();
   }, [load]);
 
-  function update(name: keyof typeof filters, value: string) {
-    setFilters((current) => ({ ...current, [name]: value }));
+  const changeFilters = useCallback((next: SearchFilters) => {
+    setFilters(next);
     setPage(1);
-  }
+  }, []);
 
   const columns: Column<Product>[] = [
     {
@@ -100,25 +101,8 @@ function ProductsContent() {
           </Link>
         )}
       </div>
-      <div className="mb-4 grid gap-3 sm:max-w-xl sm:grid-cols-2">
-        <SelectField
-          label="Categoría"
-          value={filters.category_id}
-          onChange={(event) => update("category_id", event.target.value)}
-          options={[{ value: "", label: "Todas" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]}
-        />
-        {canEdit && (
-          <SelectField
-            label="Estado"
-            value={filters.is_active}
-            onChange={(event) => update("is_active", event.target.value)}
-            options={[
-              { value: "true", label: "Activos" },
-              { value: "false", label: "Inactivos" },
-              { value: "", label: "Todos" },
-            ]}
-          />
-        )}
+      <div className="mb-4">
+        <ProductSearch categories={categories} value={filters} onChange={changeFilters} showStatus={canEdit} />
       </div>
       {error && (
         <div className="mb-4">
@@ -130,7 +114,18 @@ function ProductsContent() {
           <p className="mb-2 text-sm text-ink-muted" aria-live="polite">
             {data.total} producto{data.total === 1 ? "" : "s"}
           </p>
-          <DataTable caption="Productos" columns={columns} rows={data.items} rowKey={(product) => product.id} emptyMessage="No hay productos con estos filtros." />
+          {data.items.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-line bg-surface p-6 text-center">
+              <p className="text-ink-muted">No se encontraron productos con esta búsqueda.</p>
+              {canEdit && (
+                <Link href="/productos/nuevo/" className="font-semibold text-primary underline-offset-2 hover:underline">
+                  Crear producto
+                </Link>
+              )}
+            </div>
+          ) : (
+            <DataTable caption="Productos" columns={columns} rows={data.items} rowKey={(product) => product.id} emptyMessage="" />
+          )}
           {data.total > data.page_size && (
             <nav aria-label="Paginación" className="mt-4 flex items-center justify-between gap-3">
               <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>

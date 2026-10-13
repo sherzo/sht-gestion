@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.api.deps import CurrentUser, DbSession, require_roles
 from app.api.product_schemas import (
+    ProductOut,
     StockMovementOut,
     UnitRef,
     UserRef,
@@ -21,10 +22,12 @@ from app.api.product_schemas import (
     unit_ref,
     user_ref,
 )
+from app.api.products import products_out
 from app.db.models import AdjustmentRequest, Product, Unit
 from app.domain.roles import Role
 from app.domain.units import format_quantity
 from app.services import inventory as inventory_service
+from app.services import products as products_service
 from app.services.users import users_by_id
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
@@ -204,3 +207,42 @@ def withdraw_request(
 ) -> AdjustmentRequestOut:
     request = inventory_service.withdraw_request(db, actor=current.user, request_id=request_id)
     return request_out(db, request)
+
+
+class AdminSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    low_stock: int
+    pending_adjustments: int
+    counts_ready_for_review: int
+
+
+class WarehouseSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    low_stock: int
+    my_pending_requests: int
+    open_counts: int
+
+
+@router.get("/low-stock")
+def low_stock(current: AdminOrWarehouse, db: DbSession) -> list[ProductOut]:
+    """Productos activos con stock menor o igual al mínimo, por categoría (RF-11/FR-023)."""
+    return products_out(db, current.role, products_service.low_stock_products(db))
+
+
+@router.get("/summary")
+def summary(current: AdminOrWarehouse, db: DbSession) -> AdminSummary | WarehouseSummary:
+    """Contadores de las tarjetas del inicio (research R11)."""
+    counts = inventory_service.summary(db, actor=current.user)
+    if current.role == Role.ADMIN:
+        return AdminSummary(
+            low_stock=counts.low_stock,
+            pending_adjustments=counts.pending_requests,
+            counts_ready_for_review=counts.counts_ready_for_review,
+        )
+    return WarehouseSummary(
+        low_stock=counts.low_stock,
+        my_pending_requests=counts.pending_requests,
+        open_counts=counts.open_counts,
+    )

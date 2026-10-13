@@ -33,3 +33,9 @@ def test_reset_password_deja_una_contrasena_temporal(
 def test_reset_password_de_un_usuario_inexistente(capsys) -> None:
     assert cli.main(["reset-password", "nadie"]) != 0
     assert "no existe" in capsys.readouterr().err
+
+
+def test_productos_de_prueba_solo_en_local(capsys) -> None:
+    """Quickstart, escenario 10: el comando se niega fuera de ENVIRONMENT=local."""
+    assert cli.main(["seed-demo-products", "10"]) == 1
+    assert "solo se permite" in capsys.readouterr().err

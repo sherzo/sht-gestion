@@ -119,6 +119,9 @@ MATRIX: list[Row] = [
         {"reason": "No corresponde"},
     ),
     Row("POST", "/api/v1/inventory/adjustment-requests/{request_id}/withdraw", WAREHOUSE_ONLY),
+    # Stock bajo y resumen del inicio (RF-11)
+    Row("GET", "/api/v1/inventory/low-stock", ADMIN_WAREHOUSE),
+    Row("GET", "/api/v1/inventory/summary", ADMIN_WAREHOUSE),
 ]
 
 

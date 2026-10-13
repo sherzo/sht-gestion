@@ -69,6 +69,10 @@ LEAK_CASES: list[LeakCase] = [
         (WAREHOUSE,),
         body={"product_id": "{product_id}", "quantity_delta": "-1", "reason": "loss"},
     ),
+    # Búsqueda y stock bajo (US3)
+    LeakCase("GET", "/api/v1/products?q=producto&low_stock=true"),
+    LeakCase("GET", "/api/v1/inventory/low-stock", (WAREHOUSE,)),
+    LeakCase("GET", "/api/v1/inventory/summary", (WAREHOUSE,)),
 ]
 
 

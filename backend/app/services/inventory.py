@@ -19,7 +19,14 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
 from app.core.errors import ApiError
-from app.db.models import AdjustmentRequest, AppUser, Product, StockMovement, Unit
+from app.db.models import (
+    AdjustmentRequest,
+    AppUser,
+    Product,
+    StockCount,
+    StockMovement,
+    Unit,
+)
 from app.domain.business_time import day_bounds_utc
 from app.domain.roles import Role
 from app.domain.units import format_quantity, validate_quantity
@@ -403,3 +410,40 @@ def requesters_of(db: Session, movements: list[StockMovement]) -> dict[uuid.UUID
         )
     )
     return {movement_id: requester for movement_id, requester in rows if movement_id}
+
+
+# --- Resumen del inicio (research R11) -----------------------------------------------
+
+
+@dataclass(frozen=True)
+class InventorySummary:
+    low_stock: int
+    pending_requests: int
+    counts_ready_for_review: int
+    open_counts: int
+
+
+def summary(db: Session, *, actor: AppUser) -> InventorySummary:
+    """Contadores para el inicio. Las solicitudes pendientes son todas para el Admin y
+    las propias para el Almacén."""
+    low_stock = db.scalar(
+        select(func.count())
+        .select_from(Product)
+        .where(Product.is_active.is_(True), Product.stock <= Product.min_stock)
+    )
+    pending = (
+        select(func.count())
+        .select_from(AdjustmentRequest)
+        .where(AdjustmentRequest.status == "pending")
+    )
+    if actor.role != Role.ADMIN.value:
+        pending = pending.where(AdjustmentRequest.requested_by == actor.id)
+    by_status = dict(
+        db.execute(select(StockCount.status, func.count()).group_by(StockCount.status)).all()
+    )
+    return InventorySummary(
+        low_stock=low_stock,
+        pending_requests=db.scalar(pending),
+        counts_ready_for_review=by_status.get("ready_for_review", 0),
+        open_counts=by_status.get("open", 0),
+    )

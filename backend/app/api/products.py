@@ -12,7 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, UploadFile, status
+from fastapi import APIRouter, Depends, Query, Request, UploadFile, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.api.deps import CurrentUser, DbSession, require_authenticated, require_roles
@@ -39,6 +39,7 @@ ProductName = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
 AttributeValues = dict[str, str | int | None]
 MovementType = Literal["purchase", "sale", "sale_void", "purchase_void", "adjustment"]
+ATTRIBUTE_PREFIX = "attr."
 
 
 class CreateProductRequest(BaseModel):
@@ -102,18 +103,42 @@ def product_out(
 
 @router.get("")
 def list_products(
+    request: Request,
     current: AnyUser,
     db: DbSession,
+    q: Annotated[str | None, Query(max_length=200)] = None,
     category_id: uuid.UUID | None = None,
     is_active: bool | None = None,
+    is_published: bool | None = None,
+    low_stock: bool | None = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> ProductPage:
+    """Búsqueda (FR-032, FR-033). Los filtros por atributo llegan como `attr.<clave>=<valor>`
+    y solo se admiten las claves marcadas como filtrables."""
+    attributes = {
+        key.removeprefix(ATTRIBUTE_PREFIX): value
+        for key, value in request.query_params.items()
+        if key.startswith(ATTRIBUTE_PREFIX)
+    }
+    if attributes:
+        allowed = products_service.filterable_keys(db)
+        invalid = {
+            f"{ATTRIBUTE_PREFIX}{key}": "No se puede filtrar por este atributo"
+            for key in attributes
+            if key not in allowed
+        }
+        if invalid:
+            raise products_service.validation_error(invalid)
     rows, total = products_service.list_products(
         db,
         role=current.role,
+        q=q,
         category_id=category_id,
+        attributes=attributes,
         is_active=is_active,
+        is_published=is_published,
+        low_stock=low_stock,
         page=page,
         page_size=page_size,
     )

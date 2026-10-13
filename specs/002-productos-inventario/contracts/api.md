@@ -146,7 +146,7 @@ Convenciones de autenticación, errores comunes y fechas: contrato de la etapa 1
 | `POST /inventory/adjustment-requests/{id}/reject` | Admin | `{reason}` obligatorio; `invalid_state` |
 | `POST /inventory/adjustment-requests/{id}/withdraw` | Almacén (solo el solicitante) | `invalid_state`; 403 si no es suya |
 | `GET /inventory/low-stock` | Admin, Almacén | Productos activos con `stock <= min_stock`, por categoría, con el esquema de producto por rol (sin precio ni costo para el Almacén) |
-| `GET /inventory/summary` | Admin, Almacén | `{low_stock, pending_adjustments, counts_ready_for_review}` (Admin) o `{low_stock, my_pending_requests, my_open_counts}` (Almacén) |
+| `GET /inventory/summary` | Admin, Almacén | `{low_stock, pending_adjustments, counts_ready_for_review}` (Admin) o `{low_stock, my_pending_requests, open_counts}` (Almacén; `open_counts` cuenta todos los conteos abiertos, que el Almacén anota) |
 
 ### Conteos físicos (RF-12; FR-024 a FR-027, RN-19)
 

@@ -17,7 +17,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
@@ -25,7 +25,7 @@ from app.core.errors import ApiError
 from app.db.models import AppUser, AttributeDefinition, Category, Product, ProductPhoto, Unit
 from app.domain.attributes import AttributeSpec, AttributeValidationError, validate_attributes
 from app.domain.roles import Role
-from app.domain.search import build_search_text
+from app.domain.search import build_search_text, search_tokens
 from app.domain.sku import format_sku
 from app.domain.units import format_quantity, validate_quantity
 from app.services.audit import record_audit
@@ -81,11 +81,6 @@ def build_views(db: Session, products: list[Product]) -> list[ProductView]:
     ]
 
 
-def view_of(db: Session, product: Product) -> ProductView:
-    db.refresh(product)
-    return build_views(db, [product])[0]
-
-
 def get_product(db: Session, product_id: uuid.UUID, *, role: Role) -> Product:
     product = db.get(Product, product_id)
     # El Vendedor solo ve productos activos (FR-007).
@@ -94,31 +89,83 @@ def get_product(db: Session, product_id: uuid.UUID, *, role: Role) -> Product:
     return product
 
 
+def low_stock_condition():
+    """Stock bajo: producto activo con stock menor o igual al mínimo (RF-11/FR-023)."""
+    return and_(Product.is_active.is_(True), Product.stock <= Product.min_stock)
+
+
+def filterable_keys(db: Session) -> set[str]:
+    return set(
+        db.scalars(
+            select(AttributeDefinition.key).where(
+                AttributeDefinition.is_filterable.is_(True),
+                AttributeDefinition.is_active.is_(True),
+            )
+        )
+    )
+
+
 def list_products(
     db: Session,
     *,
     role: Role,
+    q: str | None = None,
     category_id: uuid.UUID | None = None,
+    attributes: dict[str, str] | None = None,
     is_active: bool | None = None,
+    is_published: bool | None = None,
+    low_stock: bool | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> tuple[list[Product], int]:
+    """Búsqueda (RF-06/FR-032, FR-033, research R4): cada palabra de `q`, normalizada
+    sin acentos ni mayúsculas, debe aparecer en el texto de búsqueda, en cualquier orden.
+    Con ~1.000 productos un recorrido con LIKE tarda milisegundos. El SKU exacto va
+    primero; luego, por nombre."""
     conditions = []
     if role == Role.SELLER:
+        # El Vendedor solo ve productos activos (FR-007).
         conditions.append(Product.is_active.is_(True))
     elif is_active is not None:
         conditions.append(Product.is_active.is_(is_active))
     if category_id is not None:
         conditions.append(Product.category_id == category_id)
+    for key, value in (attributes or {}).items():
+        conditions.append(Product.attributes.contains({key: value}))
+    if is_published is not None:
+        conditions.append(Product.is_published.is_(is_published))
+    if low_stock:
+        conditions.append(low_stock_condition())
+    tokens = search_tokens(q or "")
+    for token in tokens:
+        conditions.append(Product.search_text.contains(token, autoescape=True))
+
     total = db.scalar(select(func.count()).select_from(Product).where(*conditions))
+    exact_sku = " ".join(tokens)
     rows = db.scalars(
         select(Product)
         .where(*conditions)
-        .order_by(Product.name, Product.sku)
+        .order_by(
+            case((func.lower(Product.sku) == exact_sku, 0), else_=1),
+            Product.name,
+            Product.sku,
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
     return list(rows), total
+
+
+def low_stock_products(db: Session) -> list[Product]:
+    """Productos activos con stock bajo, agrupables por categoría (RF-11, R11)."""
+    return list(
+        db.scalars(
+            select(Product)
+            .join(Category, Category.id == Product.category_id)
+            .where(low_stock_condition())
+            .order_by(Category.name, Product.name, Product.sku)
+        )
+    )
 
 
 # --- Validaciones ------------------------------------------------------------------

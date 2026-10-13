@@ -301,7 +301,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Products */
+        /**
+         * List Products
+         * @description Búsqueda (FR-032, FR-033). Los filtros por atributo llegan como `attr.<clave>=<valor>`
+         *     y solo se admiten las claves marcadas como filtrables.
+         */
         get: operations["list_products_api_v1_products_get"];
         put?: never;
         /** Create Product */
@@ -486,6 +490,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/low-stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Low Stock
+         * @description Productos activos con stock menor o igual al mínimo, por categoría (RF-11/FR-023).
+         */
+        get: operations["low_stock_api_v1_inventory_low_stock_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summary
+         * @description Contadores de las tarjetas del inicio (research R11).
+         */
+        get: operations["summary_api_v1_inventory_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -558,6 +602,15 @@ export interface components {
             /** Movement */
             movement?: components["schemas"]["StockMovementAdmin"] | components["schemas"]["StockMovementWarehouse"] | null;
             request?: components["schemas"]["AdjustmentRequestOut"] | null;
+        };
+        /** AdminSummary */
+        AdminSummary: {
+            /** Low Stock */
+            low_stock: number;
+            /** Pending Adjustments */
+            pending_adjustments: number;
+            /** Counts Ready For Review */
+            counts_ready_for_review: number;
         };
         /** AttributeOption */
         AttributeOption: {
@@ -1225,6 +1278,15 @@ export interface components {
         VerifyPinResponse: {
             authorized_by: components["schemas"]["Authorizer"];
         };
+        /** WarehouseSummary */
+        WarehouseSummary: {
+            /** Low Stock */
+            low_stock: number;
+            /** My Pending Requests */
+            my_pending_requests: number;
+            /** Open Counts */
+            open_counts: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -1782,8 +1844,11 @@ export interface operations {
     list_products_api_v1_products_get: {
         parameters: {
             query?: {
+                q?: string | null;
                 category_id?: string | null;
                 is_active?: boolean | null;
+                is_published?: boolean | null;
+                low_stock?: boolean | null;
                 page?: number;
                 page_size?: number;
             };
@@ -2217,6 +2282,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    low_stock_api_v1_inventory_low_stock_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": (components["schemas"]["ProductAdmin"] | components["schemas"]["ProductSeller"] | components["schemas"]["ProductWarehouse"])[];
+                };
+            };
+        };
+    };
+    summary_api_v1_inventory_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSummary"] | components["schemas"]["WarehouseSummary"];
                 };
             };
         };
