@@ -87,15 +87,15 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 > Escribir primero y comprobar que fallan.
 
-- [ ] T016 [P] [US1] Pruebas en `backend/tests/test_suppliers.py` (marca `db`): alta por Almacén con RIF `j123456789` → guardado `J-12345678-9`; RIF repetido (en otro formato) → 409 `rif_in_use` con `supplier_name`; sin RIF → 201 y dos proveedores sin RIF conviven; RIF inválido → 422; nombre vacío o de más de 120 caracteres → 422; `PATCH` de nombre, teléfono y notas; desactivar y reactivar; `GET /suppliers?q=` busca por nombre y por RIF; `GET /suppliers?is_active=true` excluye los inactivos; auditoría `supplier.created` y `supplier.updated` con antes y después (RF-13/FR-001 a FR-003)
-- [ ] T017 [US1] Agregar a `MATRIX` de `backend/tests/test_permissions_matrix.py` las filas de `GET/POST /suppliers` y `GET/PATCH /suppliers/{id}` (Admin y Almacén; Vendedor ❌) según `contracts/api.md`, con el marcador `{supplier_id}` creado en `actor_headers`
+- [X] T016 [P] [US1] Pruebas en `backend/tests/test_suppliers.py` (marca `db`): alta por Almacén con RIF `j123456789` → guardado `J-12345678-9`; RIF repetido (en otro formato) → 409 `rif_in_use` con `supplier_name`; sin RIF → 201 y dos proveedores sin RIF conviven; RIF inválido → 422; nombre vacío o de más de 120 caracteres → 422; `PATCH` de nombre, teléfono y notas; desactivar y reactivar; `GET /suppliers?q=` busca por nombre y por RIF; `GET /suppliers?is_active=true` excluye los inactivos; auditoría `supplier.created` y `supplier.updated` con antes y después (RF-13/FR-001 a FR-003)
+- [X] T017 [US1] Agregar a `MATRIX` de `backend/tests/test_permissions_matrix.py` las filas de `GET/POST /suppliers` y `GET/PATCH /suppliers/{id}` (Admin y Almacén; Vendedor ❌) según `contracts/api.md`, con el marcador `{supplier_id}` creado en `actor_headers`
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Crear `backend/app/services/suppliers.py`: `create_supplier`, `update_supplier`, `get_supplier`, `list_suppliers(db, *, q, is_active, page, page_size)` (orden por nombre; `q` compara con el nombre sin acentos y con el RIF normalizado si parece un RIF), con `normalize_rif`, 409 `rif_in_use` (incluye `supplier_name`) y auditoría con antes y después (FR-001 a FR-003, R5, R12)
-- [ ] T019 [US1] Crear `backend/app/api/suppliers.py` con `GET /suppliers`, `POST /suppliers`, `GET /suppliers/{id}` y `PATCH /suppliers/{id}` (`require_roles(ADMIN, WAREHOUSE)`; entradas con `extra="forbid"`; esquema `Supplier` del contrato) y registrar el router en `backend/app/main.py`
-- [ ] T020 [US1] Crear `frontend/src/app/proveedores/page.tsx` (lista paginada con búsqueda, chip de inactivo, botón "Nuevo proveedor"; alta y edición en un `Dialog` con nombre, RIF, teléfono y notas; muestra el error `rif_in_use` con el nombre del otro proveedor; activar y desactivar), dentro de `RequireAuth` y `AppShell`
-- [ ] T021 [US1] Ejecutar `pnpm api:types` y tipar las llamadas de proveedores con `packages/shared/src/api/schema.d.ts`
+- [X] T018 [US1] Crear `backend/app/services/suppliers.py`: `create_supplier`, `update_supplier`, `get_supplier`, `list_suppliers(db, *, q, is_active, page, page_size)` (orden por nombre; `q` compara con el nombre sin acentos y con el RIF normalizado si parece un RIF), con `normalize_rif`, 409 `rif_in_use` (incluye `supplier_name`) y auditoría con antes y después (FR-001 a FR-003, R5, R12)
+- [X] T019 [US1] Crear `backend/app/api/suppliers.py` con `GET /suppliers`, `POST /suppliers`, `GET /suppliers/{id}` y `PATCH /suppliers/{id}` (`require_roles(ADMIN, WAREHOUSE)`; entradas con `extra="forbid"`; esquema `Supplier` del contrato) y registrar el router en `backend/app/main.py`
+- [X] T020 [US1] Crear `frontend/src/app/proveedores/page.tsx` (lista paginada con búsqueda, chip de inactivo, botón "Nuevo proveedor"; alta y edición en un `Dialog` con nombre, RIF, teléfono y notas; muestra el error `rif_in_use` con el nombre del otro proveedor; activar y desactivar), dentro de `RequireAuth` y `AppShell`
+- [X] T021 [US1] Ejecutar `pnpm api:types` y tipar las llamadas de proveedores con `packages/shared/src/api/schema.d.ts`
 
 **Checkpoint**: US1 funciona sola: proveedores con RIF único, activos e inactivos.
 

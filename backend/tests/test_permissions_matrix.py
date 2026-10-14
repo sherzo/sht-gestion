@@ -175,11 +175,18 @@ MATRIX: list[Row] = [
         {"acknowledge_uncounted": True},
     ),
     Row("POST", "/api/v1/stock-counts/{count_id}/cancel", ADMIN_WAREHOUSE, {"reason": "x"}),
+    # Proveedores (RF-13)
+    Row("GET", "/api/v1/suppliers", ADMIN_WAREHOUSE),
+    Row("POST", "/api/v1/suppliers", ADMIN_WAREHOUSE, {"name": "Proveedor nuevo"}),
+    Row("GET", "/api/v1/suppliers/{supplier_id}", ADMIN_WAREHOUSE),
+    Row("PATCH", "/api/v1/suppliers/{supplier_id}", ADMIN_WAREHOUSE, {"notes": "x"}),
 ]
 
 
 @pytest.fixture
-def actor_headers(make_user, auth_headers, make_product, give_stock, category_id, db, photo_dir):
+def actor_headers(
+    make_user, auth_headers, make_product, give_stock, category_id, db, photo_dir, make_supplier
+):
     """Crea los usuarios de cada actor y los datos de las rutas, y devuelve el encabezado
     del pedido."""
     target = make_user(Role.SELLER, username="objetivo")
@@ -237,6 +244,7 @@ def actor_headers(make_user, auth_headers, make_product, give_stock, category_id
         "count_id": str(count.id),
         "line_id": str(line.id),
         "other_product_id": str(other.id),
+        "supplier_id": str(make_supplier("Proveedor de la matriz").id),
         "category_id": str(category_id("FRT")),
         "unit_id": str(db.scalar(select(Unit.id).where(Unit.code == "u"))),
         "attribute_id": str(
