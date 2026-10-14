@@ -509,7 +509,7 @@ promedio usa el costo final.
   mitad hacia arriba: porcentaje × total de mercancía en USD; monto fijo en USD tal
   cual; monto fijo en Bs ÷ tasa de la compra (FR-012). El total de gastos es la suma.
 - **FR-031**: El total de gastos MUST repartirse entre las líneas en proporción al
-  total en USD de cada una, a 2 decimales; el residuo de redondeo va a la línea de
+  total en USD de cada una, truncando a 2 decimales; el residuo va a la línea de
   mayor valor (la primera, si hay empate), de modo que la suma de lo repartido sea
   exactamente el total de gastos. El **costo final por unidad** de cada línea es su
   costo unitario en USD + (gasto asignado ÷ cantidad), a 6 decimales con mitad hacia
