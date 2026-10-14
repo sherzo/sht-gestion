@@ -4,7 +4,7 @@
 |---|---|
 | Versión | 1.0 |
 | Fecha | 2026-10-07 |
-| Estado | Vigente (etapa 1.0 terminada; 1.1a integrada, pendiente de validar en producción) |
+| Estado | Vigente (etapa 1.0 terminada; 1.1a integrada, pendiente de validar en producción; 1.1b integrada, pendiente de validar en producción) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,
@@ -70,9 +70,10 @@ Se propone dividirla en dos specs:
 
 | | |
 |---|---|
-| **Requisitos** | RF-01 a RF-12, RN-08, RN-13 |
+| **Requisitos** | RF-01 a RF-12, RN-08, RN-09 (costo inicial), RN-13, RN-18, RN-19 |
 | **Entregables** | Categorías con prefijo de SKU y atributos definibles; unidades; productos con SKU automático, atributos, fotos y publicación; histórico de precios; kardex; ajustes con motivo; alerta de stock bajo; conteo físico; búsqueda |
 | **Terminada cuando** | El stock solo cambia por movimientos; Almacén no ve ni edita precios de venta y nadie salvo el admin ve costos; la búsqueda responde en menos de 1 s con 1.000 productos de prueba |
+| **Estado** | 🚧 Integrada a `main` el 2026-10-13 (`specs/002-productos-inventario/`, ADR-0009), con pruebas automatizadas de cada criterio, revisión de seguridad y de código, y los escenarios del quickstart recorridos en local. Falta validarla en producción: subir una foto desde el teléfono, medir la búsqueda y restaurar el respaldo con fotos (T079) |
 
 ### 1.2 — Proveedores y compras
 
@@ -142,8 +143,8 @@ Se responden antes de especificar la etapa indicada (PRD §10).
 
 | Antes de | Pregunta |
 |---|---|
-| 1.1b | Medidas de mangueras y conexiones más comunes, para precargar atributos |
-| 1.1b | ¿Precios distintos para mayoristas o talleres frecuentes? Afecta al modelo de datos (listas de precios), así que conviene decidirlo antes de crear los productos |
+| 1.1b | ✅ Medidas de mangueras y conexiones más comunes: el admin las carga como opciones editables antes de la puesta en uso (spec 002) |
+| 1.1b | ✅ ¿Precios distintos para mayoristas o talleres? No en la Fase 1: un solo precio, con el modelo preparado para listas de precios (RN-18) |
 | 1.2 | Costo promedio cuando el stock previo es cero o negativo |
 | 1.3 | Con conexión, ¿vender sin stock suficiente con advertencia o bloquear? |
 | 1.3 | ¿Descuentos sin conexión? |

@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.3 |
-| Fecha | 2026-10-08 |
-| Documentos relacionados | `docs/decisiones/0002-hosting-ambientes-y-presupuesto.md`, `docs/arquitectura.md` §6 |
+| Versión | 0.4 |
+| Fecha | 2026-10-13 |
+| Documentos relacionados | `docs/decisiones/0002-hosting-ambientes-y-presupuesto.md`, `docs/decisiones/0009-fotos-de-productos.md`, `docs/arquitectura.md` §6 |
 
 > Configuración inicial (una sola vez) de los servicios de producción y procedimientos
 > de operación. Los valores entre `<>` se reemplazan por los reales. Nada de lo que aquí
@@ -16,9 +16,9 @@
 |---|---|---|---|
 | API | Cloud Run | `sht-api` → https://sht-api-wilmjh5geq-uk.a.run.app | `us-east4` (Virginia, cerca de Supabase) |
 | Imágenes de la API | Artifact Registry | repositorio `sht` (conserva las 5 más recientes) | `us-east4` |
-| Secretos de la API | Secret Manager | `database-url`, `jwt-secret`, `setup-code` | — |
-| Respaldos | Cloud Storage | `sht-gestion-respaldos` (borra a los 30 días) | `us-east1` |
-| Base de datos y fotos | Supabase | proyecto `sht-gestion` | `us-east-1` (Virginia) |
+| Secretos de la API | Secret Manager | `database-url`, `jwt-secret`, `setup-code`, `supabase-storage-key` | — |
+| Respaldos | Cloud Storage | `sht-gestion-respaldos`: volcados `sht-*` (se borran a los 30 días) y fotos en `fotos/` (se conservan) | `us-east1` |
+| Base de datos y fotos | Supabase | proyecto `sht-gestion`; fotos en el bucket público `product-photos` | `us-east-1` (Virginia) |
 | App interna | Cloudflare Pages | `sht-gestion-app` | — |
 | Catálogo | Cloudflare Pages | `sht-gestion-catalogo` | — |
 
@@ -33,7 +33,7 @@ comercial.
 | `ci.yml` | Cada PR y push a `main` | Lint, migraciones (subir/bajar/subir) y pruebas del backend; tipos y build del frontend |
 | `deploy-api.yml` | Push a `main` que toca `backend/`, o a mano | Imagen → Artifact Registry → migraciones → Cloud Run → comprobación |
 | `deploy-web.yml` | Push a `main` que toca `frontend/`, `catalog/` o `packages/`, o a mano | Build estático → crea los proyectos de Pages si faltan → Cloudflare Pages |
-| `backup.yml` | Diario a las 03:00 (Caracas), o a mano | `pg_dump` → cifrado con age → Cloud Storage |
+| `backup.yml` | Diario a las 03:00 (Caracas), o a mano | `pg_dump` → cifrado con age → Cloud Storage; fotos nuevas de Supabase Storage → `fotos/` (rclone) |
 
 Los workflows de despliegue y respaldo **no corren** mientras falten sus variables en
 GitHub. Para lanzarlos a mano: `gh workflow run <archivo> -R sherzo/sht-gestion`.
@@ -99,6 +99,15 @@ GitHub. Para lanzarlos a mano: `gh workflow run <archivo> -R sherzo/sht-gestion`
      Cloud Run ni GitHub Actions tienen.
    - El prefijo puede quedar como `postgresql://`: SQLAlchemy 2.1 usa psycopg (v3) por
      defecto, y `pg_dump` exige justamente ese formato.
+6. **Fotos de productos** (etapa 1.1b, ADR-0009). En Storage:
+   - Crear el bucket `product-photos`, **público**, con límite de 1 MB por archivo y tipo
+     permitido `image/webp` (la API ya entrega WebP de ~100–200 KB).
+   - La **clave secreta** del proyecto (Project Settings → API Keys → `service_role` o
+     clave secreta) va solo a Secret Manager como `supabase-storage-key` (§4 paso 7);
+     nunca a la app ni a GitHub.
+   - En Storage → Settings → **S3 Connection**, anotar el endpoint
+     (`https://<ref>.supabase.co/storage/v1/s3`) y la región, y crear una **clave de
+     acceso S3**. El par de claves va a GitHub (§7) para el respaldo de fotos.
 
 ## 4. Google Cloud
 
@@ -141,14 +150,20 @@ gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$DEPLOY
 gcloud iam service-accounts add-iam-policy-binding $RUNTIME_SA \
   --member="serviceAccount:$DEPLOY_SA" --role=roles/iam.serviceAccountUser
 
-# Bucket de respaldos: sin acceso público y borra copias de más de 30 días.
+# Bucket de respaldos: sin acceso público. Borra los volcados (`sht-*`) de más de 30 días;
+# las fotos de `fotos/` se conservan (etapa 1.1b, ADR-0009).
 BUCKET=sht-gestion-respaldos
 gcloud storage buckets create gs://$BUCKET --location=us-east1 \
   --uniform-bucket-level-access --public-access-prevention
-echo '{"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]}' > lifecycle.json
+echo '{"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30, "matchesPrefix": ["sht-"]}}]}' > lifecycle.json
 gcloud storage buckets update gs://$BUCKET --lifecycle-file=lifecycle.json
+gcloud storage buckets describe gs://$BUCKET --format='value(lifecycle_config)'
+# La cuenta de despliegue crea objetos y puede listarlos y leerlos (rclone compara qué
+# fotos ya están), pero no borrarlos ni sobrescribirlos. Los volcados van cifrados.
 gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
   --member="serviceAccount:$DEPLOY_SA" --role=roles/storage.objectCreator
+gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
+  --member="serviceAccount:$DEPLOY_SA" --role=roles/storage.objectViewer
 
 # GitHub Actions se autentica sin claves (Workload Identity Federation), solo desde este
 # repositorio. Las opciones con comillas van en un archivo por el problema de gcloud.cmd.
@@ -197,6 +212,19 @@ done
    **antes** del primer despliegue que los use, o el despliegue falla. Para rotar
    `jwt-secret`: **+ Nueva versión**, desplegar de nuevo y destruir la versión vieja;
    todas las sesiones abiertas se cierran y los usuarios vuelven a entrar.
+7. **Secreto de las fotos** (etapa 1.1b, ADR-0009): `supabase-storage-key` con la clave
+   secreta de Supabase (§3 paso 6), creado desde la consola web, y permiso de lectura para
+   la API:
+
+```bash
+gcloud secrets add-iam-policy-binding supabase-storage-key \
+  --member="serviceAccount:$RUNTIME_SA" --role=roles/secretmanager.secretAccessor
+```
+
+   `deploy-api.yml` lo pasa a Cloud Run como `SUPABASE_STORAGE_KEY`, junto con
+   `PHOTO_STORAGE=supabase`, `SUPABASE_URL` (variable de GitHub) y
+   `PHOTO_BUCKET=product-photos`. Igual que los anteriores, debe existir **antes** del
+   despliegue: sin él, la API no arranca.
 
 ## 5. Cloudflare
 
@@ -239,9 +267,14 @@ En el repositorio: Settings → Secrets and variables → Actions, o con `gh var
 | Variable | `CLOUDFLARE_ACCOUNT_ID` | ID de la cuenta de Cloudflare |
 | Variable | `CF_PAGES_APP_PROJECT` | `sht-gestion-app` |
 | Variable | `CF_PAGES_CATALOG_PROJECT` | `sht-gestion-catalogo` |
+| Variable | `SUPABASE_URL` | `https://<ref>.supabase.co` (fotos, etapa 1.1b) |
+| Variable | `SUPABASE_S3_ENDPOINT` | Endpoint S3 de Storage (§3 paso 6) |
+| Variable | `SUPABASE_S3_REGION` | Región de la conexión S3 (`us-east-1`) |
 | Secreto | `MIGRATIONS_DATABASE_URL` | Cadena del Session pooler (§3) |
 | Secreto | `BACKUP_DATABASE_URL` | La misma cadena |
 | Secreto | `CLOUDFLARE_API_TOKEN` | Token de Cloudflare |
+| Secreto | `SUPABASE_S3_ACCESS_KEY_ID` | Clave de acceso S3 de Storage (respaldo de fotos) |
+| Secreto | `SUPABASE_S3_SECRET_ACCESS_KEY` | Su clave secreta |
 
 Orden: primero las variables de Google Cloud y los secretos de base de datos (despliega la
 API), luego `API_URL` con la URL obtenida, y por último Cloudflare y `CORS_ORIGINS`
@@ -251,8 +284,8 @@ volver a desplegar la API para que la tome.
 ## 8. Restaurar un respaldo
 
 El respaldo contiene solo el esquema `public` (los datos del sistema). Los esquemas
-internos de Supabase no se copian. **Las fotos de Supabase Storage no entran en este
-respaldo**; cómo respaldarlas se decide en la etapa 1.1b, cuando existan.
+internos de Supabase no se copian. Las fotos de Supabase Storage se copian aparte en
+`fotos/` del mismo bucket (ADR-0009); su restauración está al final de esta sección.
 
 Se prueba al cierre de cada etapa (plan de fases, definición de terminado). La cuenta de
 despliegue solo puede subir respaldos; leerlos requiere la cuenta propia del dueño.
@@ -283,6 +316,22 @@ Remove-Item -Recurse -Force $tmp
   y además corrompe archivos binarios.
 - `drop schema public cascade` evita el error "schema public already exists" al
   restaurar, y `--no-privileges` omite los permisos de `sht_api`, que no existe en local.
+
+**Fotos de productos.** Las rutas del respaldo son las mismas de Storage
+(`fotos/products/<producto>/<foto>.webp`). Para revisarlas en local junto a la base
+restaurada, copiarlas a la carpeta que sirve la API en desarrollo:
+
+```powershell
+gcloud storage cp --recursive gs://sht-gestion-respaldos/fotos/products backend\.media\
+```
+
+Para devolverlas a Supabase tras perder el bucket, recrearlo (§3 paso 6) y subirlas con
+rclone (mismo remoto `supabase` que usa `backup.yml`):
+`rclone copy gcs:sht-gestion-respaldos/fotos supabase:product-photos`.
+
+**Datos de prueba solo en local.** Para medir la búsqueda con 1.000 productos
+(quickstart, escenario 10): `uv run python -m app.cli seed-demo-products 1000`, con
+`ENVIRONMENT=local`. El comando se niega en cualquier otro ambiente.
 
 ## 9. Usuarios: instalación, recuperación y cookie de sesión
 

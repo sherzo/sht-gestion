@@ -54,6 +54,8 @@ jobs:
 
       # Cookie de renovación provisional (SameSite=None) mientras la app y la API estén en
       # sitios distintos; con dominio propio pasa a strict (ADR-0008, research R5).
+      # Fotos de productos en el bucket público de Supabase Storage (ADR-0009): la clave
+      # secreta solo la tiene la API (secreto supabase-storage-key).
       - name: Desplegar en Cloud Run
         run: |
           gcloud run deploy sht-api \
@@ -66,8 +68,8 @@ jobs:
             --cpu 1 \
             --memory 512Mi \
             --cpu-boost \
-            --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,SETUP_CODE=setup-code:latest \
-            --set-env-vars "^@^ENVIRONMENT=production@APP_VERSION=${GITHUB_SHA::7}@CORS_ORIGINS=${{ vars.CORS_ORIGINS }}@REFRESH_COOKIE_SAMESITE=none@REFRESH_COOKIE_SECURE=true"
+            --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,SETUP_CODE=setup-code:latest,SUPABASE_STORAGE_KEY=supabase-storage-key:latest \
+            --set-env-vars "^@^ENVIRONMENT=production@APP_VERSION=${GITHUB_SHA::7}@CORS_ORIGINS=${{ vars.CORS_ORIGINS }}@REFRESH_COOKIE_SAMESITE=none@REFRESH_COOKIE_SECURE=true@PHOTO_STORAGE=supabase@SUPABASE_URL=${{ vars.SUPABASE_URL }}@PHOTO_BUCKET=product-photos"
 
       - name: Comprobar la API desplegada
         run: |

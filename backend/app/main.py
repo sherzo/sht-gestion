@@ -2,8 +2,19 @@
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from app.api import audit, auth, health, setup, users
+from app.api import (
+    audit,
+    auth,
+    catalog_config,
+    health,
+    inventory,
+    products,
+    setup,
+    stock_counts,
+    users,
+)
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 
@@ -28,7 +39,19 @@ def create_app() -> FastAPI:
     api_v1.include_router(auth.router)
     api_v1.include_router(users.router)
     api_v1.include_router(audit.router)
+    api_v1.include_router(catalog_config.router)
+    api_v1.include_router(products.router)
+    api_v1.include_router(inventory.router)
+    api_v1.include_router(stock_counts.router)
     app.include_router(api_v1)
+
+    # Fotos en disco solo en desarrollo y pruebas; en producción las sirve Supabase (R9).
+    if settings.photo_storage == "local" and settings.environment in ("local", "test"):
+        app.mount(
+            "/media",
+            StaticFiles(directory=settings.photo_local_dir, check_dir=False),
+            name="media",
+        )
     return app
 
 

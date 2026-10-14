@@ -21,6 +21,9 @@ out/
 next-env.d.ts
 .pnpm-store/
 
+# Fotos de productos en desarrollo local (research R9)
+backend/.media/
+
 # Respaldos locales
 *.dump
 *.sql.gz

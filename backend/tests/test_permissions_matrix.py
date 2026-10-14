@@ -6,10 +6,21 @@ acceso. Cada historia agrega aquí las filas de sus endpoints.
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 
+from app.core.clock import utcnow
+from app.db.models import (
+    AdjustmentRequest,
+    AttributeDefinition,
+    ProductPhoto,
+    StockCount,
+    StockCountLine,
+    Unit,
+)
 from app.domain.roles import Role
 from tests.conftest import DEFAULT_PASSWORD
 
@@ -25,6 +36,8 @@ EVERYONE = frozenset({ANONYMOUS, ADMIN, SELLER, WAREHOUSE, TEMPORARY})
 ANY_SESSION = frozenset({ADMIN, SELLER, WAREHOUSE, TEMPORARY})
 ANY_ROLE = frozenset({ADMIN, SELLER, WAREHOUSE})
 ADMIN_ONLY = frozenset({ADMIN})
+ADMIN_WAREHOUSE = frozenset({ADMIN, WAREHOUSE})
+WAREHOUSE_ONLY = frozenset({WAREHOUSE})
 
 # Códigos que indican que el acceso fue negado por permisos.
 DENIAL_CODES = {"not_authenticated", "forbidden", "password_change_required"}
@@ -81,35 +94,177 @@ MATRIX: list[Row] = [
     Row("POST", "/api/v1/auth/pin/verify", ANY_ROLE, {"admin_username": "nadie", "pin": "1234"}),
     # Auditoría (RF-46)
     Row("GET", "/api/v1/audit-log", ADMIN_ONLY),
+    # Configuración del inventario (RF-03 a RF-05; specs/002 contracts/api.md)
+    Row("GET", "/api/v1/units", ANY_ROLE),
+    Row("POST", "/api/v1/units", ADMIN_ONLY, {"code": "caja", "name": "caja", "decimals": 0}),
+    Row("PATCH", "/api/v1/units/{unit_id}", ADMIN_ONLY, {"name": "unidad suelta"}),
+    Row("GET", "/api/v1/categories", ANY_ROLE),
+    Row(
+        "POST",
+        "/api/v1/categories",
+        ADMIN_ONLY,
+        {"name": "Aceites", "sku_prefix": "ACE", "default_unit_id": "{unit_id}"},
+    ),
+    Row("PATCH", "/api/v1/categories/{category_id}", ADMIN_ONLY, {"name": "Ferretería general"}),
+    Row(
+        "POST",
+        "/api/v1/categories/{category_id}/attributes",
+        ADMIN_ONLY,
+        {"key": "material", "label": "Material", "data_type": "text"},
+    ),
+    Row("PATCH", "/api/v1/attributes/{attribute_id}", ADMIN_ONLY, {"label": "Tipo de manguera"}),
+    # Productos (RF-01, RF-02, RF-06, RF-07)
+    Row("GET", "/api/v1/products", ANY_ROLE),
+    Row("POST", "/api/v1/products", ADMIN_WAREHOUSE, {"category_id": "{category_id}", "name": "X"}),
+    Row("GET", "/api/v1/products/{product_id}", ANY_ROLE),
+    Row("PATCH", "/api/v1/products/{product_id}", ADMIN_WAREHOUSE, {"description": "Otra"}),
+    Row("POST", "/api/v1/products/{product_id}/photos", ADMIN_WAREHOUSE, {}),
+    Row("DELETE", "/api/v1/products/{product_id}/photos/{photo_id}", ADMIN_WAREHOUSE),
+    Row(
+        "PUT",
+        "/api/v1/products/{product_id}/photos/order",
+        ADMIN_WAREHOUSE,
+        {"photo_ids": ["{photo_id}"]},
+    ),
+    # Precio, costo y publicación (RF-01, RF-07, RN-09)
+    Row("PUT", "/api/v1/products/{product_id}/price", ADMIN_ONLY, {"sale_price_usd": "10.00"}),
+    Row("GET", "/api/v1/products/{product_id}/prices", ADMIN_ONLY),
+    Row("PUT", "/api/v1/products/{product_id}/initial-cost", ADMIN_ONLY, {"avg_cost_usd": "1"}),
+    Row("PUT", "/api/v1/products/{product_id}/publication", ADMIN_ONLY, {"is_published": False}),
+    # Kardex y ajustes (RF-08 a RF-10, RN-19)
+    Row("GET", "/api/v1/products/{product_id}/movements", ADMIN_WAREHOUSE),
+    Row(
+        "POST",
+        "/api/v1/inventory/adjustments",
+        ADMIN_WAREHOUSE,
+        {"product_id": "{product_id}", "quantity_delta": "1", "reason": "correction"},
+    ),
+    Row("GET", "/api/v1/inventory/adjustment-requests", ADMIN_WAREHOUSE),
+    Row("POST", "/api/v1/inventory/adjustment-requests/{request_id}/approve", ADMIN_ONLY),
+    Row(
+        "POST",
+        "/api/v1/inventory/adjustment-requests/{request_id}/reject",
+        ADMIN_ONLY,
+        {"reason": "No corresponde"},
+    ),
+    Row("POST", "/api/v1/inventory/adjustment-requests/{request_id}/withdraw", WAREHOUSE_ONLY),
+    # Stock bajo y resumen del inicio (RF-11)
+    Row("GET", "/api/v1/inventory/low-stock", ADMIN_WAREHOUSE),
+    Row("GET", "/api/v1/inventory/summary", ADMIN_WAREHOUSE),
+    # Conteos físicos (RF-12, RN-19)
+    Row("GET", "/api/v1/stock-counts", ADMIN_WAREHOUSE),
+    Row(
+        "POST",
+        "/api/v1/stock-counts",
+        ADMIN_WAREHOUSE,
+        {"scope": {"type": "products", "ids": ["{other_product_id}"]}},
+    ),
+    Row("GET", "/api/v1/stock-counts/{count_id}", ADMIN_WAREHOUSE),
+    Row(
+        "PUT",
+        "/api/v1/stock-counts/{count_id}/lines/{line_id}",
+        ADMIN_WAREHOUSE,
+        {"counted_quantity": "3"},
+    ),
+    Row("POST", "/api/v1/stock-counts/{count_id}/ready", ADMIN_WAREHOUSE),
+    Row("POST", "/api/v1/stock-counts/{count_id}/reopen", ADMIN_ONLY),
+    Row(
+        "POST",
+        "/api/v1/stock-counts/{count_id}/apply",
+        ADMIN_ONLY,
+        {"acknowledge_uncounted": True},
+    ),
+    Row("POST", "/api/v1/stock-counts/{count_id}/cancel", ADMIN_WAREHOUSE, {"reason": "x"}),
 ]
 
 
 @pytest.fixture
-def actor_headers(make_user, auth_headers):
-    """Crea los usuarios de cada actor y devuelve el encabezado del pedido."""
+def actor_headers(make_user, auth_headers, make_product, give_stock, category_id, db, photo_dir):
+    """Crea los usuarios de cada actor y los datos de las rutas, y devuelve el encabezado
+    del pedido."""
     target = make_user(Role.SELLER, username="objetivo")
+    users = {
+        ADMIN: make_user(Role.ADMIN, username="actor_admin"),
+        SELLER: make_user(Role.SELLER, username="actor_seller"),
+        WAREHOUSE: make_user(Role.WAREHOUSE, username="actor_warehouse"),
+        TEMPORARY: make_user(Role.ADMIN, username="temporal", must_change_password=True),
+    }
+    product = make_product("FRT")
+    give_stock(product, "5")
+    photo = ProductPhoto(
+        product_id=product.id,
+        storage_path=f"products/{product.id}/foto.webp",
+        width=10,
+        height=10,
+        size_bytes=100,
+        sort_order=0,
+    )
+    # Solicitud pendiente del mismo Almacén que actúa, para que pueda retirarla.
+    request = AdjustmentRequest(
+        product_id=product.id,
+        quantity_delta=Decimal("-1"),
+        adjustment_reason="loss",
+        status="pending",
+        requested_by=users[WAREHOUSE].id,
+        requested_at=utcnow(),
+    )
+    db.add_all([photo, request])
+    db.commit()
+    # Conteo abierto con una línea, y otro producto libre para abrir uno nuevo.
+    other = make_product("FRT")
+    count = StockCount(
+        status="open",
+        scope={"type": "products", "ids": [str(product.id)]},
+        started_by=users[WAREHOUSE].id,
+        started_at=utcnow(),
+    )
+    db.add(count)
+    db.flush()
+    line = StockCountLine(stock_count_id=count.id, product_id=product.id, is_open=True)
+    db.add(line)
+    db.commit()
 
     def headers_for(actor: str) -> dict[str, str]:
         if actor == ANONYMOUS:
             return {}
-        if actor == TEMPORARY:
-            user = make_user(Role.ADMIN, username="temporal", must_change_password=True)
-        else:
-            user = make_user(Role(actor), username=f"actor_{actor}")
-        return auth_headers(user, DEFAULT_PASSWORD)
+        return auth_headers(users[actor], DEFAULT_PASSWORD)
 
-    headers_for.target_id = str(target.id)  # type: ignore[attr-defined]
+    headers_for.ids = {  # type: ignore[attr-defined]
+        "user_id": str(target.id),
+        "product_id": str(product.id),
+        "photo_id": str(photo.id),
+        "request_id": str(request.id),
+        "count_id": str(count.id),
+        "line_id": str(line.id),
+        "other_product_id": str(other.id),
+        "category_id": str(category_id("FRT")),
+        "unit_id": str(db.scalar(select(Unit.id).where(Unit.code == "u"))),
+        "attribute_id": str(
+            db.scalar(select(AttributeDefinition.id).where(AttributeDefinition.key == "hose_type"))
+        ),
+    }
     return headers_for
+
+
+def _fill(value: Any, ids: dict[str, str]) -> Any:
+    """Reemplaza los marcadores {nombre} de rutas y cuerpos por los datos creados."""
+    if isinstance(value, str):
+        return value.format(**ids)
+    if isinstance(value, dict):
+        return {key: _fill(item, ids) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_fill(item, ids) for item in value]
+    return value
 
 
 @pytest.mark.parametrize("actor", sorted(EVERYONE))
 @pytest.mark.parametrize("row", MATRIX, ids=lambda row: row.id)
 def test_matriz_de_permisos(client, actor_headers, row: Row, actor: str) -> None:
     headers = actor_headers(actor)
-    path = row.path.replace("{user_id}", actor_headers.target_id)
+    path = _fill(row.path, actor_headers.ids)
     kwargs: dict[str, Any] = {"headers": headers}
     if row.body is not None:
-        kwargs["json"] = row.body
+        kwargs["json"] = _fill(row.body, actor_headers.ids)
 
     response = client.request(row.method, path, **kwargs)
     data = response.json() if response.content else None

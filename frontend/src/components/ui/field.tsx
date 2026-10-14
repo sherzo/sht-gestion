@@ -2,7 +2,7 @@
 
 import { Eye, EyeOff } from "lucide-react";
 import { useId, useState } from "react";
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 // Campos con etiqueta, ayuda y error accesibles (guía de estilos §6).
 const CONTROL =
@@ -86,6 +86,29 @@ export function TextField({ label, hint, error, id, type, className = "", ...pro
       ) : (
         input
       )}
+    </FieldShell>
+  );
+}
+
+type TextAreaFieldProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  label: string;
+  hint?: string;
+  error?: string;
+};
+
+export function TextAreaField({ label, hint, error, id, className = "", ...props }: TextAreaFieldProps) {
+  const generated = useId();
+  const fieldId = id ?? generated;
+  return (
+    <FieldShell id={fieldId} label={label} hint={hint} error={error}>
+      <textarea
+        id={fieldId}
+        rows={3}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(fieldId, hint, error)}
+        className={`${CONTROL} py-2 ${className}`}
+        {...props}
+      />
     </FieldShell>
   );
 }

@@ -1,5 +1,6 @@
 # Respaldo diario de la base de datos (RNF-06, ADR-0002): pg_dump cifrado con age y
-# guardado en Cloud Storage, fuera de Supabase. El bucket borra copias de más de 30 días.
+# guardado en Cloud Storage, fuera de Supabase. El bucket borra los volcados (`sht-*`) de
+# más de 30 días. También copia las fotos de productos nuevas a `fotos/` (ADR-0009).
 # Configuración previa: docs/despliegue.md. Mientras falte BACKUP_BUCKET, no corre.
 name: Respaldo diario
 
@@ -50,3 +51,25 @@ jobs:
             "https://storage.googleapis.com/upload/storage/v1/b/$BACKUP_BUCKET/o?uploadType=media&ifGenerationMatch=0&name=$name" \
             > /dev/null
           echo "Respaldo subido: $name ($(stat -c %s backup.dump.age) bytes)"
+
+      # Fotos de productos (research R9, ADR-0009): copia de las fotos nuevas del bucket de
+      # Supabase Storage (protocolo S3) a `fotos/`. Las fotos no cambian nunca (ruta con
+      # UUIDv7): `--immutable` falla si alguna cambiara en lugar de sobrescribirla, y las que
+      # se quitan del producto se conservan en el respaldo.
+      - name: Copiar las fotos de productos
+        if: vars.SUPABASE_S3_ENDPOINT != ''
+        env:
+          RCLONE_CONFIG_SUPABASE_TYPE: s3
+          RCLONE_CONFIG_SUPABASE_PROVIDER: Other
+          RCLONE_CONFIG_SUPABASE_ENDPOINT: ${{ vars.SUPABASE_S3_ENDPOINT }}
+          RCLONE_CONFIG_SUPABASE_REGION: ${{ vars.SUPABASE_S3_REGION }}
+          RCLONE_CONFIG_SUPABASE_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_SUPABASE_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_S3_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_GCS_TYPE: google cloud storage
+          RCLONE_CONFIG_GCS_ENV_AUTH: "true"
+          RCLONE_CONFIG_GCS_BUCKET_POLICY_ONLY: "true"
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
+        run: |
+          sudo apt-get install -y rclone > /dev/null 2>&1
+          rclone copy supabase:product-photos "gcs:$BACKUP_BUCKET/fotos" \
+            --immutable --gcs-no-check-bucket --stats-one-line --stats-log-level NOTICE

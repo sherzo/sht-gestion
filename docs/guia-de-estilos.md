@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.1 |
-| Fecha | 2026-10-08 |
-| Estado | Vigente (base y componentes de la etapa 1.1a) |
+| Versión | 1.2 |
+| Fecha | 2026-10-13 |
+| Estado | Vigente (base y componentes de las etapas 1.1a y 1.1b) |
 | Documentos relacionados | `docs/decisiones/0007-guia-de-estilos-y-tecnologia-css.md`, `docs/arquitectura.md`, `docs/marca/` |
 
 > Reglas visuales comunes a la app interna (`frontend/`) y al catálogo (`catalog/`).
@@ -198,6 +198,30 @@ Otros elementos comunes en `frontend/src/components/`:
 - `ReauthDialog`: si la sesión termina durante un trabajo, pide la contraseña sobre la
   página actual sin perder lo escrito.
 
+### 7.1.1 Componentes de productos e inventario (etapa 1.1b)
+
+| Componente | Uso |
+|---|---|
+| `DecimalInput` | Campo numérico con coma decimal (`1.234,56`), `inputMode` numérico o decimal según la unidad; avisa al momento si el número no es válido o tiene más decimales de los permitidos (nunca redondea). La pantalla envía `parseDecimalInput(texto)` |
+| `TextAreaField` | Textarea con la misma etiqueta, ayuda y error que `TextField` |
+| `StatusChip` | Estado con ícono y texto, nunca solo color: `low_stock` y `pending` en `warning`, `negative_stock` y `rejected` en `danger`, `published` en `info`, `approved` en `success`, `inactive` y `withdrawn` en gris |
+| `Tabs` | Pestañas accesibles con teclado (flechas, Inicio y Fin); en la ficha de producto: Datos, Fotos, Precio y costo (Admin) y Kardex (Admin y Almacén) |
+
+En `frontend/src/components/products/`:
+
+- `ProductSearch`: buscador con espera de 250 ms entre teclas y filtros de categoría,
+  atributos filtrables de la categoría, estado y "solo stock bajo". Sin resultados,
+  ofrece "Crear producto" a Admin y Almacén.
+- `ProductPicker`: buscador compacto para elegir un producto (ajustes y conteos).
+- `ProductForm`: alta y edición; los campos de atributos se arman con las definiciones
+  de la categoría y la unidad queda deshabilitada si la categoría la fija.
+- `PhotoGallery`: miniaturas cuadradas con la principal marcada en `accent`; subir,
+  quitar (con confirmación) y mover con botones de 44 px etiquetados.
+- `KardexTable`: movimientos con entradas en `success` y salidas en `danger`, saldo y
+  quién registró o solicitó.
+- `PriceCostPanel`: precio con historial, costo inicial y publicación (solo Admin).
+- Tarjetas del inicio: contador grande con ícono y enlace (stock bajo en `warning`).
+
 ### 7.2 Íconos
 
 `lucide-react` (licencia ISC; el build solo incluye los íconos usados). Tamaño `size-5`
@@ -216,6 +240,7 @@ texto que ya dice lo mismo, o con `aria-label` en botones que solo tienen ícono
 | Etapa | Se define |
 |---|---|
 | 1.1a | ✅ Hecho: componentes base (§7.1), íconos (§7.2), pantallas de ingreso, usuarios, mi cuenta y auditoría |
+| 1.1b | ✅ Hecho: componentes de productos e inventario (§7.1.1), pantallas de productos, ficha, ajuste, pendientes, mis solicitudes, stock bajo, conteos y configuración |
 | 1.3 | Pantalla de venta: lista de productos, totales USD/Bs, teclado numérico, pagos |
 | 1.5 | Íconos de la app instalable (PNG 192/512 y "maskable") a partir de `icono-app.svg`; indicador de sin conexión y pendientes |
 | 1.6 | Diseño del catálogo público: tarjetas de producto, filtros, botón de WhatsApp |

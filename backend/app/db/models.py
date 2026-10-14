@@ -1,11 +1,15 @@
-"""Modelos de usuarios, sesiones y auditoría (RF-44 a RF-46).
+"""Modelos de la base de datos.
 
-Detalle y reglas: specs/001-usuarios-autenticacion-permisos/data-model.md y
-docs/modelo-de-datos.md §3.1. La migración 0002 crea exactamente estas tablas.
+- Usuarios, sesiones y auditoría (RF-44 a RF-46): specs/001-usuarios-autenticacion-permisos/
+  data-model.md y docs/modelo-de-datos.md §3.1; los crea la migración 0002.
+- Productos, categorías e inventario (RF-01 a RF-12): specs/002-productos-inventario/
+  data-model.md y docs/modelo-de-datos.md §3.2 y §3.3; los crea la migración 0004, que
+  además impone con triggers el kardex y la inmutabilidad.
 """
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -14,7 +18,10 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
+    SmallInteger,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
 )
@@ -130,3 +137,300 @@ class AuditLog(Base):
     after: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     reason: Mapped[str | None] = mapped_column(Text)
     details: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+
+# --- Productos, categorías e inventario (etapa 1.1b) ---------------------------------
+
+# Escalas de los dominios de ADR-0004 (migración 0001).
+UsdAmount = Numeric(14, 2)
+UsdCost = Numeric(18, 6)
+Quantity = Numeric(14, 2)
+
+MOVEMENT_TYPES = ("purchase", "sale", "sale_void", "purchase_void", "adjustment")
+ADJUSTMENT_REASONS = ("physical_count", "damage", "loss", "correction")
+ATTRIBUTE_TYPES = ("text", "number", "option")
+REQUEST_STATUSES = ("pending", "approved", "rejected", "withdrawn")
+COUNT_STATUSES = ("open", "ready_for_review", "applied", "cancelled")
+SKU_PREFIX_PATTERN = r"^[A-Z]{3}$"
+ATTRIBUTE_KEY_PATTERN = r"^[a-z][a-z0-9_]{1,39}$"
+
+
+class Unit(Base):
+    """Unidad de medida (RF-05/FR-031): `metro` con 2 decimales, `unidad` con 0."""
+
+    __tablename__ = "unit"
+    __table_args__ = (
+        CheckConstraint(
+            "char_length(code) BETWEEN 1 AND 10 AND code = lower(code)", name="code_format"
+        ),
+        CheckConstraint("char_length(name) BETWEEN 1 AND 40", name="name_length"),
+        CheckConstraint("decimals IN (0, 2)", name="decimals_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    code: Mapped[str] = mapped_column(Text, unique=True)
+    name: Mapped[str] = mapped_column(Text, unique=True)
+    decimals: Mapped[int] = mapped_column(SmallInteger)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+
+
+class Category(Base):
+    """Categoría con prefijo de SKU y correlativo propio (RF-02, RF-03/FR-029, R1)."""
+
+    __tablename__ = "category"
+    __table_args__ = (
+        CheckConstraint(f"sku_prefix ~ '{SKU_PREFIX_PATTERN}'", name="sku_prefix_format"),
+        CheckConstraint(
+            "char_length(name) BETWEEN 1 AND 60 AND name = btrim(name)", name="name_length"
+        ),
+        CheckConstraint("next_sku_number >= 1", name="next_sku_number_positive"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    name: Mapped[str] = mapped_column(Text)
+    sku_prefix: Mapped[str] = mapped_column(Text, unique=True)
+    next_sku_number: Mapped[int] = mapped_column(Integer, default=1)
+    default_unit_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("unit.id"))
+    unit_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AttributeDefinition(Base):
+    """Atributo que tienen los productos de una categoría (RF-04/FR-030, R5)."""
+
+    __tablename__ = "attribute_definition"
+    __table_args__ = (
+        UniqueConstraint("category_id", "key"),
+        CheckConstraint(f"key ~ '{ATTRIBUTE_KEY_PATTERN}'", name="key_format"),
+        CheckConstraint(
+            "char_length(label) BETWEEN 1 AND 60 AND label = btrim(label)", name="label_length"
+        ),
+        CheckConstraint(_in_list("data_type", ATTRIBUTE_TYPES), name="data_type_valid"),
+        CheckConstraint(
+            "(data_type = 'option') = (options IS NOT NULL)", name="options_only_for_option"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    category_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("category.id"))
+    key: Mapped[str] = mapped_column(Text)
+    label: Mapped[str] = mapped_column(Text)
+    data_type: Mapped[str] = mapped_column(Text)
+    # Lista de {"value": texto, "is_active": bool}; las opciones nunca se borran.
+    options: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB(none_as_null=True))
+    is_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_filterable: Mapped[bool] = mapped_column(Boolean, default=False)
+    sort_order: Mapped[int] = mapped_column(SmallInteger, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Product(Base):
+    """Producto que se compra y se vende individualmente (RF-01/FR-001); nunca se borra.
+
+    `stock` y `has_movements` solo los cambia el trigger de `stock_movement` (RN-08, R2).
+    """
+
+    __tablename__ = "product"
+    __table_args__ = (
+        CheckConstraint(
+            "char_length(name) BETWEEN 1 AND 120 AND name = btrim(name)", name="name_length"
+        ),
+        CheckConstraint("char_length(description) <= 2000", name="description_length"),
+        CheckConstraint("sale_price_usd IS NULL OR sale_price_usd > 0", name="sale_price_positive"),
+        CheckConstraint("avg_cost_usd IS NULL OR avg_cost_usd >= 0", name="avg_cost_positive"),
+        CheckConstraint("min_stock >= 0", name="min_stock_positive"),
+        CheckConstraint(
+            "NOT is_published OR (is_active AND sale_price_usd IS NOT NULL)", name="publishable"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    sku: Mapped[str] = mapped_column(Text, unique=True)
+    category_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("category.id"))
+    unit_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("unit.id"))
+    name: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(Text, default="")
+    attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    search_text: Mapped[str] = mapped_column(Text)
+    sale_price_usd: Mapped[Decimal | None] = mapped_column(UsdAmount)
+    avg_cost_usd: Mapped[Decimal | None] = mapped_column(UsdCost)
+    cost_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    stock: Mapped[Decimal] = mapped_column(Quantity, default=Decimal("0"))
+    min_stock: Mapped[Decimal] = mapped_column(Quantity, default=Decimal("0"))
+    has_movements: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+
+
+class ProductPrice(Base):
+    """Historial de precios de venta, de solo inserción (FR-012). Previsión RN-18: las
+    listas de precios agregarían aquí `price_list_id` nulo (nulo = precio general)."""
+
+    __tablename__ = "product_price"
+    __table_args__ = (CheckConstraint("price_usd > 0", name="price_positive"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("product.id"))
+    price_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    set_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+
+
+class ProductPhoto(Base):
+    """Foto de un producto (FR-008); quitarla la marca y borra el objeto de Storage."""
+
+    __tablename__ = "product_photo"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("product.id"))
+    storage_path: Mapped[str] = mapped_column(Text)
+    width: Mapped[int] = mapped_column(Integer)
+    height: Mapped[int] = mapped_column(Integer)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sort_order: Mapped[int] = mapped_column(SmallInteger)
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+
+
+class StockMovement(Base):
+    """Movimiento del kardex, inmutable (RF-08, RF-09/FR-016, FR-017; RN-08)."""
+
+    __tablename__ = "stock_movement"
+    __table_args__ = (
+        CheckConstraint(_in_list("type", MOVEMENT_TYPES), name="type_valid"),
+        CheckConstraint("quantity_delta <> 0", name="quantity_not_zero"),
+        CheckConstraint(
+            "(type = 'adjustment') = (adjustment_reason IS NOT NULL)",
+            name="adjustment_reason_required",
+        ),
+        CheckConstraint(
+            f"adjustment_reason IS NULL OR {_in_list('adjustment_reason', ADJUSTMENT_REASONS)}",
+            name="adjustment_reason_valid",
+        ),
+        CheckConstraint("note IS NULL OR char_length(note) <= 500", name="note_length"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("product.id"))
+    type: Mapped[str] = mapped_column(Text)
+    quantity_delta: Mapped[Decimal] = mapped_column(Quantity)
+    balance_after: Mapped[Decimal] = mapped_column(Quantity)
+    adjustment_reason: Mapped[str | None] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(Text)
+    cost_before_usd: Mapped[Decimal | None] = mapped_column(UsdCost)
+    cost_after_usd: Mapped[Decimal | None] = mapped_column(UsdCost)
+    reference_type: Mapped[str | None] = mapped_column(Text)
+    reference_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    # Sin FK hasta que la etapa 1.3 cree la tabla `device`.
+    device_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+
+
+class AdjustmentRequest(Base):
+    """Salida de inventario del Almacén que espera la decisión del Admin (FR-019a, RN-19)."""
+
+    __tablename__ = "adjustment_request"
+    __table_args__ = (
+        CheckConstraint("quantity_delta < 0", name="quantity_negative"),
+        CheckConstraint(
+            _in_list("adjustment_reason", ADJUSTMENT_REASONS), name="adjustment_reason_valid"
+        ),
+        CheckConstraint("note IS NULL OR char_length(note) <= 500", name="note_length"),
+        CheckConstraint(_in_list("status", REQUEST_STATUSES), name="status_valid"),
+        CheckConstraint(
+            "(status = 'pending') = (decided_at IS NULL AND decided_by IS NULL)",
+            name="decision_when_final",
+        ),
+        CheckConstraint(
+            "status <> 'rejected' OR rejection_reason IS NOT NULL", name="rejection_reason"
+        ),
+        CheckConstraint(
+            "(status = 'approved') = (stock_movement_id IS NOT NULL)",
+            name="movement_when_approved",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("product.id"))
+    quantity_delta: Mapped[Decimal] = mapped_column(Quantity)
+    adjustment_reason: Mapped[str] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, default="pending")
+    requested_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    stock_movement_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("stock_movement.id")
+    )
+
+
+class StockCount(Base):
+    """Conteo físico: el Almacén anota a ciegas y solo el Admin lo aplica (RF-12, RN-19)."""
+
+    __tablename__ = "stock_count"
+    __table_args__ = (
+        CheckConstraint(_in_list("status", COUNT_STATUSES), name="status_valid"),
+        CheckConstraint("status <> 'cancelled' OR cancel_reason IS NOT NULL", name="cancel_reason"),
+        CheckConstraint(
+            "(status IN ('applied', 'cancelled')) = "
+            "(closed_at IS NOT NULL AND closed_by IS NOT NULL)",
+            name="closed_when_final",
+        ),
+        CheckConstraint("notes IS NULL OR char_length(notes) <= 500", name="notes_length"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    status: Mapped[str] = mapped_column(Text, default="open")
+    # {"type": "all"} | {"type": "categories", "ids": [...]} | {"type": "products", "ids": [...]}
+    scope: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    notes: Mapped[str | None] = mapped_column(Text)
+    started_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ready_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class StockCountLine(Base):
+    """Línea de un conteo; guarda el stock del sistema al anotar (FR-025)."""
+
+    __tablename__ = "stock_count_line"
+    __table_args__ = (
+        UniqueConstraint("stock_count_id", "product_id"),
+        CheckConstraint(
+            "counted_quantity IS NULL OR counted_quantity >= 0", name="counted_positive"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    stock_count_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("stock_count.id"))
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("product.id"))
+    counted_quantity: Mapped[Decimal | None] = mapped_column(Quantity)
+    expected_quantity: Mapped[Decimal | None] = mapped_column(Quantity)
+    counted_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    counted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stock_movement_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("stock_movement.id")
+    )
+    # Se apaga al aplicar o cancelar el conteo; el índice único parcial sobre las líneas
+    # abiertas impide que un producto esté en dos conteos a la vez (FR-024).
+    is_open: Mapped[bool] = mapped_column(Boolean, default=True)

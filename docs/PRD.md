@@ -3,8 +3,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.7 |
-| Fecha | 2026-10-07 |
+| Versión | 0.8 |
+| Fecha | 2026-10-08 |
 | Estado | En revisión por el dueño |
 | Documentos relacionados | `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`, `CLAUDE.md` |
 
@@ -54,8 +54,10 @@ Sistema web para gestionar el inventario, las compras, las ventas multimoneda y 
 | Acción | Admin | Vendedor | Almacén |
 |---|:-:|:-:|:-:|
 | Ver productos y stock | ✅ | ✅ | ✅ |
+| Ver historial de movimientos (kardex) | ✅ | ❌ | ✅ |
 | Ver costos y márgenes | ✅ | ❌ | ❌ |
 | Crear/editar productos | ✅ | ❌ | ✅ (sin precio de venta) |
+| Publicar en el catálogo online | ✅ | ❌ | ❌ |
 | Cambiar precio de venta | ✅ | ❌ | ❌ |
 | Registrar venta | ✅ | ✅ | ❌ |
 | Aplicar descuento | ✅ | Solo con autorización del admin | ❌ |
@@ -63,7 +65,8 @@ Sistema web para gestionar el inventario, las compras, las ventas multimoneda y 
 | Anular compra | ✅ | ❌ | ❌ |
 | Abrir/cerrar caja | ✅ | ✅ | ❌ |
 | Registrar compras y entradas | ✅ | ❌ | ✅ |
-| Ajustes de inventario | ✅ | ❌ | ✅ (con motivo obligatorio) |
+| Ajustes de inventario | ✅ | ❌ | ✅ (con motivo obligatorio; los negativos requieren aprobación del admin, RN-19) |
+| Conteo físico | ✅ | ❌ | Abre y anota; solo el admin lo aplica (RN-19) |
 | Cargar tasa BCV | ✅ | ❌ | ❌ |
 | Gestionar usuarios | ✅ | ❌ | ❌ |
 | Ver reportes | ✅ | Solo sus ventas del día | Solo inventario |
@@ -223,7 +226,9 @@ Los requisitos exactos se definirán con el contador según la normativa vigente
 | RN-06 | Un pago en Bs cubre en USD el monto en Bs ÷ tasa BCV de la venta. |
 | RN-07 | Los descuentos del vendedor requieren autorización del admin. |
 | RN-08 | El stock no se modifica directamente; solo mediante movimientos (RF-08). |
-| RN-09 | Supuesto: el costo del producto se actualiza con **costo promedio ponderado** al registrar compras. |
+| RN-09 | Supuesto: el costo del producto se actualiza con **costo promedio ponderado** al registrar compras. Mientras un producto no tenga compras confirmadas, solo el admin puede fijarle a mano un **costo inicial** (auditado), por ejemplo para el inventario inicial; desde la primera compra confirmada, el costo solo lo cambian las compras. |
+| RN-18 | Cada producto tiene **un solo precio de venta**; no hay precios por tipo de cliente en la Fase 1. A mayoristas y talleres se les atiende con descuentos autorizados (RF-22). El modelo de datos debe permitir agregar listas de precios más adelante sin rediseño. |
+| RN-19 | Ninguna salida de inventario del Almacén cambia el stock sin aprobación del admin: sus ajustes negativos quedan pendientes hasta que el admin los aprueba o rechaza (con motivo), y los conteos físicos los aplica solo el admin, tras revisar las diferencias. Los ajustes positivos del Almacén y todos los del admin se aplican de inmediato. |
 | RN-10 | Las ventas registradas sin internet se sincronizan al volver la conexión. Si una venta deja stock negativo, se registra y se genera una alerta para el admin. |
 | RN-11 | Los números correlativos de venta no se repiten aunque haya ventas sin conexión en varios equipos (ver arquitectura). |
 | RN-12 | Los registros cerrados (ventas, cierres de caja) no se editan ni se borran; se corrigen con anulaciones o movimientos nuevos. |
@@ -261,8 +266,7 @@ Estas decisiones se tomaron para avanzar. Si alguna no es correcta, se corrige a
 
 - ¿Número de WhatsApp del negocio para el catálogo?
 - ¿Cada cuántas horas debe actualizarse el catálogo (ej. 2, 6 o 12)?
-- ¿Existen precios distintos para mayoristas o talleres frecuentes?
-- ¿Qué medidas de mangueras y conexiones son las más comunes, para precargar los atributos?
+- ¿Qué medidas de mangueras y conexiones son las más comunes, para precargar los atributos? (El admin las carga como opciones editables antes de la puesta en uso; no bloquea la etapa 1.1b.)
 - Fase 2: ¿la nota de entrega se imprimirá en impresora térmica (ticket) o en hoja carta/media carta?
 
 Preguntas surgidas al definir la arquitectura (ver `docs/arquitectura.md`); se responden antes de especificar la etapa indicada:
@@ -319,3 +323,4 @@ El detalle va en `docs/plan-de-fases.md`.
 | 0.5 | 2026-10-07 | Definiciones para el modelo de datos: descuentos por ítem o por total, en monto o porcentaje (RF-22); compras confirmadas inmutables y anulación solo por el admin (RN-14, matriz de permisos); corrección auditada de la tasa (RN-15); caja por equipo (RN-16, supuesto 5); precios con IVA incluido (RN-17). |
 | 0.6 | 2026-10-07 | Resumen (§1) y objetivo 6 alineados con el presupuesto de RNF-03 (arranque gratuito, tope de 35–40 USD/mes) en lugar de "costo cercano a cero". |
 | 0.7 | 2026-10-07 | Aclaraciones de la etapa 1.1a: jornada de 12 horas e instalación con código secreto (RF-44); un rol por usuario y contraseña temporal asignada por el admin (RF-45). |
+| 0.8 | 2026-10-08 | Aclaraciones de la etapa 1.1b: costo inicial fijado por el admin mientras no haya compras confirmadas (RN-09); un solo precio de venta por producto, sin precios de mayorista en la Fase 1 (RN-18). Respondida la pregunta abierta sobre mayoristas. Salidas de inventario del Almacén con aprobación del admin y conteos aplicados solo por el admin (RN-19, matriz de permisos). Solo el admin publica productos en el catálogo y el vendedor no ve el kardex (matriz de permisos). |
