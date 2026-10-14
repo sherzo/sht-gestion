@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.0 |
-| Fecha | 2026-10-07 |
-| Estado | Vigente (etapa 1.0 terminada; 1.1a integrada, pendiente de validar en producción; 1.1b integrada, pendiente de validar en producción) |
+| Versión | 1.1 |
+| Fecha | 2026-10-13 |
+| Estado | Vigente (etapas 1.0 y 1.1 terminadas; siguiente: 1.2) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,
@@ -64,7 +64,7 @@ Se propone dividirla en dos specs:
 | **Requisitos** | RF-44, RF-45, RF-46, RNF-05, RNF-08 |
 | **Entregables** | Inicio de sesión, renovación y cierre de sesión (ADR-0005); PIN del admin con límite de intentos; gestión de usuarios y roles; registro de auditoría; base de permisos por rol para todos los endpoints |
 | **Terminada cuando** | Cada rol solo accede a lo que le permite la matriz del PRD (§4), verificado con pruebas en el servidor |
-| **Estado** | 🚧 Integrada a `main` el 2026-10-08 (`specs/001-usuarios-autenticacion-permisos/`, ADR-0008), con revisión de seguridad y de código. Falta validarla en producción: instalar el admin, medir el inicio de sesión y reemplazar `setup-code` (T073) |
+| **Estado** | ✅ Terminada el 2026-10-13 (`specs/001-usuarios-autenticacion-permisos/`, ADR-0008): integrada el 2026-10-08 con revisión de seguridad y de código; validada en producción con el admin instalado, ingreso del dueño (API en ~0,4 s con la instancia activa) y `setup-code` reemplazado por un valor aleatorio |
 
 **1.1b Productos, categorías e inventario**
 
@@ -73,7 +73,9 @@ Se propone dividirla en dos specs:
 | **Requisitos** | RF-01 a RF-12, RN-08, RN-09 (costo inicial), RN-13, RN-18, RN-19 |
 | **Entregables** | Categorías con prefijo de SKU y atributos definibles; unidades; productos con SKU automático, atributos, fotos y publicación; histórico de precios; kardex; ajustes con motivo; alerta de stock bajo; conteo físico; búsqueda |
 | **Terminada cuando** | El stock solo cambia por movimientos; Almacén no ve ni edita precios de venta y nadie salvo el admin ve costos; la búsqueda responde en menos de 1 s con 1.000 productos de prueba |
-| **Estado** | 🚧 Integrada a `main` el 2026-10-13 (`specs/002-productos-inventario/`, ADR-0009), con pruebas automatizadas de cada criterio, revisión de seguridad y de código, y los escenarios del quickstart recorridos en local. Falta validarla en producción: subir una foto desde el teléfono, medir la búsqueda y restaurar el respaldo con fotos (T079) |
+| **Estado** | ✅ Terminada el 2026-10-13 (`specs/002-productos-inventario/`, ADR-0009): pruebas automatizadas de cada criterio (búsqueda < 200 ms con 1.000 productos), revisión de seguridad y de código, escenarios del quickstart recorridos en local y validación en producción (foto subida desde el teléfono, búsqueda y respaldo con fotos restaurado en local junto con la base) |
+
+La etapa 1.1 completa se publicó como versión `0.2.0`.
 
 ### 1.2 — Proveedores y compras
 

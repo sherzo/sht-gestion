@@ -2,9 +2,16 @@
 
 Cambios por funcionalidad terminada (RNF-09). Formato basado en
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Cada etapa terminada de la
-Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así sucesivamente.
+Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, y así sucesivamente.
 
 ## [Sin publicar]
+
+## [0.2.0] — 2026-10-13 — Etapa 1.1: usuarios, permisos, productos e inventario
+
+Validada en producción: instalación del admin, ingreso (la API responde en ~0,4 s con
+la instancia activa), alta de productos con foto subida desde el teléfono, búsqueda y
+respaldo nocturno con fotos restaurado en local junto con la base. El código de
+instalación (`setup-code`) se reemplazó por un valor aleatorio tras instalar.
 
 ### Añadido
 
@@ -41,6 +48,10 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así suce
     números `1.234,56` en `packages/shared`.
   - Respaldo diario de las fotos con rclone a `fotos/` del bucket de respaldos; comando
     `app.cli seed-demo-products` (solo local).
+  - Correcciones de la revisión de código: los valores de atributos desactivados se
+    conservan al editar, `0.500` se lee como decimal, las fotos se procesan sin bloquear
+    el producto, aplicar un conteo confirma los productos sin contar con el dato del
+    servidor, y el costo se muestra sin los ceros que sobran (`100,00`, `7,253333`).
 - **Etapa 1.1a: usuarios, autenticación y permisos** (RF-44, RF-45, RF-46, RNF-05,
   RNF-08; especificación en `specs/001-usuarios-autenticacion-permisos/`, ADR-0008):
   - Instalación del primer administrador con código secreto, solo con la base vacía.
@@ -91,7 +102,6 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 será `0.2.0`, y así suce
   borrado a los 30 días del bucket de respaldos se limita a los volcados (`sht-*`).
 - Despliegue de la API: secretos `jwt-secret` y `setup-code`, y cookie de sesión
   provisional `SameSite=None` mientras no haya dominio propio.
-
 - Guía de estilos base (`docs/guia-de-estilos.md`, ADR-0007, RNF-02): paleta derivada
   del logo (azul `#03045E` y ámbar `#F7AA00`) con escalas, grises, colores de estado y
   tokens semánticos validados por contraste; tipografía Montserrat + Inter autoalojada;

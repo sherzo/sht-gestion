@@ -6,7 +6,7 @@
 
 Mangueras hidráulicas, conexiones, ferrules y ferretería ligera: todo bajo control, desde la computadora o el teléfono. 📱💻
 
-> 🚀 **Estado:** Fase 1. La etapa 1.0 (arquitectura, modelo de datos y despliegue base) está terminada y en producción. Siguiente: etapa 1.1a, usuarios, inicio de sesión y permisos.
+> 🚀 **Estado:** Fase 1, versión [`0.2.0`](https://github.com/sherzo/sht-gestion/releases/tag/v0.2.0). En producción: usuarios con roles y auditoría, y productos e inventario (SKU automático, fotos, precios, kardex, ajustes con aprobación, conteo físico y búsqueda). Siguiente: etapa 1.2, proveedores y compras.
 
 ---
 
@@ -23,16 +23,18 @@ Un negocio que está comenzando, sin sistema ni códigos de producto, que vende 
 
 ## ✨ Funcionalidades principales (Fase 1)
 
+✅ = ya disponible en producción.
+
 | | Módulo | Descripción |
 |---|---|---|
-| 📦 | Productos e inventario | SKU automático por categoría, atributos técnicos, venta por metro (con precisión de centímetro) o por unidad, kardex de movimientos y alertas de stock bajo. |
+| 📦 | Productos e inventario ✅ | SKU automático por categoría, atributos técnicos, fotos, venta por metro (con precisión de centímetro) o por unidad, kardex de movimientos, ajustes con aprobación del admin, conteo físico y alertas de stock bajo. |
 | 🚚 | Compras | Proveedores, compras en USD o Bs y costo promedio ponderado. |
 | 💱 | Tasa BCV | Carga diaria de la tasa oficial con histórico. |
 | 🧾 | Ventas | Pagos mixtos (Efectivo Bs, Pago móvil, Punto de venta, Efectivo USD, Zelle, USDT), vuelto y descuentos autorizados por el admin. |
 | 💰 | Caja | Apertura, egresos, cierre y cuadre por método de pago. |
 | 📴 | Modo sin conexión | El módulo de ventas sigue funcionando sin internet y sincroniza al reconectar. |
 | 🌐 | Catálogo online | Página pública con precios en USD y Bs, disponibilidad y pedido por WhatsApp. |
-| 👥 | Usuarios y roles | Administrador, Vendedor y Almacén, con auditoría de acciones sensibles. |
+| 👥 | Usuarios y roles ✅ | Administrador, Vendedor y Almacén, con auditoría de acciones sensibles. |
 | 📊 | Reportes | Ventas por método de pago, stock bajo, valor del inventario, márgenes y más vendidos. |
 
 ## 🗺️ Hoja de ruta
@@ -48,7 +50,7 @@ Un negocio que está comenzando, sin sistema ni códigos de producto, que vende 
 | 🧾 App interna (vendedor, almacén y admin) | https://sht-gestion-app.pages.dev |
 | 🛒 Catálogo público | https://sht-gestion-catalogo.pages.dev |
 
-Por ahora ambos son páginas mínimas: las funcionalidades llegan etapa por etapa.
+La app interna ya tiene usuarios, productos e inventario; el catálogo público sigue siendo una página mínima hasta la etapa 1.6.
 
 ## 🧱 Stack
 
@@ -81,7 +83,9 @@ cd backend
 cp .env.example .env
 uv sync
 uv run alembic upgrade head
-uv run uvicorn app.main:app --reload
+uv run python -m uvicorn app.main:app --reload
+# Opcional: 1.000 productos de prueba para medir la búsqueda (solo con ENVIRONMENT=local)
+uv run python -m app.cli seed-demo-products 1000
 
 # App interna (http://localhost:3000) y catálogo (http://localhost:3001)
 pnpm install
@@ -99,12 +103,12 @@ pnpm typecheck && pnpm build
 pnpm api:types   # regenera los tipos de la API en packages/shared tras cambiar el backend
 ```
 
-> 🪟 **En Windows:** los comandos funcionan igual en PowerShell (`cp` es un alias de `Copy-Item`). Después de instalar una herramienta nueva, reinicia por completo VS Code (o la aplicación desde la que abres la terminal) para que la encuentre. Más particularidades en [`despliegue.md`](docs/despliegue.md#2-herramientas-locales).
+> 🪟 **En Windows:** los comandos funcionan igual en PowerShell (`cp` es un alias de `Copy-Item`). La API se levanta con `python -m uvicorn` porque el Control de aplicaciones de Windows puede bloquear `uvicorn.exe`. Después de instalar una herramienta nueva, reinicia por completo VS Code (o la aplicación desde la que abres la terminal) para que la encuentre. Más particularidades en [`despliegue.md`](docs/despliegue.md#2-herramientas-locales).
 
 ## 🚀 Cómo se despliega
 
 - Integrar un cambio en `main` lo despliega solo: la API en Cloud Run si cambió `backend/`, y la app y el catálogo en Cloudflare Pages si cambió el frontend. Antes, la CI corre el lint, las migraciones y las pruebas.
-- Cada noche se guarda un respaldo cifrado de la base de datos (30 días de historial).
+- Cada noche se guarda un respaldo cifrado de la base de datos (30 días de historial) y una copia de las fotos de productos nuevas.
 - Configuración de los servicios, secretos y restauración de respaldos: [`docs/despliegue.md`](docs/despliegue.md).
 
 ## 🤝 Cómo se trabaja
