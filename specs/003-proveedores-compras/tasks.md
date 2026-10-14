@@ -243,10 +243,10 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 **Purpose**: documentación (RNF-09), validación final y revisión.
 
-- [ ] T064 [P] Actualizar `docs/modelo-de-datos.md` con los cambios listados en data-model.md ("Cambios a `docs/modelo-de-datos.md`"): §1, §3.1, §3.4 y §3.5
-- [ ] T065 [P] Actualizar `docs/arquitectura.md`: servicios `purchases`, `exchange_rates`, `alerts` y `domain/costing.py` en la estructura del backend; flujo de confirmación y anulación de compras (R3, R10); tasa aplicable por fecha (R6); glosario (`sequence_counter`, `void`, `alert`, `applicable_rate`) y la matriz por endpoint
-- [ ] T066 [P] Actualizar `docs/guia-de-estilos.md` §9 con los componentes nuevos (líneas de compra, sección de gastos, totales, diálogo de anulación y chips de estado de compra)
-- [ ] T067 [P] Actualizar `CHANGELOG.md` en "Sin publicar" con la etapa 1.2 (RF-13 a RF-17, RN-09, RN-14, RN-15, RN-20) y `docs/plan-de-fases.md` con su estado
+- [X] T064 [P] Actualizar `docs/modelo-de-datos.md` con los cambios listados en data-model.md ("Cambios a `docs/modelo-de-datos.md`"): §1, §3.1, §3.4 y §3.5
+- [X] T065 [P] Actualizar `docs/arquitectura.md`: servicios `purchases`, `exchange_rates`, `alerts` y `domain/costing.py` en la estructura del backend; flujo de confirmación y anulación de compras (R3, R10); tasa aplicable por fecha (R6); glosario (`sequence_counter`, `void`, `alert`, `applicable_rate`) y la matriz por endpoint
+- [X] T066 [P] Actualizar `docs/guia-de-estilos.md` §9 con los componentes nuevos (líneas de compra, sección de gastos, totales, diálogo de anulación y chips de estado de compra)
+- [X] T067 [P] Actualizar `CHANGELOG.md` en "Sin publicar" con la etapa 1.2 (RF-13 a RF-17, RN-09, RN-14, RN-15, RN-20) y `docs/plan-de-fases.md` con su estado
 - [X] T068 Ampliar `backend/tests/test_audit.py` (marca `db`) con las 11 acciones de research R12: por cada una, provocarla por la API y comprobar en `audit_log` el usuario, la entidad y los valores antes y después (`supplier.created`, `supplier.updated`, `purchase.confirmed`, `purchase.voided` con el motivo, `product.cost_updated` con costo antes y después y causa `purchase` o `purchase_void`, `exchange_rate.created`, `exchange_rate.corrected` con 36,50 → 36,55, `charge_template.created`, `charge_template.updated` y `alert.resolved`), que guardar o descartar un borrador no audita nada, y que `GET /audit` filtra por el grupo "Compras y tasas" (RF-46/FR-023, SC-007)
 - [ ] T069 Ejecutar `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest` (con `DATABASE_URL`), la migración subir–bajar–subir, `pnpm typecheck` y `pnpm build`, y corregir lo que falle
 - [ ] T070 Recorrer los escenarios manuales 1–10 de `quickstart.md` en local, en PC y con ancho de teléfono de 360 px; medir SC-003 (compra de 10 líneas < 5 min) y SC-011 (gastos de una importación < 1 min); anotar cualquier desviación como tarea nueva

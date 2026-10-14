@@ -4,7 +4,7 @@
 |---|---|
 | Versión | 1.1 |
 | Fecha | 2026-10-13 |
-| Estado | Vigente (etapas 1.0 y 1.1 terminadas; siguiente: 1.2) |
+| Estado | Vigente (etapas 1.0 y 1.1 terminadas; en curso: 1.2) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,
@@ -81,9 +81,10 @@ La etapa 1.1 completa se publicó como versión `0.2.0`.
 
 | | |
 |---|---|
-| **Requisitos** | RF-13 a RF-17, RN-03, RN-05, RN-09, RN-14, RN-15 |
-| **Entregables** | Proveedores; compras en USD o Bs en borrador y confirmadas; costo promedio ponderado; anulación de compras por el admin; carga, corrección auditada e histórico de la tasa BCV (adelantados de la 1.3 para las compras en Bs) |
+| **Requisitos** | RF-13 a RF-17, RN-03, RN-05, RN-09, RN-14, RN-15, RN-20 |
+| **Entregables** | Proveedores; compras en USD o Bs en borrador y confirmadas; gastos de la compra (porcentaje o monto fijo) con costo final por unidad y gastos frecuentes; costo promedio ponderado; anulación de compras por el admin; carga, corrección auditada e histórico de la tasa BCV (adelantados de la 1.3 para las compras en Bs) |
 | **Terminada cuando** | Las pruebas del costo promedio (incluida la anulación) pasan con los casos compartidos; una compra confirmada no puede modificarse ni en la base de datos |
+| **Estado** | En curso (`specs/003-proveedores-compras/`): implementada en la rama `003-proveedores-compras` con sus pruebas automatizadas; faltan el recorrido de los escenarios del quickstart, la revisión de seguridad y de código, la integración a `main` y la validación en producción |
 
 ### 1.3 — Ventas multimoneda, pagos mixtos y descuentos
 

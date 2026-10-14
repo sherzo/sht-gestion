@@ -6,11 +6,41 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, y así sucesiv
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Etapa 1.2: proveedores, compras con gastos y tasa BCV** (RF-13 a RF-17, RN-03,
+  RN-05, RN-09, RN-14, RN-15, RN-20; especificación en `specs/003-proveedores-compras/`):
+  - Proveedores con RIF normalizado (`J-12345678-9`) y único; se desactivan, nunca se
+    borran.
+  - Compras en USD o Bs que se guardan en borrador como un documento completo; el
+    servidor recalcula totales, gastos, reparto por valor y costo final por unidad
+    (`domain/costing.py`, con casos compartidos de prueba).
+  - Gastos de la compra (envío, comisión, entrega al local) por porcentaje de la factura
+    o monto fijo en USD o Bs, y lista de gastos frecuentes que mantiene el Admin.
+  - Confirmación en una sola transacción: entradas en el kardex con costo antes y
+    después, costo promedio con el costo final (con stock previo cero o negativo, o sin
+    costo, el de la compra), costo inicial bloqueado y número `C-000001` sin huecos.
+    Confirmar sobre datos viejos se rechaza (`stale_data`).
+  - Compras confirmadas inmutables también en la base (triggers de la migración `0005`);
+    se corrigen anulando (solo Admin, con motivo y vista previa): reversos en el kardex,
+    costo deshecho con el costo final y alerta en Pendientes si el resultado no es
+    válido.
+  - Tasa BCV (adelantada de la 1.3): carga y corrección auditada por el Admin, histórico
+    y tasa aplicable por fecha; las compras copian la tasa y su fecha.
+  - Consulta de compras con filtros (proveedor, fechas, estado, producto, número o
+    factura) y enlace desde el kardex a la compra.
+  - Pantallas: Compras (lista, borrador y detalle), Proveedores, Tasa BCV, Gastos
+    frecuentes (Configuración) y alertas en Pendientes; tarjetas de borradores y alertas
+    en el inicio.
+  - Pruebas: costo promedio y reparto con casos compartidos, inmutabilidad por SQL
+    directo, 20 confirmaciones simultáneas, 200 líneas en menos de 5 s, matriz de
+    permisos, fuga de costos y auditoría de las acciones de la etapa.
+
 ### Cambiado
 
 - PRD v0.9, para especificar la etapa 1.2 (`specs/003-proveedores-compras/`): si al
   confirmar una compra el stock previo es cero o negativo, o el producto no tiene
-  costo, el costo pasa a ser el costo unitario de la compra, sin promediar (RN-09); el
+  costo, el costo pasa a ser el costo final por unidad de la compra, sin promediar (RN-09); el
   Almacén registra y confirma compras y ve los costos de factura que escribe, pero no
   el costo promedio ni márgenes (matriz de permisos); la carga de la tasa BCV (RF-17,
   RN-15) se adelanta de la etapa 1.3 a la 1.2 (también en `docs/plan-de-fases.md`);
@@ -21,7 +51,9 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, y así sucesiv
   reciba los costos de factura, los gastos y el costo final de las compras que
   registra, nunca el costo promedio ni márgenes.
 - `docs/modelo-de-datos.md` §3.4 (tablas `purchase_charge` y `charge_template`, costo
-  final en `purchase_item`, tasa opcional con su fecha en `purchase`), ADR-0004 (redondeo
+  final en `purchase_item`, tasa opcional con su fecha en `purchase`; versión 1.3 con
+  `voided`, `sequence_counter` y `alert`), `docs/arquitectura.md` 1.3 (compras y tasa),
+  `docs/guia-de-estilos.md` 1.3 (componentes de compras), ADR-0004 (redondeo
   de gastos, reparto y costo final) y glosario de `docs/arquitectura.md`.
 
 ## [0.2.0] — 2026-10-13 — Etapa 1.1: usuarios, permisos, productos e inventario

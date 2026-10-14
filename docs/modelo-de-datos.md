@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.2 |
+| Versión | 1.3 |
 | Fecha | 2026-10-13 |
 | Estado | Vigente (aprobado al cerrar la etapa 1.0; cada etapa lo afina y aplica con migraciones) |
 | Documentos relacionados | `docs/PRD.md`, `docs/arquitectura.md`, `docs/decisiones/` |
@@ -50,7 +50,9 @@ Se definen como **dominios** de Postgres, para declarar la escala en un solo lug
 | Tablas | Regla |
 |---|---|
 | `stock_movement`, `sale`, `sale_item`, `payment`, `sale_void`, `discount_authorization`, `cash_outflow`, `cash_count`, `purchase_void`, `product_price`, `audit_log` | Solo inserción |
-| `purchase`, `purchase_item`, `purchase_charge` | Editables en borrador; inmutables una vez confirmadas (RN-14, RN-20) |
+| `purchase`, `purchase_item`, `purchase_charge` | Editables y descartables en borrador; confirmadas, la compra solo pasa a `voided` sin cambiar ningún otro dato y sus líneas y gastos no cambian (RN-14, RN-20) |
+| `supplier`, `charge_template`, `exchange_rate` | No se borran; la tasa se corrige (RN-15) pero no cambia de tipo ni de fecha |
+| `alert` | Solo se marca como revisada (`resolved_at`, `resolved_by`); no se borra |
 | `cash_session` | Editable solo para cerrarla; inmutable una vez cerrada (RF-33) |
 | `outbox_operation` | Inmutable una vez procesada |
 | `adjustment_request` | Solo pasa de `pending` a un estado final (`approved`, `rejected`, `withdrawn`) sin cambiar sus datos (RN-19) |
@@ -60,7 +62,7 @@ Se definen como **dominios** de Postgres, para declarar la escala en un solo lug
 La regla se impone **en la base de datos**, no solo en el código: el rol de la API no
 tiene permiso `DELETE` sobre estas tablas, y hay triggers que rechazan `UPDATE` (o lo
 permiten solo en el estado editable). Los de la etapa 1.1b están en la migración
-`0004_productos_e_inventario`.
+`0004_productos_e_inventario` y los de la 1.2 en `0005_proveedores_y_compras`.
 
 ## 2. Diagrama
 
@@ -156,7 +158,14 @@ R14.
 
 **`alert`** (RN-10, RN-14, ADR-0003): `type` (`negative_stock`, `price_mismatch`,
 `total_mismatch`, `inactive_user_sync`, `purchase_void_cost`, `discount_review`, …),
-`entity_type`, `entity_id`, `details` jsonb, `created_at`, `resolved_at`, `resolved_by`.
+`entity_type`, `entity_id`, `details` jsonb, `created_at`, `resolved_at`, `resolved_by`
+(juntos). Creada en la etapa 1.2 con el tipo `purchase_void_cost`; el `CHECK` del tipo
+se amplía en cada etapa. Solo se marca como revisada.
+
+**`sequence_counter`** (FR-008 de la etapa 1.2): `name` (PK; `purchase`), `next_number`.
+Correlativo sin huecos de documentos que numera el servidor: se lee con `FOR UPDATE`
+dentro de la transacción que confirma. Las ventas no lo usan: tienen series por equipo
+(RN-11).
 
 ### 3.2 Productos (RF-01 a RF-07)
 
@@ -263,13 +272,14 @@ ciegas: no recibe `expected_quantity` ni la diferencia.
 
 ### 3.4 Compras (RF-13 a RF-16, RN-14, RN-20)
 
-**`supplier`**: `name`, `rif` (único, nulo), `phone`, `notes`, `is_active`.
+**`supplier`**: `name` (1–120), `rif` (único, nulo; normalizado `X-NNNNNNNN-N`), `phone`,
+`notes`, `is_active`.
 
 **`purchase`**
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `number` | text | Único, correlativo `C-000001` (las compras se registran con conexión) |
+| `number` | text, nulo | Único, correlativo `C-000001` asignado **al confirmar**, sin huecos (las compras se registran con conexión) |
 | `supplier_id` | uuid | |
 | `purchase_date` | date | Fecha de negocio de la compra |
 | `currency` | text | `USD` \| `VES` (RF-15) |
@@ -279,19 +289,19 @@ ciegas: no recibe `expected_quantity` ni la diferencia.
 | `merchandise_total_usd` | `usd_amount` | Σ `line_total_usd` |
 | `charges_total_usd` | `usd_amount` | Σ `purchase_charge.amount_usd` (RN-20) |
 | `total_usd` | `usd_amount` | Mercancía + gastos |
-| `total_ves` | `ves_amount`, nulo | Solo si la compra es en Bs: total de la mercancía en Bs |
-| `status` | text | `draft` \| `confirmed` |
+| `merchandise_total_ves` | `ves_amount`, nulo | Solo si la compra es en Bs: total de la mercancía en Bs |
+| `status` | text | `draft` \| `confirmed` \| `voided` |
 | `confirmed_by`, `confirmed_at` | | |
 | `notes` | text | |
 
-**`purchase_item`**: `purchase_id`, `product_id`, `quantity`, `unit_cost_ves`
+**`purchase_item`**: `purchase_id`, `product_id`, `line_number`, `quantity`, `unit_cost_ves`
 (`ves_amount`, nulo), `unit_cost_usd` (`usd_cost`; en compras en Bs = costo Bs ÷ tasa,
-6 decimales), `line_total_usd`, `allocated_charges_usd` (`usd_amount`; parte de los
+6 decimales), `line_total_ves` (nulo), `line_total_usd`, `allocated_charges_usd` (`usd_amount`; parte de los
 gastos que le toca por valor) y `landed_unit_cost_usd` (`usd_cost`; costo final por
 unidad = `unit_cost_usd` + `allocated_charges_usd` ÷ `quantity`, el que entra al costo
 promedio, RN-20). Una línea por producto en cada compra.
 
-**`purchase_charge`** (RN-20): `purchase_id`, `description`, `charge_type` (`percent` \|
+**`purchase_charge`** (RN-20): `purchase_id`, `line_number`, `description`, `charge_type` (`percent` \|
 `fixed`), `percent` (`NUMERIC(5,2)`, nulo; > 0 y ≤ 100, solo si `percent`), `amount`
 (nulo; solo si `fixed`), `currency` (`USD` \| `VES`; solo si `fixed`), `amount_usd`
 (`usd_amount`), `allocation_method` (`value`; admite otros métodos a futuro) y
@@ -303,12 +313,15 @@ La compra copia sus datos, así que editarla no cambia compras existentes.
 
 **`purchase_void`** (RN-14): `purchase_id` (único), `reason`, `voided_by`, `voided_at`.
 Genera movimientos `purchase_void` inversos y recalcula el costo con
-`landed_unit_cost_usd`; si el resultado no es válido, conserva el costo y crea una alerta `purchase_void_cost`.
+`landed_unit_cost_usd`; si el resultado no es válido, conserva el costo y crea una alerta
+`purchase_void_cost`. La compra pasa a `voided`.
 
 ### 3.5 Tasa de cambio (RF-17, RF-18, RN-15)
 
 **`exchange_rate`**: `rate_type` (`BCV`; admite otros a futuro, RN-03), `business_date`,
-`rate`, `created_by`, `created_at`, `updated_at`. Único por `(rate_type, business_date)`.
+`rate`, `created_by`, `created_at`, `updated_by`, `updated_at`. Único por
+`(rate_type, business_date)`. La carga se adelantó de la etapa 1.3 a la 1.2 para las
+compras en Bs; una compra usa la tasa de su fecha o la última anterior.
 Es la única tabla de valores monetarios que admite corrección (RN-15); cada corrección
 queda en `audit_log` con el valor anterior y el nuevo. Las ventas, pagos y compras
 **copian** el valor de la tasa, así que una corrección no las altera.
@@ -444,7 +457,10 @@ jsonb, `received_at`, `processed_at`, `status` (`processed` \| `failed`), `resul
 - Decimales permitidos por unidad (`unit.decimals`): validados en la API.
 - Índices: `stock_movement (product_id, occurred_at DESC)`, `product (category_id,
   is_active)`, `product (is_active, stock)`, `adjustment_request (status, requested_at)`,
-  `sale (business_date)`, `sale (seller_id, business_date)`, `payment (cash_session_id)`.
+  `sale (business_date)`, `sale (seller_id, business_date)`, `payment (cash_session_id)`,
+  `purchase (status, purchase_date DESC)`, `purchase (supplier_id, purchase_date DESC)`,
+  `purchase_item (product_id)`, `exchange_rate (rate_type, business_date DESC)` y
+  `alert (created_at DESC) WHERE resolved_at IS NULL`.
 - Búsqueda (RF-06): sin índice ni extensiones. Con ~1.000 productos, un recorrido con
   `LIKE` sobre `product.search_text` responde en milisegundos; si el catálogo supera
   ~10.000 productos se agrega un índice `pg_trgm` sin cambiar la API (arquitectura §5).
