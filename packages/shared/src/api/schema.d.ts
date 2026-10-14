@@ -827,6 +827,221 @@ export interface paths {
         patch: operations["update_supplier_api_v1_suppliers__supplier_id__patch"];
         trace?: never;
     };
+    "/api/v1/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Purchases */
+        get: operations["list_purchases_api_v1_purchases_get"];
+        put?: never;
+        /** Create Purchase */
+        post: operations["create_purchase_api_v1_purchases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/purchases/{purchase_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Purchase */
+        get: operations["get_purchase_api_v1_purchases__purchase_id__get"];
+        /** Save Purchase */
+        put: operations["save_purchase_api_v1_purchases__purchase_id__put"];
+        post?: never;
+        /** Discard Purchase */
+        delete: operations["discard_purchase_api_v1_purchases__purchase_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/purchases/{purchase_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Purchase */
+        post: operations["confirm_purchase_api_v1_purchases__purchase_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/purchases/{purchase_id}/void-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Void Preview */
+        get: operations["void_preview_api_v1_purchases__purchase_id__void_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/purchases/{purchase_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void Purchase */
+        post: operations["void_purchase_api_v1_purchases__purchase_id__void_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exchange-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rates */
+        get: operations["list_rates_api_v1_exchange_rates_get"];
+        put?: never;
+        /** Create Rate */
+        post: operations["create_rate_api_v1_exchange_rates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exchange-rates/applicable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Applicable Rate
+         * @description La tasa que usaría una compra con esa fecha (FR-012).
+         */
+        get: operations["applicable_rate_api_v1_exchange_rates_applicable_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exchange-rates/{business_date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Correct Rate */
+        put: operations["correct_rate_api_v1_exchange_rates__business_date__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/charge-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Templates
+         * @description Activos; con `include_inactive` también los inactivos, solo para el Admin.
+         */
+        get: operations["list_templates_api_v1_charge_templates_get"];
+        put?: never;
+        /** Create Template */
+        post: operations["create_template_api_v1_charge_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/charge-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Template */
+        patch: operations["update_template_api_v1_charge_templates__template_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Alerts */
+        get: operations["list_alerts_api_v1_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{alert_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve Alert */
+        post: operations["resolve_alert_api_v1_alerts__alert_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -908,6 +1123,60 @@ export interface components {
             pending_adjustments: number;
             /** Counts Ready For Review */
             counts_ready_for_review: number;
+            /** Open Alerts */
+            open_alerts: number;
+            /** Draft Purchases */
+            draft_purchases: number;
+        };
+        /** AlertOut */
+        AlertOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Type */
+            type: string;
+            /** Entity Type */
+            entity_type: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Resolved At */
+            resolved_at: string | null;
+            resolved_by: components["schemas"]["UserRef"] | null;
+        };
+        /** AlertPage */
+        AlertPage: {
+            /** Items */
+            items: components["schemas"]["AlertOut"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** ApplicableRateOut */
+        ApplicableRateOut: {
+            /** Rate */
+            rate: string;
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
         };
         /** ApplyRequest */
         ApplyRequest: {
@@ -1077,6 +1346,46 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** ChargeTemplateOut */
+        ChargeTemplateOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Charge Type */
+            charge_type: string;
+            /** Default Value */
+            default_value: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /** ConfirmInput */
+        ConfirmInput: {
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** CostChangeOut */
+        CostChangeOut: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Sku */
+            sku: string;
+            /** Cost Before Usd */
+            cost_before_usd: string | null;
+            /** Cost After Usd */
+            cost_after_usd: string | null;
+        };
         /** CreateAttributeRequest */
         CreateAttributeRequest: {
             /** Key */
@@ -1178,6 +1487,43 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** ExchangeRateOut */
+        ExchangeRateOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Rate Type */
+            rate_type: string;
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            /** Rate */
+            rate: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            updated_by: components["schemas"]["UserRef"] | null;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** ExchangeRatePage */
+        ExchangeRatePage: {
+            /** Items */
+            items: components["schemas"]["ExchangeRateOut"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1234,6 +1580,19 @@ export interface components {
             page: number;
             /** Page Size */
             page_size: number;
+        };
+        /**
+         * MovementPurchaseRef
+         * @description Compra de la que viene una entrada o un reverso, para enlazarla (FR-021).
+         */
+        MovementPurchaseRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string | null;
         };
         /** NegativeProduct */
         NegativeProduct: {
@@ -1445,6 +1804,395 @@ export interface components {
         PublicationRequest: {
             /** Is Published */
             is_published: boolean;
+        };
+        /** PurchaseChargeInput */
+        PurchaseChargeInput: {
+            /** Description */
+            description: string;
+            /**
+             * Charge Type
+             * @enum {string}
+             */
+            charge_type: "percent" | "fixed";
+            /** Percent */
+            percent?: number | string | null;
+            /** Amount */
+            amount?: number | string | null;
+            /** Currency */
+            currency?: ("USD" | "VES") | null;
+            /** Charge Template Id */
+            charge_template_id?: string | null;
+        };
+        /** PurchaseChargeOut */
+        PurchaseChargeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Number */
+            line_number: number;
+            /** Description */
+            description: string;
+            /** Charge Type */
+            charge_type: string;
+            /** Percent */
+            percent: string | null;
+            /** Amount */
+            amount: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Amount Usd */
+            amount_usd: string;
+            /** Allocation Method */
+            allocation_method: string;
+            /** Charge Template Id */
+            charge_template_id: string | null;
+        };
+        /**
+         * PurchaseConfirmedAdmin
+         * @description Respuesta de confirmar para el Admin: el costo promedio antes y después (R7).
+         */
+        PurchaseConfirmedAdmin: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string | null;
+            /** Status */
+            status: string;
+            supplier: components["schemas"]["SupplierRef"];
+            /**
+             * Purchase Date
+             * Format: date
+             */
+            purchase_date: string;
+            /** Supplier Invoice Number */
+            supplier_invoice_number: string | null;
+            /** Currency */
+            currency: string;
+            /** Exchange Rate */
+            exchange_rate: string | null;
+            /** Exchange Rate Date */
+            exchange_rate_date: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Items */
+            items: components["schemas"]["PurchaseItemOut"][];
+            /** Charges */
+            charges: components["schemas"]["PurchaseChargeOut"][];
+            /** Merchandise Total Usd */
+            merchandise_total_usd: string;
+            /** Merchandise Total Ves */
+            merchandise_total_ves: string | null;
+            /** Charges Total Usd */
+            charges_total_usd: string;
+            /** Total Usd */
+            total_usd: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            confirmed_by: components["schemas"]["UserRef"] | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            void: components["schemas"]["PurchaseVoidOut"] | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["PurchaseWarning"][];
+            /** Cost Changes */
+            cost_changes: components["schemas"]["CostChangeOut"][];
+        };
+        /** PurchaseInput */
+        PurchaseInput: {
+            /**
+             * Supplier Id
+             * Format: uuid
+             */
+            supplier_id: string;
+            /**
+             * Purchase Date
+             * Format: date
+             */
+            purchase_date: string;
+            /**
+             * Currency
+             * @enum {string}
+             */
+            currency: "USD" | "VES";
+            /** Supplier Invoice Number */
+            supplier_invoice_number?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Items */
+            items: components["schemas"]["PurchaseItemInput"][];
+            /**
+             * Charges
+             * @default []
+             */
+            charges: components["schemas"]["PurchaseChargeInput"][];
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** PurchaseItemInput */
+        PurchaseItemInput: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Quantity */
+            quantity: number | string;
+            /** Unit Cost */
+            unit_cost: number | string;
+        };
+        /** PurchaseItemOut */
+        PurchaseItemOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Number */
+            line_number: number;
+            product: components["schemas"]["PurchaseProductRef"];
+            /** Quantity */
+            quantity: string;
+            /** Unit Cost Ves */
+            unit_cost_ves: string | null;
+            /** Unit Cost Usd */
+            unit_cost_usd: string;
+            /** Line Total Ves */
+            line_total_ves: string | null;
+            /** Line Total Usd */
+            line_total_usd: string;
+            /** Allocated Charges Usd */
+            allocated_charges_usd: string;
+            /** Landed Unit Cost Usd */
+            landed_unit_cost_usd: string;
+        };
+        /** PurchaseOut */
+        PurchaseOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string | null;
+            /** Status */
+            status: string;
+            supplier: components["schemas"]["SupplierRef"];
+            /**
+             * Purchase Date
+             * Format: date
+             */
+            purchase_date: string;
+            /** Supplier Invoice Number */
+            supplier_invoice_number: string | null;
+            /** Currency */
+            currency: string;
+            /** Exchange Rate */
+            exchange_rate: string | null;
+            /** Exchange Rate Date */
+            exchange_rate_date: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Items */
+            items: components["schemas"]["PurchaseItemOut"][];
+            /** Charges */
+            charges: components["schemas"]["PurchaseChargeOut"][];
+            /** Merchandise Total Usd */
+            merchandise_total_usd: string;
+            /** Merchandise Total Ves */
+            merchandise_total_ves: string | null;
+            /** Charges Total Usd */
+            charges_total_usd: string;
+            /** Total Usd */
+            total_usd: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            confirmed_by: components["schemas"]["UserRef"] | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            void: components["schemas"]["PurchaseVoidOut"] | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["PurchaseWarning"][];
+        };
+        /** PurchasePage */
+        PurchasePage: {
+            /** Items */
+            items: components["schemas"]["PurchaseSummary"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** PurchaseProductRef */
+        PurchaseProductRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            unit: components["schemas"]["UnitRef"];
+        };
+        /** PurchaseSummary */
+        PurchaseSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Purchase Date
+             * Format: date
+             */
+            purchase_date: string;
+            supplier: components["schemas"]["SupplierRef"];
+            /** Supplier Invoice Number */
+            supplier_invoice_number: string | null;
+            /** Currency */
+            currency: string;
+            /** Total Usd */
+            total_usd: string;
+            /** Items Count */
+            items_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** PurchaseVoidOut */
+        PurchaseVoidOut: {
+            /** Reason */
+            reason: string;
+            voided_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Voided At
+             * Format: date-time
+             */
+            voided_at: string;
+        };
+        /** PurchaseVoidedOut */
+        PurchaseVoidedOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string | null;
+            /** Status */
+            status: string;
+            supplier: components["schemas"]["SupplierRef"];
+            /**
+             * Purchase Date
+             * Format: date
+             */
+            purchase_date: string;
+            /** Supplier Invoice Number */
+            supplier_invoice_number: string | null;
+            /** Currency */
+            currency: string;
+            /** Exchange Rate */
+            exchange_rate: string | null;
+            /** Exchange Rate Date */
+            exchange_rate_date: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Items */
+            items: components["schemas"]["PurchaseItemOut"][];
+            /** Charges */
+            charges: components["schemas"]["PurchaseChargeOut"][];
+            /** Merchandise Total Usd */
+            merchandise_total_usd: string;
+            /** Merchandise Total Ves */
+            merchandise_total_ves: string | null;
+            /** Charges Total Usd */
+            charges_total_usd: string;
+            /** Total Usd */
+            total_usd: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            confirmed_by: components["schemas"]["UserRef"] | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            void: components["schemas"]["PurchaseVoidOut"] | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["PurchaseWarning"][];
+            /** Alerts Created */
+            alerts_created: number;
+        };
+        /** PurchaseWarning */
+        PurchaseWarning: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
+        };
+        /** RateCorrection */
+        RateCorrection: {
+            /** Rate */
+            rate: number | string;
+        };
+        /** RateCreate */
+        RateCreate: {
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            /** Rate */
+            rate: number | string;
         };
         /** RecordLineRequest */
         RecordLineRequest: {
@@ -1723,6 +2471,7 @@ export interface components {
             reference_id: string | null;
             created_by: components["schemas"]["UserRef"] | null;
             requested_by: components["schemas"]["UserRef"] | null;
+            purchase?: components["schemas"]["MovementPurchaseRef"] | null;
             /** Cost Before Usd */
             cost_before_usd: string | null;
             /** Cost After Usd */
@@ -1756,6 +2505,7 @@ export interface components {
             reference_id: string | null;
             created_by: components["schemas"]["UserRef"] | null;
             requested_by: components["schemas"]["UserRef"] | null;
+            purchase?: components["schemas"]["MovementPurchaseRef"] | null;
         };
         /** SupplierCreate */
         SupplierCreate: {
@@ -1802,6 +2552,18 @@ export interface components {
             /** Page Size */
             page_size: number;
         };
+        /** SupplierRef */
+        SupplierRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Rif */
+            rif: string | null;
+        };
         /** SupplierUpdate */
         SupplierUpdate: {
             /** Name */
@@ -1812,6 +2574,34 @@ export interface components {
             phone?: string | null;
             /** Notes */
             notes?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /** TemplateCreate */
+        TemplateCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Charge Type
+             * @enum {string}
+             */
+            charge_type: "percent" | "fixed";
+            /** Default Value */
+            default_value?: number | string | null;
+            /** Currency */
+            currency?: ("USD" | "VES") | null;
+        };
+        /**
+         * TemplateUpdate
+         * @description `charge_type` no cambia: no existe en este esquema (422 si se envía).
+         */
+        TemplateUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Default Value */
+            default_value?: number | string | null;
+            /** Currency */
+            currency?: ("USD" | "VES") | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -1980,6 +2770,36 @@ export interface components {
         VerifyPinResponse: {
             authorized_by: components["schemas"]["Authorizer"];
         };
+        /** VoidInput */
+        VoidInput: {
+            /** Reason */
+            reason: string;
+        };
+        /** VoidPreview */
+        VoidPreview: {
+            /** Items */
+            items: components["schemas"]["VoidPreviewItem"][];
+        };
+        /** VoidPreviewItem */
+        VoidPreviewItem: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Sku */
+            sku: string;
+            /** Stock Before */
+            stock_before: string;
+            /** Stock After */
+            stock_after: string;
+            /** Cost Before Usd */
+            cost_before_usd: string | null;
+            /** Cost After Usd */
+            cost_after_usd: string | null;
+            /** Keeps Cost */
+            keeps_cost: boolean;
+        };
         /** WarehouseSummary */
         WarehouseSummary: {
             /** Low Stock */
@@ -1988,6 +2808,8 @@ export interface components {
             my_pending_requests: number;
             /** Open Counts */
             open_counts: number;
+            /** Draft Purchases */
+            draft_purchases: number;
         };
     };
     responses: never;
@@ -3753,6 +4575,567 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupplierOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_purchases_api_v1_purchases_get: {
+        parameters: {
+            query?: {
+                status?: ("draft" | "confirmed" | "voided") | null;
+                supplier_id?: string | null;
+                from?: string | null;
+                to?: string | null;
+                product_id?: string | null;
+                q?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchasePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_purchase_api_v1_purchases_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_purchase_api_v1_purchases__purchase_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_purchase_api_v1_purchases__purchase_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_purchase_api_v1_purchases__purchase_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_purchase_api_v1_purchases__purchase_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseConfirmedAdmin"] | components["schemas"]["PurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    void_preview_api_v1_purchases__purchase_id__void_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoidPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    void_purchase_api_v1_purchases__purchase_id__void_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoidInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseVoidedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rates_api_v1_exchange_rates_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExchangeRatePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_rate_api_v1_exchange_rates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExchangeRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    applicable_rate_api_v1_exchange_rates_applicable_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicableRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correct_rate_api_v1_exchange_rates__business_date__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_date: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RateCorrection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExchangeRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_templates_api_v1_charge_templates_get: {
+        parameters: {
+            query?: {
+                include_inactive?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeTemplateOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_template_api_v1_charge_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_template_api_v1_charge_templates__template_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_alerts_api_v1_alerts_get: {
+        parameters: {
+            query?: {
+                status?: "open" | "resolved";
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_alert_api_v1_alerts__alert_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"];
                 };
             };
             /** @description Validation Error */

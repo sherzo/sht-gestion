@@ -13,12 +13,34 @@ from typing import Any
 import pytest
 from PIL import Image
 
+from app.core.clock import utcnow
+from app.domain.business_time import business_date
 from app.domain.roles import Role
 
 pytestmark = pytest.mark.db
 
 SELLER = Role.SELLER
 WAREHOUSE = Role.WAREHOUSE
+
+
+# Compra con gastos, para que una fuga en las líneas o en los gastos se note.
+PURCHASE_BODY = {
+    "supplier_id": "{supplier_id}",
+    "purchase_date": "{today}",
+    "currency": "USD",
+    "items": [{"product_id": "{product_id}", "quantity": "2", "unit_cost": "3"}],
+    "charges": [{"description": "Envío", "charge_type": "fixed", "amount": "1", "currency": "USD"}],
+}
+
+
+def fill(value: Any, values: dict[str, str]) -> Any:
+    if isinstance(value, str):
+        return value.format(**values)
+    if isinstance(value, dict):
+        return {key: fill(item, values) for key, item in value.items()}
+    if isinstance(value, list):
+        return [fill(item, values) for item in value]
+    return value
 
 
 @dataclass(frozen=True)
@@ -84,6 +106,21 @@ LEAK_CASES: list[LeakCase] = [
         (WAREHOUSE,),
         body={"counted_quantity": "7"},
     ),
+    # Proveedores y compras (etapa 1.2): el Almacén recibe los costos de factura, nunca el
+    # costo promedio ni el costo antes y después (FR-022, R7); el Vendedor no tiene acceso.
+    LeakCase("GET", "/api/v1/suppliers", (WAREHOUSE,)),
+    LeakCase("GET", "/api/v1/purchases", (WAREHOUSE,)),
+    LeakCase("GET", "/api/v1/purchases/{purchase_id}", (WAREHOUSE,)),
+    LeakCase("POST", "/api/v1/purchases", (WAREHOUSE,), body=PURCHASE_BODY),
+    LeakCase("PUT", "/api/v1/purchases/{draft_id}", (WAREHOUSE,), body=PURCHASE_BODY),
+    LeakCase(
+        "POST",
+        "/api/v1/purchases/{draft_id}/confirm",
+        (WAREHOUSE,),
+        body={"updated_at": "{draft_updated_at}"},
+    ),
+    LeakCase("GET", "/api/v1/charge-templates", (WAREHOUSE,)),
+    LeakCase("GET", "/api/v1/exchange-rates/applicable?date={today}", (WAREHOUSE,)),
 ]
 
 # Claves que el Almacén no recibe en un conteo, porque cuenta a ciegas (FR-025).
@@ -161,7 +198,16 @@ def test_detector_permite_al_almacen_solo_costos_de_factura() -> None:
 
 @pytest.fixture
 def leak_context(
-    client, make_user, auth_headers, make_product, give_stock, category_id, photo_dir
+    client,
+    make_user,
+    auth_headers,
+    make_product,
+    give_stock,
+    category_id,
+    photo_dir,
+    make_supplier,
+    make_rate,
+    make_purchase,
 ) -> dict[str, Any]:
     """Datos con precio y costo definidos para que una fuga se note."""
     product = make_product("MAN", sale_price="12.50", avg_cost="7.250000", min_stock="50")
@@ -181,7 +227,24 @@ def leak_context(
         SELLER: auth_headers(make_user(SELLER, username="vendedor_fuga")),
         WAREHOUSE: auth_headers(headers_warehouse_user),
     }
+    # Compra confirmada del producto (su kardex lleva costo antes y después) y un borrador.
+    supplier = make_supplier("Proveedor de la fuga")
+    today = business_date(utcnow())
+    make_rate(today, "36.5")
+    purchase = make_purchase(
+        headers[WAREHOUSE],
+        supplier,
+        [(product, "2", "3")],
+        charges=PURCHASE_BODY["charges"],
+        confirm=True,
+    )
+    draft = make_purchase(headers[WAREHOUSE], supplier, [(product, "1", "3")])
     return {
+        "supplier_id": str(supplier.id),
+        "today": today.isoformat(),
+        "purchase_id": purchase["id"],
+        "draft_id": draft["id"],
+        "draft_updated_at": draft["updated_at"],
         "headers": headers,
         "product": product,
         "product_id": str(product.id),
@@ -203,10 +266,7 @@ def test_sin_costos_para_vendedor_ni_precio_para_almacen(
         if case.photo:
             kwargs["files"] = {"file": ("foto.jpg", jpeg_bytes(), "image/jpeg")}
         elif case.body is not None:
-            kwargs["json"] = {
-                key: value.format(**values) if isinstance(value, str) else value
-                for key, value in case.body.items()
-            }
+            kwargs["json"] = fill(case.body, values)
         response = client.request(case.method, path, **kwargs)
         assert response.status_code < 300, f"{role} en {case.id}: {response.text}"
         leaks = forbidden_keys(response.json(), role) if response.content else []

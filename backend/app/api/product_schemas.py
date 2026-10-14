@@ -152,6 +152,13 @@ def product_for_role(
 # --- Kardex (FR-017, FR-022): el Almacén no recibe los costos del movimiento ---------
 
 
+class MovementPurchaseRef(BaseModel):
+    """Compra de la que viene una entrada o un reverso, para enlazarla (FR-021)."""
+
+    id: uuid.UUID
+    number: str | None
+
+
 class StockMovementWarehouse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -167,6 +174,7 @@ class StockMovementWarehouse(BaseModel):
     created_by: UserRef | None
     # Quién pidió la salida, si el movimiento viene de una solicitud aprobada (RN-19).
     requested_by: UserRef | None
+    purchase: MovementPurchaseRef | None = None
 
 
 class StockMovementAdmin(StockMovementWarehouse):
@@ -188,6 +196,7 @@ def movement_for_role(
     unit: Unit,
     users: dict[uuid.UUID, AppUser],
     requested_by: uuid.UUID | None = None,
+    purchase: tuple[uuid.UUID, str | None] | None = None,
 ) -> StockMovementOut:
     common = {
         "id": movement.id,
@@ -201,6 +210,7 @@ def movement_for_role(
         "reference_id": movement.reference_id,
         "created_by": user_ref(users.get(movement.created_by)) if movement.created_by else None,
         "requested_by": user_ref(users.get(requested_by)) if requested_by else None,
+        "purchase": MovementPurchaseRef(id=purchase[0], number=purchase[1]) if purchase else None,
     }
     if role == Role.ADMIN:
         return StockMovementAdmin(
