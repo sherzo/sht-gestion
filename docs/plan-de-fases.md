@@ -4,7 +4,7 @@
 |---|---|
 | Versión | 1.0 |
 | Fecha | 2026-10-07 |
-| Estado | Vigente (etapa 1.0 terminada; 1.1a integrada, pendiente de validar en producción; 1.1b implementada en su rama) |
+| Estado | Vigente (etapa 1.0 terminada; 1.1a integrada, pendiente de validar en producción; 1.1b integrada, pendiente de validar en producción) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,
@@ -73,7 +73,7 @@ Se propone dividirla en dos specs:
 | **Requisitos** | RF-01 a RF-12, RN-08, RN-09 (costo inicial), RN-13, RN-18, RN-19 |
 | **Entregables** | Categorías con prefijo de SKU y atributos definibles; unidades; productos con SKU automático, atributos, fotos y publicación; histórico de precios; kardex; ajustes con motivo; alerta de stock bajo; conteo físico; búsqueda |
 | **Terminada cuando** | El stock solo cambia por movimientos; Almacén no ve ni edita precios de venta y nadie salvo el admin ve costos; la búsqueda responde en menos de 1 s con 1.000 productos de prueba |
-| **Estado** | 🚧 Implementada en la rama `002-productos-inventario` (`specs/002-productos-inventario/`, ADR-0009) con pruebas automatizadas de cada criterio. Faltan la revisión de seguridad y de código, la configuración de fotos en Supabase, Secret Manager y GitHub, la integración a `main` y la validación en producción |
+| **Estado** | 🚧 Integrada a `main` el 2026-10-13 (`specs/002-productos-inventario/`, ADR-0009), con pruebas automatizadas de cada criterio, revisión de seguridad y de código, y los escenarios del quickstart recorridos en local. Falta validarla en producción: subir una foto desde el teléfono, medir la búsqueda y restaurar el respaldo con fotos (T079) |
 
 ### 1.2 — Proveedores y compras
 

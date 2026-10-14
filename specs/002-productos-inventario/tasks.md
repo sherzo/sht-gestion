@@ -240,7 +240,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 - [X] T074 [P] Actualizar `docs/guia-de-estilos.md` §9 con los componentes nuevos (`DecimalInput`, `StatusChip`, `Tabs`, buscador con filtros, galería de fotos, tarjetas del inicio)
 - [X] T075 [P] Actualizar `CHANGELOG.md` en "Sin publicar" con la etapa 1.1b (RF-01 a RF-12, RN-08, RN-09, RN-13, RN-18, RN-19) y `docs/plan-de-fases.md` con su estado
 - [X] T076 Ejecutar `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest` (con `DATABASE_URL`), la migración subir–bajar–subir, `pnpm typecheck` y `pnpm build`, y corregir lo que falle
-- [ ] T077 Recorrer los escenarios manuales 1–11 de `quickstart.md` en local, en PC y con ancho de teléfono de 360 px, y anotar cualquier desviación como tarea nueva
+- [X] T077 Recorrer los escenarios manuales 1–11 de `quickstart.md` en local, en PC y con ancho de teléfono de 360 px, y anotar cualquier desviación como tarea nueva
 - [X] T078 Ejecutar `/security-review` y `/code-review` sobre la rama `002-productos-inventario`, corregir los hallazgos confirmados y repetir T076. Requisito para integrar a `main` (constitución, "Flujo de trabajo")
 - [ ] T079 **Después de integrar a `main` (dueño y asistente):** con el despliegue terminado, subir una foto desde el teléfono, medir la búsqueda en producción (SC-001), comprobar que el respaldo de la noche incluye `fotos/` y restaurarlo en local junto con la base (plan de fases, definición de terminado). Registrar los resultados en `CHANGELOG.md`
 
