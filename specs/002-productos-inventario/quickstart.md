@@ -11,7 +11,7 @@ docker compose up -d                      # Postgres 17
 cd backend
 uv sync                                   # agrega Pillow y httpx (R9)
 uv run alembic upgrade head               # incluye 0004_productos_e_inventario
-uv run uvicorn app.main:app --reload      # http://localhost:8000
+uv run python -m uvicorn app.main:app --reload   # http://localhost:8000
 # en otra terminal, desde la raíz
 pnpm install
 pnpm api:types                            # regenera los tipos del OpenAPI
