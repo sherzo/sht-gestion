@@ -287,9 +287,14 @@ function CategoriesContent() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Categorías y atributos</h1>
-          <Link href="/configuracion/unidades/" className="text-primary underline-offset-2 hover:underline">
-            Ir a unidades
-          </Link>
+          <span className="flex flex-wrap gap-4">
+            <Link href="/configuracion/unidades/" className="text-primary underline-offset-2 hover:underline">
+              Ir a unidades
+            </Link>
+            <Link href="/configuracion/gastos/" className="text-primary underline-offset-2 hover:underline">
+              Ir a gastos frecuentes
+            </Link>
+          </span>
         </div>
         <Button onClick={() => setCreatingCategory(true)}>
           <Plus aria-hidden className="size-5" /> Nueva categoría

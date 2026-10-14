@@ -3,7 +3,7 @@
 // Inicio: saludo, rol y vencimiento de la jornada (RF-44/FR-005, FR-030), y tarjetas del
 // inventario para Admin y Almacén (RF-11, RN-19; research R11).
 import { ROLE_LABELS, formatDateTime } from "@sht/shared";
-import { AlertTriangle, ClipboardCheck, ClipboardList, Inbox } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, ClipboardList, FilePen, Inbox, ShieldAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -23,6 +23,7 @@ function cards(summary: Summary): Card[] {
     result.push(
       { href: "/pendientes/", label: "Salidas por aprobar", count: summary.pending_adjustments, icon: Inbox, tone: "info" },
       { href: "/pendientes/", label: "Conteos listos para revisión", count: summary.counts_ready_for_review, icon: ClipboardCheck, tone: "info" },
+      { href: "/pendientes/", label: "Alertas por revisar", count: summary.open_alerts, icon: ShieldAlert, tone: "warning" },
     );
   } else {
     result.push(
@@ -30,6 +31,7 @@ function cards(summary: Summary): Card[] {
       { href: "/inventario/conteos/", label: "Conteos abiertos", count: summary.open_counts, icon: ClipboardCheck, tone: "info" },
     );
   }
+  result.push({ href: "/compras/", label: "Compras en borrador", count: summary.draft_purchases, icon: FilePen, tone: "info" });
   return result;
 }
 

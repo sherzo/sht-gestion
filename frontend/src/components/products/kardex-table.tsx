@@ -5,6 +5,7 @@
 // Almacén los costos del movimiento.
 import { formatDateTime, formatQuantity } from "@sht/shared";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
@@ -61,6 +62,11 @@ export function KardexTable({ product }: { product: Product }) {
         <>
           {MOVEMENT_TYPE_LABELS[item.type] ?? item.type}
           {item.adjustment_reason && <span className="block text-sm text-ink-muted">{ADJUSTMENT_REASON_LABELS[item.adjustment_reason]}</span>}
+          {item.purchase && (
+            <Link href={`/compras/detalle/?id=${item.purchase.id}`} className="block text-sm text-primary underline-offset-2 hover:underline">
+              Compra {item.purchase.number}
+            </Link>
+          )}
         </>
       ),
     },

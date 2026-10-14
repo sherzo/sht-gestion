@@ -31,6 +31,18 @@ export function formatDateTime(value: string | Date): string {
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 }
 
+/** Fecha de negocio sin hora (`2026-10-13`, como la envía la API) → `13/10/2026`. */
+export function formatDate(value: string): string {
+  const [year, month, day] = value.slice(0, 10).split("-");
+  return `${day}/${month}/${year}`;
+}
+
+/** Fecha de negocio de hoy en Caracas, como `2026-10-13` (para campos de fecha). */
+export function todayInCaracas(): string {
+  const p = parts(dateTimeFormat, new Date());
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
 /** `14:05`, en hora de Caracas. */
 export function formatTime(value: string | Date): string {
   const p = parts(timeFormat, value);
