@@ -31,6 +31,18 @@ export function formatDateTime(value: string | Date): string {
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 }
 
+/** Fecha de negocio sin hora (`2026-10-13`, como la envía la API) → `13/10/2026`. */
+export function formatDate(value: string): string {
+  const [year, month, day] = value.slice(0, 10).split("-");
+  return `${day}/${month}/${year}`;
+}
+
+/** Fecha de negocio de hoy en Caracas, como `2026-10-13` (para campos de fecha). */
+export function todayInCaracas(): string {
+  const p = parts(dateTimeFormat, new Date());
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
 /** `14:05`, en hora de Caracas. */
 export function formatTime(value: string | Date): string {
   const p = parts(timeFormat, value);
@@ -78,10 +90,32 @@ export function formatUsd(value: string): string {
  * 6 decimales, sin los ceros que sobran: `100,00`, `7,25`, `0,125`, `7,253333`.
  */
 export function formatCost(value: string): string {
-  const full = formatDecimal(value, 6);
-  const [integer, fraction = ""] = full.split(",");
-  const trimmed = fraction.replace(/0+$/, "").padEnd(2, "0");
-  return `${integer},${trimmed}`;
+  return formatTrimmed(value, 6, 2);
+}
+
+/**
+ * Formatea con hasta `maxDecimals` decimales y quita los ceros que sobran, dejando al
+ * menos `minDecimals`: `formatTrimmed("36.50000000", 8, 0)` → `36,5`.
+ */
+function formatTrimmed(value: string, maxDecimals: number, minDecimals: number): string {
+  const [integer, fraction = ""] = formatDecimal(value, maxDecimals).split(",");
+  const trimmed = fraction.replace(/0+$/, "").padEnd(minDecimals, "0");
+  return trimmed ? `${integer},${trimmed}` : integer;
+}
+
+/** Monto en Bs con 2 decimales y prefijo: `Bs 1.234,56`. */
+export function formatVes(value: string): string {
+  return `Bs ${formatDecimal(value, 2)}`;
+}
+
+/** Tasa BCV (hasta 8 decimales, ADR-0004) sin los ceros que sobran: `36,5`, `36,55`. */
+export function formatRate(value: string): string {
+  return formatTrimmed(value, 8, 0);
+}
+
+/** Porcentaje sin los ceros que sobran: `10 %`, `12,5 %`. */
+export function formatPercent(value: string): string {
+  return `${formatTrimmed(value, 2, 0)} %`;
 }
 
 /**

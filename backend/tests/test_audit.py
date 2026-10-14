@@ -1,6 +1,7 @@
 """Registro y consulta de auditoría (RF-46, RNF-08/FR-020 a FR-025; SC-005)."""
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select, text
@@ -227,3 +228,84 @@ def test_paginacion_y_orden(client, admin_headers, db) -> None:
 def test_tamano_de_pagina_maximo(client, admin_headers) -> None:
     response = client.get("/api/v1/audit-log", params={"page_size": 101}, headers=admin_headers)
     assert response.status_code == 422
+
+
+# --- Etapa 1.2: proveedores, compras, tasa, gastos frecuentes y alertas (R12) ---------
+
+
+def test_acciones_de_compras_y_tasas(
+    client, make_user, auth_headers, make_product, give_stock, make_purchase, db
+) -> None:
+    """RF-46/FR-023, SC-007: cada acción sensible de la etapa queda con usuario, entidad y
+    valores antes y después; guardar o descartar un borrador no audita."""
+    from app.core.clock import utcnow
+    from app.domain.business_time import business_date
+
+    admin_user = make_user(Role.ADMIN, username="dueno")
+    admin = auth_headers(admin_user)
+    today = business_date(utcnow()).isoformat()
+
+    supplier = client.post("/api/v1/suppliers", json={"name": "Aragua"}, headers=admin).json()
+    client.patch(f"/api/v1/suppliers/{supplier['id']}", json={"name": "Aragua C.A."}, headers=admin)
+    client.post(
+        "/api/v1/exchange-rates", json={"business_date": today, "rate": "36.50"}, headers=admin
+    )
+    client.put(f"/api/v1/exchange-rates/{today}", json={"rate": "36.55"}, headers=admin)
+    template = client.post(
+        "/api/v1/charge-templates",
+        json={"name": "Comisión", "charge_type": "percent"},
+        headers=admin,
+    ).json()
+    client.patch(
+        f"/api/v1/charge-templates/{template['id']}", json={"default_value": "10"}, headers=admin
+    )
+
+    product = make_product("FRT", avg_cost="1")
+    supplier_row = SimpleNamespace(id=supplier["id"])
+    before_drafts = db.scalar(select(text("count(*)")).select_from(AuditLog))
+    draft = make_purchase(admin, supplier_row, [(product, "1", "1")])
+    client.delete(f"/api/v1/purchases/{draft['id']}", headers=admin)
+    assert db.scalar(select(text("count(*)")).select_from(AuditLog)) == before_drafts
+
+    purchase = make_purchase(admin, supplier_row, [(product, "5", "2")], confirm=True)
+    give_stock(product, "-5")
+    client.post(
+        f"/api/v1/purchases/{purchase['id']}/void",
+        json={"reason": "Factura repetida"},
+        headers=admin,
+    )
+    alert = client.get("/api/v1/alerts", headers=admin).json()["items"][0]
+    client.post(f"/api/v1/alerts/{alert['id']}/resolve", headers=admin)
+
+    entries = {
+        entry.action: entry for entry in db.scalars(select(AuditLog).order_by(AuditLog.occurred_at))
+    }
+    expected = {
+        "supplier.created",
+        "supplier.updated",
+        "exchange_rate.created",
+        "exchange_rate.corrected",
+        "charge_template.created",
+        "charge_template.updated",
+        "purchase.confirmed",
+        "purchase.voided",
+        "product.cost_updated",
+        "alert.resolved",
+    }
+    assert expected <= set(entries)
+    for action in expected:
+        assert entries[action].user_id == admin_user.id, action
+    assert entries["supplier.updated"].before["name"] == "Aragua"
+    assert entries["supplier.updated"].after["name"] == "Aragua C.A."
+    assert entries["exchange_rate.corrected"].before["rate"] == "36.50000000"
+    assert entries["exchange_rate.corrected"].after["rate"] == "36.55000000"
+    assert entries["charge_template.updated"].after["default_value"] == "10.00"
+    assert entries["purchase.voided"].reason == "Factura repetida"
+    cost = entries["product.cost_updated"]
+    assert cost.entity_id == product.id
+    assert (cost.before["avg_cost_usd"], cost.after["avg_cost_usd"]) == ("1.000000", "2.000000")
+    assert cost.details["cause"] == "purchase"
+
+    group = ",".join(sorted(expected))
+    listed = client.get("/api/v1/audit-log", params={"action": group}, headers=admin).json()
+    assert {item["action"] for item in listed["items"]} == expected

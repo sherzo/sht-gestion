@@ -71,9 +71,20 @@ def test_resumen_del_admin_y_del_almacen(
         headers=warehouse_headers,
     )
     admin = client.get(SUMMARY, headers=actors[Role.ADMIN]).json()
-    assert admin == {"low_stock": 1, "pending_adjustments": 1, "counts_ready_for_review": 0}
+    assert admin == {
+        "low_stock": 1,
+        "pending_adjustments": 1,
+        "counts_ready_for_review": 0,
+        "open_alerts": 0,
+        "draft_purchases": 0,
+    }
     mine = client.get(SUMMARY, headers=warehouse_headers).json()
-    assert mine == {"low_stock": 1, "my_pending_requests": 1, "open_counts": 0}
+    assert mine == {
+        "low_stock": 1,
+        "my_pending_requests": 1,
+        "open_counts": 0,
+        "draft_purchases": 0,
+    }
 
 
 def test_vendedor_sin_acceso(client, actors) -> None:

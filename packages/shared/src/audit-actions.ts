@@ -72,6 +72,21 @@ export const AUDIT_ACTION_GROUPS = [
     },
   },
   {
+    label: "Compras y tasas",
+    actions: {
+      "supplier.created": "Proveedor creado",
+      "supplier.updated": "Proveedor modificado",
+      "purchase.confirmed": "Compra confirmada",
+      "purchase.voided": "Compra anulada",
+      "product.cost_updated": "Costo actualizado por compra",
+      "exchange_rate.created": "Tasa BCV cargada",
+      "exchange_rate.corrected": "Tasa BCV corregida",
+      "charge_template.created": "Gasto frecuente creado",
+      "charge_template.updated": "Gasto frecuente modificado",
+      "alert.resolved": "Alerta revisada",
+    },
+  },
+  {
     label: "Configuración",
     actions: {
       "category.created": "Categoría creada",

@@ -26,8 +26,10 @@ from app.api.products import products_out
 from app.db.models import AdjustmentRequest, Product, Unit
 from app.domain.roles import Role
 from app.domain.units import format_quantity
+from app.services import alerts as alerts_service
 from app.services import inventory as inventory_service
 from app.services import products as products_service
+from app.services import purchases as purchases_service
 from app.services.users import users_by_id
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
@@ -215,6 +217,8 @@ class AdminSummary(BaseModel):
     low_stock: int
     pending_adjustments: int
     counts_ready_for_review: int
+    open_alerts: int
+    draft_purchases: int
 
 
 class WarehouseSummary(BaseModel):
@@ -223,6 +227,7 @@ class WarehouseSummary(BaseModel):
     low_stock: int
     my_pending_requests: int
     open_counts: int
+    draft_purchases: int
 
 
 @router.get("/low-stock")
@@ -240,9 +245,12 @@ def summary(current: AdminOrWarehouse, db: DbSession) -> AdminSummary | Warehous
             low_stock=counts.low_stock,
             pending_adjustments=counts.pending_requests,
             counts_ready_for_review=counts.counts_ready_for_review,
+            open_alerts=alerts_service.open_alerts_count(db),
+            draft_purchases=purchases_service.draft_count(db),
         )
     return WarehouseSummary(
         low_stock=counts.low_stock,
         my_pending_requests=counts.pending_requests,
         open_counts=counts.open_counts,
+        draft_purchases=purchases_service.draft_count(db),
     )

@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleSlash, Clock, Globe, MinusCircle, Undo2, XCircle } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, CircleSlash, Clock, FilePen, Globe, MinusCircle, Undo2, XCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // Etiqueta de estado con ícono y texto, nunca solo color (guía de estilos §2.4).
@@ -10,7 +10,10 @@ export type StatusChipVariant =
   | "pending"
   | "approved"
   | "rejected"
-  | "withdrawn";
+  | "withdrawn"
+  | "draft"
+  | "confirmed"
+  | "voided";
 
 const VARIANTS: Record<StatusChipVariant, { label: string; icon: LucideIcon; className: string }> = {
   low_stock: { label: "Stock bajo", icon: AlertTriangle, className: "bg-warning-soft text-warning" },
@@ -21,6 +24,9 @@ const VARIANTS: Record<StatusChipVariant, { label: string; icon: LucideIcon; cla
   approved: { label: "Aprobada", icon: CheckCircle2, className: "bg-success-soft text-success" },
   rejected: { label: "Rechazada", icon: XCircle, className: "bg-danger-soft text-danger" },
   withdrawn: { label: "Retirada", icon: Undo2, className: "bg-neutral-100 text-ink-muted" },
+  draft: { label: "Borrador", icon: FilePen, className: "bg-warning-soft text-warning" },
+  confirmed: { label: "Confirmada", icon: CheckCircle2, className: "bg-success-soft text-success" },
+  voided: { label: "Anulada", icon: Ban, className: "bg-danger-soft text-danger" },
 };
 
 export function StatusChip({ variant, label }: { variant: StatusChipVariant; label?: string }) {

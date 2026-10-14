@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.2 |
+| Versión | 1.3 |
 | Fecha | 2026-10-13 |
 | Estado | Vigente (aprobada al cerrar la etapa 1.0) |
 | Documentos relacionados | `docs/PRD.md`, `docs/decisiones/`, `.specify/memory/constitution.md` |
@@ -120,6 +120,23 @@ La app llama a la API directamente. Cada caso de uso es una transacción: por ej
 confirmar una compra crea los movimientos de entrada, recalcula el costo promedio con
 bloqueo de fila del producto (RN-09) y audita, todo o nada.
 
+- **Compras (RF-14 a RF-16, RN-14, RN-20; etapa 1.2):** el borrador se guarda entero
+  (`PUT /purchases/{id}`) y el servidor recalcula todo con `domain/costing.py`: tasa
+  aplicable, totales, gastos por porcentaje o monto fijo, reparto por valor y costo
+  final por unidad. `services/purchases.py::confirm_purchase` bloquea la compra (una
+  segunda confirmación falla), revalida proveedor, productos y tasa, bloquea los
+  productos en orden de id (sin bloqueos cruzados), llama a `post_movement` con el costo
+  antes y después, actualiza el costo promedio con el costo final y bloquea el costo
+  inicial; al final toma el número de `sequence_counter`, así un fallo no deja huecos.
+  Confirmar con un `updated_at` viejo responde `stale_data`. Anular genera los
+  reversos, deshace el costo con el costo final y, si el resultado no es válido,
+  conserva el costo y crea una alerta para el Admin. Los triggers de la migración
+  `0005` impiden cambiar una compra confirmada, sus líneas o sus gastos.
+- **Tasa BCV (RF-17, RN-15; adelantada a la 1.2):** `services/exchange_rates.py` carga
+  y corrige la tasa con auditoría y resuelve la tasa aplicable a una fecha (la de ese
+  día o la última anterior). Las compras copian el valor y la fecha de la tasa; la etapa
+  1.3 la usará en las ventas desde el mismo servicio.
+
 - **Kardex (RN-08, etapa 1.1b):** todo cambio de stock pasa por
   `services/inventory.py::post_movement`, que bloquea el producto e inserta el
   movimiento; un trigger verifica el saldo y actualiza `product.stock`, y otro rechaza
@@ -188,7 +205,10 @@ en ADR-0004.
 - **Esquemas de respuesta por rol (etapa 1.1b):** los endpoints que devuelven productos,
   kardex o conteos tienen un esquema por rol: Admin (precio y costo), Vendedor (precio,
   sin costo) y Almacén (sin precio ni costo, y en los conteos sin el stock esperado ni la
-  diferencia). Los campos no se filtran en el código: no existen en el esquema, que no
+  diferencia). En las compras (etapa 1.2), Admin y Almacén reciben los costos de factura,
+  los gastos y el costo final de cada línea (excepción del principio IV); solo el Admin
+  recibe el costo promedio antes y después (`cost_changes`) y la vista previa de
+  anulación, y el Vendedor no tiene acceso. Los campos no se filtran en el código: no existen en el esquema, que no
   admite campos extra. La prueba `test_no_cost_leak.py` recorre esos endpoints con
   Vendedor y Almacén y falla si aparece una clave prohibida en cualquier nivel.
 - **Entradas estrictas:** los esquemas de entrada de la etapa 1.1b rechazan campos
@@ -282,7 +302,11 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 | Aplicar (un conteo) | `apply` |
 | Proveedor | `supplier` |
 | Compra | `purchase` |
-| Tasa de cambio (BCV) | `exchange_rate` |
+| Gasto de la compra / gasto frecuente | `purchase_charge` / `charge_template` |
+| Costo final por unidad | `landed_unit_cost_usd` |
+| Tasa de cambio (BCV) / tasa aplicable | `exchange_rate` / `applicable_rate` |
+| Correlativo del servidor | `sequence_counter` |
+| Alerta para el Admin | `alert` |
 | Fecha de negocio | `business_date` |
 | Venta | `sale` |
 | Ítem de venta | `sale_item` |
@@ -318,7 +342,6 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 **Preguntas de negocio** (registradas en PRD §10, se responden antes de la etapa
 indicada):
 
-- (1.2) Costo promedio con stock previo cero o negativo.
 - (1.3) Venta con stock insuficiente estando en línea: ¿advertir o bloquear?
 - (1.3/1.5) Descuentos sin conexión.
 - (1.4) Caja en la que se revierte una anulación de una caja ya cerrada.

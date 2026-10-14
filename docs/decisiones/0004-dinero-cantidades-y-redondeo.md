@@ -2,7 +2,7 @@
 
 - **Estado:** Aceptada
 - **Fecha:** 2026-10-05
-- **Requisitos relacionados:** RN-01, RN-02, RN-04, RN-05, RN-06, RN-09, RF-05, RF-15, RF-21, RF-25; principios I y VII
+- **Requisitos relacionados:** RN-01, RN-02, RN-04, RN-05, RN-06, RN-09, RN-20, RF-05, RF-15, RF-21, RF-25; principios I y VII
 
 ## Contexto
 
@@ -49,7 +49,10 @@ exactamente el mismo resultado. El principio I prohíbe el punto flotante.
 | Monto en Bs para cubrir un saldo en USD | saldo USD × tasa | 2 decimales |
 | Vuelto en Bs | excedente USD × tasa | 2 decimales |
 | Costo de compra en Bs a USD (RF-15) | costo Bs ÷ tasa de la compra | 6 decimales |
-| Costo promedio ponderado (RN-09) | (stock × costo + cantidad × costo compra) ÷ (stock + cantidad) | 6 decimales |
+| Gasto de compra en USD (RN-20) | total de mercancía USD × porcentaje, monto USD, o monto Bs ÷ tasa de la compra | 2 decimales |
+| Reparto de los gastos entre líneas (RN-20) | proporcional al total USD de cada línea, cada parte **truncada** a centavos; el residuo (nunca negativo) va a la línea de mayor valor (la primera, si hay empate) | 2 decimales |
+| Costo final por unidad (RN-20) | costo unitario USD + gasto asignado ÷ cantidad | 6 decimales |
+| Costo promedio ponderado (RN-09) | (stock × costo + cantidad × costo final) ÷ (stock + cantidad) | 6 decimales |
 
 - El descuento sobre el total se reparte entre los ítems para que el margen por producto
   (RF-42) y la futura base imponible del IVA (RN-17) sean correctos por línea. La suma

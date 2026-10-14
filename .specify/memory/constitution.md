@@ -63,7 +63,9 @@ PRD; en el contexto del negocio los cortes de conexión son frecuentes.
   UI solo oculta, nunca protege (RNF-05). La matriz de permisos del PRD (§4) es la
   referencia.
 - El Vendedor y el Almacén MUST NOT recibir costos ni márgenes en ninguna respuesta;
-  el Almacén no edita precios de venta.
+  el Almacén no edita precios de venta. Única excepción: el Almacén recibe los costos
+  de factura, los gastos y el costo final por línea de las compras que registra y
+  confirma (RN-20), nunca el costo promedio del producto ni márgenes.
 - El catálogo público MUST NOT exponer costos, cantidades exactas ni datos internos:
   solo "Disponible" o "Agotado" (RF-35).
 - Las contraseñas y el PIN de admin se almacenan cifrados con un algoritmo de hash
@@ -165,4 +167,4 @@ confianza en el inventario; las pruebas manuales no escalan con cada cambio.
   verifica los principios afectados. Las excepciones se justifican por escrito en el
   plan o en un ADR.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-05 | **Last Amended**: 2026-10-05
+**Version**: 1.2.0 | **Ratified**: 2026-10-05 | **Last Amended**: 2026-10-13

@@ -1,9 +1,9 @@
 "use client";
 
-// Pendientes del Admin (RN-19/FR-019b): salidas del Almacén por aprobar y conteos listos
-// para revisión. Aprobar genera el movimiento con el stock de ese momento; rechazar exige
+// Pendientes del Admin (RN-19/FR-019b): salidas del Almacén por aprobar, conteos listos
+// para revisión y alertas (RN-14: anulaciones de compras que conservaron el costo). Aprobar genera el movimiento con el stock de ese momento; rechazar exige
 // un motivo que el Almacén verá.
-import { formatDateTime, formatQuantity } from "@sht/shared";
+import { formatCost, formatDateTime, formatQuantity } from "@sht/shared";
 import { Check, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -231,6 +231,72 @@ function CountsReady() {
   );
 }
 
+type AlertItem = Schemas["AlertOut"];
+
+function Alerts() {
+  const [alerts, setAlerts] = useState<AlertItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    apiFetch<Schemas["AlertPage"]>("/alerts", { query: { status: "open", page_size: 100 } })
+      .then((page) => setAlerts(page.items))
+      .catch((caught) => setError(caught instanceof ApiError ? caught.message : "No se pudieron cargar las alertas"));
+  }, []);
+
+  useEffect(load, [load]);
+
+  async function resolve(alert: AlertItem) {
+    try {
+      await apiFetch(`/alerts/${alert.id}/resolve`, { method: "POST" });
+      load();
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "No se pudo marcar la alerta");
+    }
+  }
+
+  const columns: Column<AlertItem>[] = [
+    {
+      key: "what",
+      header: "Alerta",
+      render: (alert) => {
+        const details = alert.details as Record<string, string | null>;
+        return (
+          <>
+            <span className="block font-medium">Anulación de la compra {details.purchase_number}: se conservó el costo de {details.sku}</span>
+            <span className="block text-sm text-ink-muted">
+              Stock {details.stock_before} → {details.stock_after}. Costo conservado: {details.cost_kept ? formatCost(details.cost_kept) : "—"} USD.
+              Revisa el costo del producto con un conteo o la próxima compra.
+            </span>
+            <Link href={`/compras/detalle/?id=${alert.entity_id}`} className="text-sm text-primary underline-offset-2 hover:underline">
+              Ver la compra
+            </Link>
+          </>
+        );
+      },
+    },
+    { key: "when", header: "Fecha", render: (alert) => formatDateTime(alert.created_at) },
+    {
+      key: "actions",
+      header: "Acciones",
+      render: (alert) => (
+        <Button variant="secondary" onClick={() => resolve(alert)}>
+          <Check aria-hidden className="size-4" /> Marcar revisada
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <section aria-labelledby="pendientes-alertas" className="flex flex-col gap-3">
+      <h2 id="pendientes-alertas" className="text-xl font-semibold">
+        Alertas
+      </h2>
+      {error && <Alert variant="danger">{error}</Alert>}
+      {alerts && <DataTable caption="Alertas" columns={columns} rows={alerts} rowKey={(alert) => alert.id} emptyMessage="No hay alertas por revisar." />}
+    </section>
+  );
+}
+
 function PendingContent() {
   return (
     <AppShell>
@@ -238,6 +304,7 @@ function PendingContent() {
       <div className="flex flex-col gap-8">
         <AdjustmentRequests />
         <CountsReady />
+        <Alerts />
       </div>
     </AppShell>
   );

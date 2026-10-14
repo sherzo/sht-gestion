@@ -5,7 +5,9 @@ pueden usarlo. Por cada fila y actor se verifica que el servidor permite o niega
 acceso. Cada historia agrega aquí las filas de sus endpoints.
 """
 
+import uuid
 from dataclasses import dataclass, field
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -15,12 +17,14 @@ from sqlalchemy import select
 from app.core.clock import utcnow
 from app.db.models import (
     AdjustmentRequest,
+    Alert,
     AttributeDefinition,
     ProductPhoto,
     StockCount,
     StockCountLine,
     Unit,
 )
+from app.domain.business_time import business_date
 from app.domain.roles import Role
 from tests.conftest import DEFAULT_PASSWORD
 
@@ -38,6 +42,13 @@ ANY_ROLE = frozenset({ADMIN, SELLER, WAREHOUSE})
 ADMIN_ONLY = frozenset({ADMIN})
 ADMIN_WAREHOUSE = frozenset({ADMIN, WAREHOUSE})
 WAREHOUSE_ONLY = frozenset({WAREHOUSE})
+
+PURCHASE_BODY = {
+    "supplier_id": "{supplier_id}",
+    "purchase_date": "{today}",
+    "currency": "USD",
+    "items": [{"product_id": "{product_id}", "quantity": "1", "unit_cost": "1"}],
+}
 
 # Códigos que indican que el acceso fue negado por permisos.
 DENIAL_CODES = {"not_authenticated", "forbidden", "password_change_required"}
@@ -175,11 +186,60 @@ MATRIX: list[Row] = [
         {"acknowledge_uncounted": True},
     ),
     Row("POST", "/api/v1/stock-counts/{count_id}/cancel", ADMIN_WAREHOUSE, {"reason": "x"}),
+    # Proveedores (RF-13)
+    Row("GET", "/api/v1/suppliers", ADMIN_WAREHOUSE),
+    Row("POST", "/api/v1/suppliers", ADMIN_WAREHOUSE, {"name": "Proveedor nuevo"}),
+    Row("GET", "/api/v1/suppliers/{supplier_id}", ADMIN_WAREHOUSE),
+    Row("PATCH", "/api/v1/suppliers/{supplier_id}", ADMIN_WAREHOUSE, {"notes": "x"}),
+    # Compras (RF-14 a RF-16, RN-14, RN-20)
+    Row("GET", "/api/v1/purchases", ADMIN_WAREHOUSE),
+    Row("POST", "/api/v1/purchases", ADMIN_WAREHOUSE, PURCHASE_BODY),
+    Row("GET", "/api/v1/purchases/{draft_id}", ADMIN_WAREHOUSE),
+    Row("PUT", "/api/v1/purchases/{draft_id}", ADMIN_WAREHOUSE, PURCHASE_BODY),
+    Row("DELETE", "/api/v1/purchases/{draft_id}", ADMIN_WAREHOUSE),
+    Row(
+        "POST",
+        "/api/v1/purchases/{draft_id}/confirm",
+        ADMIN_WAREHOUSE,
+        {"updated_at": "{draft_updated_at}"},
+    ),
+    Row("GET", "/api/v1/purchases/{confirmed_id}/void-preview", ADMIN_ONLY),
+    Row(
+        "POST", "/api/v1/purchases/{confirmed_id}/void", ADMIN_ONLY, {"reason": "Motivo de prueba"}
+    ),
+    # Tasa BCV (RF-17, RN-15)
+    Row("GET", "/api/v1/exchange-rates", ADMIN_ONLY),
+    Row(
+        "POST", "/api/v1/exchange-rates", ADMIN_ONLY, {"business_date": "{yesterday}", "rate": "36"}
+    ),
+    Row("PUT", "/api/v1/exchange-rates/{today}", ADMIN_ONLY, {"rate": "37"}),
+    Row("GET", "/api/v1/exchange-rates/applicable?date={today}", ADMIN_WAREHOUSE),
+    # Gastos frecuentes (RF-14/FR-032)
+    Row("GET", "/api/v1/charge-templates", ADMIN_WAREHOUSE),
+    Row(
+        "POST", "/api/v1/charge-templates", ADMIN_ONLY, {"name": "Gasto", "charge_type": "percent"}
+    ),
+    Row("PATCH", "/api/v1/charge-templates/{template_id}", ADMIN_ONLY, {"name": "Otro"}),
+    # Alertas (RN-14)
+    Row("GET", "/api/v1/alerts", ADMIN_ONLY),
+    Row("POST", "/api/v1/alerts/{alert_id}/resolve", ADMIN_ONLY),
 ]
 
 
 @pytest.fixture
-def actor_headers(make_user, auth_headers, make_product, give_stock, category_id, db, photo_dir):
+def actor_headers(
+    make_user,
+    auth_headers,
+    make_product,
+    give_stock,
+    category_id,
+    db,
+    photo_dir,
+    make_supplier,
+    make_rate,
+    make_charge_template,
+    make_purchase,
+):
     """Crea los usuarios de cada actor y los datos de las rutas, y devuelve el encabezado
     del pedido."""
     target = make_user(Role.SELLER, username="objetivo")
@@ -224,6 +284,33 @@ def actor_headers(make_user, auth_headers, make_product, give_stock, category_id
     db.add(line)
     db.commit()
 
+    # Compras, tasa, gasto frecuente y alerta para las rutas de la etapa 1.2.
+    supplier = make_supplier("Proveedor de la matriz")
+    today = business_date(utcnow())
+    make_rate(today, "36.5")
+    admin_headers = auth_headers(users[ADMIN], DEFAULT_PASSWORD)
+    draft = make_purchase(admin_headers, supplier, [(other, "1", "1")])
+    confirmed = make_purchase(admin_headers, supplier, [(other, "1", "1")], confirm=True)
+    alert = Alert(
+        type="purchase_void_cost",
+        entity_type="purchase",
+        entity_id=uuid.UUID(confirmed["id"]),
+        details={},
+        created_at=utcnow(),
+    )
+    db.add(alert)
+    db.commit()
+    purchase_ids = {
+        "supplier_id": str(supplier.id),
+        "today": today.isoformat(),
+        "yesterday": (today - timedelta(days=1)).isoformat(),
+        "draft_id": draft["id"],
+        "draft_updated_at": draft["updated_at"],
+        "confirmed_id": confirmed["id"],
+        "template_id": str(make_charge_template("Comisión", "percent", "10").id),
+        "alert_id": str(alert.id),
+    }
+
     def headers_for(actor: str) -> dict[str, str]:
         if actor == ANONYMOUS:
             return {}
@@ -237,6 +324,7 @@ def actor_headers(make_user, auth_headers, make_product, give_stock, category_id
         "count_id": str(count.id),
         "line_id": str(line.id),
         "other_product_id": str(other.id),
+        **purchase_ids,
         "category_id": str(category_id("FRT")),
         "unit_id": str(db.scalar(select(Unit.id).where(Unit.code == "u"))),
         "attribute_id": str(

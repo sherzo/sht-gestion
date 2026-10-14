@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.2 |
+| Versión | 1.3 |
 | Fecha | 2026-10-13 |
-| Estado | Vigente (base y componentes de las etapas 1.1a y 1.1b) |
+| Estado | Vigente (base y componentes de las etapas 1.1a, 1.1b y 1.2) |
 | Documentos relacionados | `docs/decisiones/0007-guia-de-estilos-y-tecnologia-css.md`, `docs/arquitectura.md`, `docs/marca/` |
 
 > Reglas visuales comunes a la app interna (`frontend/`) y al catálogo (`catalog/`).
@@ -222,6 +222,29 @@ En `frontend/src/components/products/`:
 - `PriceCostPanel`: precio con historial, costo inicial y publicación (solo Admin).
 - Tarjetas del inicio: contador grande con ícono y enlace (stock bajo en `warning`).
 
+### 7.1.2 Componentes de compras (etapa 1.2)
+
+`StatusChip` suma `draft` (`warning`), `confirmed` (`success`) y `voided` (`danger`).
+Los montos en Bs se muestran con `formatVes` (`Bs 1.234,56`), las tasas con
+`formatRate` (sin ceros sobrantes), los porcentajes con `formatPercent` (`10 %`) y las
+fechas de negocio con `formatDate`.
+
+En `frontend/src/components/purchases/`:
+
+- `PurchaseLines`: una tarjeta por producto con cantidad (según su unidad), costo
+  unitario en la moneda de la compra y, como guía, cantidad × costo; tras guardar
+  muestra el gasto asignado y el **costo final por unidad** destacado. Usa
+  `ProductPicker` para agregar productos.
+- `PurchaseCharges`: sección plegable "Gastos de la compra" (abierta si hay gastos): cada
+  gasto con descripción, tipo (monto fijo o % de la factura), valor y moneda; se agregan
+  desde la lista de gastos frecuentes o a mano.
+- `PurchaseTotals`: mercancía, gastos y total en USD, la mercancía en Bs si aplica y la
+  tasa con su fecha.
+- `VoidDialog`: motivo obligatorio y vista previa por producto del stock y el costo que
+  quedarán; los que quedan en cero o negativo o conservan el costo se destacan en
+  `warning`. El botón de anular usa `danger`.
+- La tasa que no es del día de la factura se muestra en `warning` con su fecha (RF-18).
+
 ### 7.2 Íconos
 
 `lucide-react` (licencia ISC; el build solo incluye los íconos usados). Tamaño `size-5`
@@ -241,6 +264,7 @@ texto que ya dice lo mismo, o con `aria-label` en botones que solo tienen ícono
 |---|---|
 | 1.1a | ✅ Hecho: componentes base (§7.1), íconos (§7.2), pantallas de ingreso, usuarios, mi cuenta y auditoría |
 | 1.1b | ✅ Hecho: componentes de productos e inventario (§7.1.1), pantallas de productos, ficha, ajuste, pendientes, mis solicitudes, stock bajo, conteos y configuración |
+| 1.2 | ✅ Hecho: componentes de compras (§7.1.2), pantallas de compras, detalle, proveedores, tasa BCV, gastos frecuentes y alertas en pendientes |
 | 1.3 | Pantalla de venta: lista de productos, totales USD/Bs, teclado numérico, pagos |
 | 1.5 | Íconos de la app instalable (PNG 192/512 y "maskable") a partir de `icono-app.svg`; indicador de sin conexión y pendientes |
 | 1.6 | Diseño del catálogo público: tarjetas de producto, filtros, botón de WhatsApp |

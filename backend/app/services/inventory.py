@@ -72,6 +72,8 @@ def post_movement(
     reference_type: str | None = None,
     reference_id: uuid.UUID | None = None,
     allow_negative: bool = False,
+    cost_before_usd: Decimal | None = None,
+    cost_after_usd: Decimal | None = None,
 ) -> StockMovement:
     """Registra un movimiento sin confirmar la transacción.
 
@@ -92,6 +94,8 @@ def post_movement(
         note=note,
         reference_type=reference_type,
         reference_id=reference_id,
+        cost_before_usd=cost_before_usd,
+        cost_after_usd=cost_after_usd,
         occurred_at=utcnow(),
         created_by=created_by,
     )
