@@ -50,7 +50,7 @@ Se definen como **dominios** de Postgres, para declarar la escala en un solo lug
 | Tablas | Regla |
 |---|---|
 | `stock_movement`, `sale`, `sale_item`, `payment`, `sale_void`, `discount_authorization`, `cash_outflow`, `cash_count`, `purchase_void`, `product_price`, `audit_log` | Solo inserción |
-| `purchase`, `purchase_item` | Editables en borrador; inmutables una vez confirmadas (RN-14) |
+| `purchase`, `purchase_item`, `purchase_charge` | Editables en borrador; inmutables una vez confirmadas (RN-14, RN-20) |
 | `cash_session` | Editable solo para cerrarla; inmutable una vez cerrada (RF-33) |
 | `outbox_operation` | Inmutable una vez procesada |
 | `adjustment_request` | Solo pasa de `pending` a un estado final (`approved`, `rejected`, `withdrawn`) sin cambiar sus datos (RN-19) |
@@ -261,7 +261,7 @@ conservan sin duplicarse. Al aplicar, cada diferencia genera un ajuste con motiv
 `physical_count` (puede dejar saldo negativo, que se informa). El Almacén cuenta a
 ciegas: no recibe `expected_quantity` ni la diferencia.
 
-### 3.4 Compras (RF-13 a RF-16, RN-14)
+### 3.4 Compras (RF-13 a RF-16, RN-14, RN-20)
 
 **`supplier`**: `name`, `rif` (único, nulo), `phone`, `notes`, `is_active`.
 
@@ -273,20 +273,37 @@ ciegas: no recibe `expected_quantity` ni la diferencia.
 | `supplier_id` | uuid | |
 | `purchase_date` | date | Fecha de negocio de la compra |
 | `currency` | text | `USD` \| `VES` (RF-15) |
-| `exchange_rate` | `rate` | Tasa BCV usada; siempre se guarda (RN-05) |
-| `total_usd` | `usd_amount` | |
-| `total_ves` | `ves_amount`, nulo | Solo si la compra es en Bs |
+| `exchange_rate` | `rate`, nulo | Tasa BCV usada (RN-05): la de la fecha de la compra o la última anterior. Obligatoria si la compra es en Bs o tiene gastos en Bs; en las demás, se guarda si existe |
+| `exchange_rate_date` | date, nulo | Fecha de la tasa usada (puede ser anterior a `purchase_date`) |
+| `supplier_invoice_number` | text, nulo | Número de factura del proveedor; se advierte si se repite con el mismo proveedor |
+| `merchandise_total_usd` | `usd_amount` | Σ `line_total_usd` |
+| `charges_total_usd` | `usd_amount` | Σ `purchase_charge.amount_usd` (RN-20) |
+| `total_usd` | `usd_amount` | Mercancía + gastos |
+| `total_ves` | `ves_amount`, nulo | Solo si la compra es en Bs: total de la mercancía en Bs |
 | `status` | text | `draft` \| `confirmed` |
 | `confirmed_by`, `confirmed_at` | | |
 | `notes` | text | |
 
 **`purchase_item`**: `purchase_id`, `product_id`, `quantity`, `unit_cost_ves`
 (`ves_amount`, nulo), `unit_cost_usd` (`usd_cost`; en compras en Bs = costo Bs ÷ tasa,
-6 decimales), `line_total_usd`.
+6 decimales), `line_total_usd`, `allocated_charges_usd` (`usd_amount`; parte de los
+gastos que le toca por valor) y `landed_unit_cost_usd` (`usd_cost`; costo final por
+unidad = `unit_cost_usd` + `allocated_charges_usd` ÷ `quantity`, el que entra al costo
+promedio, RN-20). Una línea por producto en cada compra.
+
+**`purchase_charge`** (RN-20): `purchase_id`, `description`, `charge_type` (`percent` \|
+`fixed`), `percent` (`NUMERIC(5,2)`, nulo; > 0 y ≤ 100, solo si `percent`), `amount`
+(nulo; solo si `fixed`), `currency` (`USD` \| `VES`; solo si `fixed`), `amount_usd`
+(`usd_amount`), `allocation_method` (`value`; admite otros métodos a futuro) y
+`charge_template_id` (nulo). Los `CHECK` exigen los campos según el tipo.
+
+**`charge_template`** (gastos frecuentes, RF-14): `name`, `charge_type`, `default_value`
+(nulo), `currency` (si es `fixed`), `is_active`. Solo el Admin la edita; nunca se borra.
+La compra copia sus datos, así que editarla no cambia compras existentes.
 
 **`purchase_void`** (RN-14): `purchase_id` (único), `reason`, `voided_by`, `voided_at`.
-Genera movimientos `purchase_void` inversos y recalcula el costo; si el resultado no es
-válido, conserva el costo y crea una alerta `purchase_void_cost`.
+Genera movimientos `purchase_void` inversos y recalcula el costo con
+`landed_unit_cost_usd`; si el resultado no es válido, conserva el costo y crea una alerta `purchase_void_cost`.
 
 ### 3.5 Tasa de cambio (RF-17, RF-18, RN-15)
 

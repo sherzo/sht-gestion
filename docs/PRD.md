@@ -3,8 +3,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.8 |
-| Fecha | 2026-10-08 |
+| Versión | 0.9 |
+| Fecha | 2026-10-13 |
 | Estado | En revisión por el dueño |
 | Documentos relacionados | `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`, `CLAUDE.md` |
 
@@ -55,7 +55,7 @@ Sistema web para gestionar el inventario, las compras, las ventas multimoneda y 
 |---|:-:|:-:|:-:|
 | Ver productos y stock | ✅ | ✅ | ✅ |
 | Ver historial de movimientos (kardex) | ✅ | ❌ | ✅ |
-| Ver costos y márgenes | ✅ | ❌ | ❌ |
+| Ver costos y márgenes | ✅ | ❌ | ❌ (solo los costos de factura, los gastos y el costo final de las compras que registra) |
 | Crear/editar productos | ✅ | ❌ | ✅ (sin precio de venta) |
 | Publicar en el catálogo online | ✅ | ❌ | ❌ |
 | Cambiar precio de venta | ✅ | ❌ | ❌ |
@@ -64,7 +64,7 @@ Sistema web para gestionar el inventario, las compras, las ventas multimoneda y 
 | Anular venta | ✅ | ❌ | ❌ |
 | Anular compra | ✅ | ❌ | ❌ |
 | Abrir/cerrar caja | ✅ | ✅ | ❌ |
-| Registrar compras y entradas | ✅ | ❌ | ✅ |
+| Registrar y confirmar compras | ✅ | ❌ | ✅ |
 | Ajustes de inventario | ✅ | ❌ | ✅ (con motivo obligatorio; los negativos requieren aprobación del admin, RN-19) |
 | Conteo físico | ✅ | ❌ | Abre y anota; solo el admin lo aplica (RN-19) |
 | Cargar tasa BCV | ✅ | ❌ | ❌ |
@@ -103,6 +103,7 @@ El proyecto se divide en tres fases de alcance. La Fase 1 se construye en etapas
 - Múltiples locales o depósitos.
 - Carrito de compras y pagos en línea en el catálogo.
 - Tasa USDT/Binance como tasa de conversión.
+- En los gastos de las compras (RN-20): reparto por peso, volumen o cantidad; gastos agregados después de confirmar la compra; embarques que agrupan varias facturas, y pagos a proveedores o importadoras (cuentas por pagar).
 
 ## 6. Requisitos funcionales
 
@@ -129,7 +130,7 @@ Cada requisito tiene un identificador (`RF-XX`) para poder referenciarlo en tare
 ### 6.3 Compras
 
 - **RF-13** Registrar proveedores con nombre, RIF, teléfono y notas.
-- **RF-14** Registrar compras con: proveedor, fecha, productos, cantidades y costo unitario.
+- **RF-14** Registrar compras con: proveedor, fecha, productos, cantidades y costo unitario. La compra admite **gastos** (envío, comisión de compra, entrega al local, etc.), cada uno como porcentaje del total de la factura o como monto fijo en USD o Bs; el admin mantiene una lista de gastos frecuentes para elegirlos sin escribirlos cada vez (ver RN-20).
 - **RF-15** Las compras pueden registrarse en USD o en Bs. Si son en Bs, se guarda la tasa usada y el equivalente en USD.
 - **RF-16** Al confirmar la compra, sube el stock y se actualiza el costo del producto (ver RN-09).
 
@@ -226,9 +227,10 @@ Los requisitos exactos se definirán con el contador según la normativa vigente
 | RN-06 | Un pago en Bs cubre en USD el monto en Bs ÷ tasa BCV de la venta. |
 | RN-07 | Los descuentos del vendedor requieren autorización del admin. |
 | RN-08 | El stock no se modifica directamente; solo mediante movimientos (RF-08). |
-| RN-09 | Supuesto: el costo del producto se actualiza con **costo promedio ponderado** al registrar compras. Mientras un producto no tenga compras confirmadas, solo el admin puede fijarle a mano un **costo inicial** (auditado), por ejemplo para el inventario inicial; desde la primera compra confirmada, el costo solo lo cambian las compras. |
+| RN-09 | Supuesto: el costo del producto se actualiza con **costo promedio ponderado** al registrar compras. Mientras un producto no tenga compras confirmadas, solo el admin puede fijarle a mano un **costo inicial** (auditado), por ejemplo para el inventario inicial; desde la primera compra confirmada, el costo solo lo cambian las compras. Si al confirmar una compra el stock previo del producto es cero o negativo (por ejemplo, por ventas sin conexión), el nuevo costo es el costo final por unidad de esa compra (RN-20), sin promediar; lo mismo si el producto tiene stock pero ningún costo. |
 | RN-18 | Cada producto tiene **un solo precio de venta**; no hay precios por tipo de cliente en la Fase 1. A mayoristas y talleres se les atiende con descuentos autorizados (RF-22). El modelo de datos debe permitir agregar listas de precios más adelante sin rediseño. |
 | RN-19 | Ninguna salida de inventario del Almacén cambia el stock sin aprobación del admin: sus ajustes negativos quedan pendientes hasta que el admin los aprueba o rechaza (con motivo), y los conteos físicos los aplica solo el admin, tras revisar las diferencias. Los ajustes positivos del Almacén y todos los del admin se aplican de inmediato. |
+| RN-20 | El **costo final por unidad** de cada línea de una compra es su costo de factura en USD más la parte que le toca de los gastos de la compra (RF-14). Los gastos se reparten entre las líneas **en proporción a su valor**. El costo promedio (RN-09) y la anulación (RN-14) usan el costo final. Cada línea conserva su costo de factura, el gasto asignado y el costo final. Los gastos deben conocerse al confirmar la compra; una vez confirmada no se agregan (se anula y se registra de nuevo). |
 | RN-10 | Las ventas registradas sin internet se sincronizan al volver la conexión. Si una venta deja stock negativo, se registra y se genera una alerta para el admin. |
 | RN-11 | Los números correlativos de venta no se repiten aunque haya ventas sin conexión en varios equipos (ver arquitectura). |
 | RN-12 | Los registros cerrados (ventas, cierres de caja) no se editan ni se borran; se corrigen con anulaciones o movimientos nuevos. |
@@ -255,7 +257,7 @@ Los requisitos exactos se definirán con el contador según la normativa vigente
 Estas decisiones se tomaron para avanzar. Si alguna no es correcta, se corrige aquí antes de implementar.
 
 1. El costo se calcula con promedio ponderado (RN-09).
-2. Las compras en Bs se convierten a USD con la tasa BCV del día de la compra.
+2. Confirmado: las compras en Bs se convierten a USD con la tasa BCV del día de la compra o, si no hay, la última anterior (la carga de la tasa se adelanta a la etapa 1.2).
 3. Los prefijos de SKU por categoría son los de RF-02.
 4. El vuelto puede entregarse en cualquier moneda o método disponible en caja.
 5. Confirmado: la caja es por equipo de mostrador (RN-16).
@@ -271,7 +273,6 @@ Estas decisiones se tomaron para avanzar. Si alguna no es correcta, se corrige a
 
 Preguntas surgidas al definir la arquitectura (ver `docs/arquitectura.md`); se responden antes de especificar la etapa indicada:
 
-- (1.2) Si al registrar una compra el stock previo es cero o negativo (por ventas sin conexión), ¿el nuevo costo es directamente el costo de esa compra? (RN-09)
 - (1.3) Con conexión, ¿se puede vender un producto sin stock suficiente (con advertencia) o se bloquea? Sin conexión siempre se permite (RN-10).
 - (1.3/1.5) ¿Se permiten descuentos sin conexión? El PIN del admin no puede validarse de forma segura en el equipo; las opciones son no permitirlos o permitirlos marcando la venta para revisión del admin (RN-07).
 - (1.4) Si se anula una venta cuya caja ya está cerrada, ¿en qué caja se registra la reversión del dinero? (RF-27, RF-33)
@@ -286,8 +287,8 @@ El detalle va en `docs/plan-de-fases.md`.
 |---|---|
 | 1.0 | Arquitectura, modelo de datos, `CLAUDE.md`, repositorio y despliegue base |
 | 1.1 | Usuarios y roles, productos, categorías, inventario y movimientos |
-| 1.2 | Proveedores y compras |
-| 1.3 | Tasa BCV, ventas multimoneda, pagos mixtos y descuentos autorizados |
+| 1.2 | Proveedores, compras y carga de la tasa BCV |
+| 1.3 | Ventas multimoneda, pagos mixtos y descuentos autorizados |
 | 1.4 | Caja: apertura, cierre y cuadre |
 | 1.5 | Funcionamiento sin conexión y sincronización |
 | 1.6 | Catálogo online y pedido por WhatsApp |
@@ -324,3 +325,4 @@ El detalle va en `docs/plan-de-fases.md`.
 | 0.6 | 2026-10-07 | Resumen (§1) y objetivo 6 alineados con el presupuesto de RNF-03 (arranque gratuito, tope de 35–40 USD/mes) en lugar de "costo cercano a cero". |
 | 0.7 | 2026-10-07 | Aclaraciones de la etapa 1.1a: jornada de 12 horas e instalación con código secreto (RF-44); un rol por usuario y contraseña temporal asignada por el admin (RF-45). |
 | 0.8 | 2026-10-08 | Aclaraciones de la etapa 1.1b: costo inicial fijado por el admin mientras no haya compras confirmadas (RN-09); un solo precio de venta por producto, sin precios de mayorista en la Fase 1 (RN-18). Respondida la pregunta abierta sobre mayoristas. Salidas de inventario del Almacén con aprobación del admin y conteos aplicados solo por el admin (RN-19, matriz de permisos). Solo el admin publica productos en el catálogo y el vendedor no ve el kardex (matriz de permisos). |
+| 0.9 | 2026-10-13 | Aclaraciones de la etapa 1.2: si al confirmar una compra el stock previo es cero o negativo, o el producto no tiene costo, el costo pasa a ser el costo final por unidad de la compra, sin promediar (RN-09; respondida la pregunta abierta). El Almacén registra y confirma compras y ve los costos de factura que escribe, pero no el costo promedio ni márgenes (matriz de permisos). La carga de la tasa BCV (RF-17, RN-15) se adelanta a la etapa 1.2 y se confirma el supuesto 2 (§9, §11). Gastos de las compras (importaciones): por porcentaje de la factura o monto fijo, lista de gastos frecuentes y costo final por unidad repartido por valor (RF-14, RN-20, RN-09, matriz de permisos, §5.4). |

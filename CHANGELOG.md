@@ -6,6 +6,24 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, y así sucesiv
 
 ## [Sin publicar]
 
+### Cambiado
+
+- PRD v0.9, para especificar la etapa 1.2 (`specs/003-proveedores-compras/`): si al
+  confirmar una compra el stock previo es cero o negativo, o el producto no tiene
+  costo, el costo pasa a ser el costo unitario de la compra, sin promediar (RN-09); el
+  Almacén registra y confirma compras y ve los costos de factura que escribe, pero no
+  el costo promedio ni márgenes (matriz de permisos); la carga de la tasa BCV (RF-17,
+  RN-15) se adelanta de la etapa 1.3 a la 1.2 (también en `docs/plan-de-fases.md`);
+  gastos de las compras (importaciones): por porcentaje de la factura o monto fijo en
+  USD o Bs, lista de gastos frecuentes y costo final por unidad repartido por valor,
+  que es el que entra al costo promedio (RF-14, RN-20 nueva, §5.4).
+- Constitución 1.2.0 (aprobada por el dueño): el principio IV admite que el Almacén
+  reciba los costos de factura, los gastos y el costo final de las compras que
+  registra, nunca el costo promedio ni márgenes.
+- `docs/modelo-de-datos.md` §3.4 (tablas `purchase_charge` y `charge_template`, costo
+  final en `purchase_item`, tasa opcional con su fecha en `purchase`), ADR-0004 (redondeo
+  de gastos, reparto y costo final) y glosario de `docs/arquitectura.md`.
+
 ## [0.2.0] — 2026-10-13 — Etapa 1.1: usuarios, permisos, productos e inventario
 
 Validada en producción: instalación del admin, ingreso (la API responde en ~0,4 s con

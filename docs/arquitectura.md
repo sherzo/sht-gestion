@@ -282,6 +282,8 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 | Aplicar (un conteo) | `apply` |
 | Proveedor | `supplier` |
 | Compra | `purchase` |
+| Gasto de la compra / gasto frecuente | `purchase_charge` / `charge_template` |
+| Costo final por unidad | `landed_unit_cost_usd` |
 | Tasa de cambio (BCV) | `exchange_rate` |
 | Fecha de negocio | `business_date` |
 | Venta | `sale` |
@@ -318,7 +320,6 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 **Preguntas de negocio** (registradas en PRD §10, se responden antes de la etapa
 indicada):
 
-- (1.2) Costo promedio con stock previo cero o negativo.
 - (1.3) Venta con stock insuficiente estando en línea: ¿advertir o bloquear?
 - (1.3/1.5) Descuentos sin conexión.
 - (1.4) Caja en la que se revierte una anulación de una caja ya cerrada.

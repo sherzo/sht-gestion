@@ -77,20 +77,20 @@ Se propone dividirla en dos specs:
 
 La etapa 1.1 completa se publicó como versión `0.2.0`.
 
-### 1.2 — Proveedores y compras
+### 1.2 — Proveedores, compras y carga de la tasa BCV
 
 | | |
 |---|---|
-| **Requisitos** | RF-13 a RF-16, RN-05, RN-09, RN-14 |
-| **Entregables** | Proveedores; compras en USD o Bs en borrador y confirmadas; costo promedio ponderado; anulación de compras por el admin |
+| **Requisitos** | RF-13 a RF-17, RN-03, RN-05, RN-09, RN-14, RN-15 |
+| **Entregables** | Proveedores; compras en USD o Bs en borrador y confirmadas; costo promedio ponderado; anulación de compras por el admin; carga, corrección auditada e histórico de la tasa BCV (adelantados de la 1.3 para las compras en Bs) |
 | **Terminada cuando** | Las pruebas del costo promedio (incluida la anulación) pasan con los casos compartidos; una compra confirmada no puede modificarse ni en la base de datos |
 
-### 1.3 — Tasa BCV, ventas multimoneda, pagos mixtos y descuentos
+### 1.3 — Ventas multimoneda, pagos mixtos y descuentos
 
 | | |
 |---|---|
-| **Requisitos** | RF-17, RF-18, RF-20 a RF-28, RN-01 a RN-07, RN-11, RN-15 |
-| **Entregables** | Carga y corrección de la tasa; registro de equipos y series; pantalla de venta con totales en USD y Bs, cm→m, descuentos por ítem y total con autorización, pagos mixtos y vuelto; anulación de ventas; módulo de dinero en Python y TypeScript con los casos compartidos |
+| **Requisitos** | RF-18, RF-20 a RF-28, RN-01 a RN-07, RN-11 (la tasa BCV, RF-17 y RN-15, se carga desde la 1.2) |
+| **Entregables** | Uso de la tasa en la venta y aviso de tasa faltante (RF-18); registro de equipos y series; pantalla de venta con totales en USD y Bs, cm→m, descuentos por ítem y total con autorización, pagos mixtos y vuelto; anulación de ventas; módulo de dinero en Python y TypeScript con los casos compartidos |
 | **Nota** | Las ventas ya se envían por la **cola de salida** con clave de idempotencia (ADR-0003), aunque todavía se use solo con conexión. Así la etapa 1.5 no tiene que rehacer la venta |
 | **Terminada cuando** | Una venta típica (3–5 productos, pago mixto) se registra en menos de 1 minuto; Python y TypeScript dan el mismo resultado en todos los casos compartidos; reenviar una venta no la duplica |
 
@@ -147,7 +147,7 @@ Se responden antes de especificar la etapa indicada (PRD §10).
 |---|---|
 | 1.1b | ✅ Medidas de mangueras y conexiones más comunes: el admin las carga como opciones editables antes de la puesta en uso (spec 002) |
 | 1.1b | ✅ ¿Precios distintos para mayoristas o talleres? No en la Fase 1: un solo precio, con el modelo preparado para listas de precios (RN-18) |
-| 1.2 | Costo promedio cuando el stock previo es cero o negativo |
+| 1.2 | ✅ Costo promedio cuando el stock previo es cero o negativo: el costo pasa a ser el de la compra, sin promediar (RN-09) |
 | 1.3 | Con conexión, ¿vender sin stock suficiente con advertencia o bloquear? |
 | 1.3 | ¿Descuentos sin conexión? |
 | 1.4 | Caja en la que se revierte el dinero al anular una venta de una caja ya cerrada |
