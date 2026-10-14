@@ -2,7 +2,7 @@
 
 // Precio de venta, costo inicial y publicación (RF-01, RF-07, RN-09; FR-009, FR-011 a
 // FR-013). Solo el Admin: el servidor rechaza a los demás roles y no les envía el costo.
-import { formatDateTime, formatDecimal, formatUsd, parseDecimalInput } from "@sht/shared";
+import { formatCost, formatDateTime, formatUsd, parseDecimalInput } from "@sht/shared";
 import { Globe, GlobeLock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
@@ -124,7 +124,7 @@ function CostSection({ product, onChanged }: PanelProps) {
         Costo
       </h3>
       <p className="text-2xl font-bold tabular-nums">
-        {product.avg_cost_usd !== null ? `${formatDecimal(product.avg_cost_usd, 6)} USD` : <span className="text-ink-muted">Sin costo</span>}
+        {product.avg_cost_usd !== null ? `${formatCost(product.avg_cost_usd)} USD` : <span className="text-ink-muted">Sin costo</span>}
       </p>
       {product.cost_locked ? (
         <Alert variant="info">El producto ya tiene compras confirmadas: su costo lo actualizan las compras con el promedio ponderado.</Alert>

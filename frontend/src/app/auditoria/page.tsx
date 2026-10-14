@@ -2,7 +2,7 @@
 
 // Consulta de la auditoría para el admin (RF-46/FR-025): filtros por usuario, tipo de
 // acción y fechas (días de Caracas), más recientes primero.
-import { AUDIT_ACTION_GROUPS, ROLE_LABELS, auditActionLabel, formatDateTime, formatDecimal, formatTime } from "@sht/shared";
+import { AUDIT_ACTION_GROUPS, ROLE_LABELS, auditActionLabel, formatCost, formatDateTime, formatDecimal, formatTime } from "@sht/shared";
 import type { Role } from "@sht/shared";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -67,6 +67,10 @@ function amount(value: unknown, decimals: number, empty: string): string {
   return typeof value === "string" ? formatDecimal(value, decimals) : empty;
 }
 
+function cost(value: unknown, empty: string): string {
+  return typeof value === "string" ? formatCost(value) : empty;
+}
+
 /** Productos, inventario y configuración (etapa 1.1b, FR-034). */
 function summarizeInventory(entry: Entry, before: Json, after: Json, details: Json): string {
   const sku = text(details?.sku);
@@ -80,7 +84,7 @@ function summarizeInventory(entry: Entry, before: Json, after: Json, details: Js
     case "product.price_set":
       return `${prefix}${amount(before?.sale_price_usd, 2, "Sin precio")} → ${amount(after?.sale_price_usd, 2, "")} USD`;
     case "product.initial_cost_set":
-      return `${prefix}${amount(before?.avg_cost_usd, 6, "Sin costo")} → ${amount(after?.avg_cost_usd, 6, "")} USD`;
+      return `${prefix}${cost(before?.avg_cost_usd, "Sin costo")} → ${cost(after?.avg_cost_usd, "")} USD`;
     case "inventory.adjustment_applied":
     case "inventory.adjustment_approved":
       return `${prefix}${qty(details?.quantity_delta)} · stock ${qty(before?.stock)} → ${qty(after?.stock)}`;

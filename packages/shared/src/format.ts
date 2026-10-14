@@ -74,6 +74,17 @@ export function formatUsd(value: string): string {
 }
 
 /**
+ * Costo en USD (ADR-0004: se guarda con 6 decimales). Se muestra con al menos 2 y hasta
+ * 6 decimales, sin los ceros que sobran: `100,00`, `7,25`, `0,125`, `7,253333`.
+ */
+export function formatCost(value: string): string {
+  const full = formatDecimal(value, 6);
+  const [integer, fraction = ""] = full.split(",");
+  const trimmed = fraction.replace(/0+$/, "").padEnd(2, "0");
+  return `${integer},${trimmed}`;
+}
+
+/**
  * Lee un número escrito por el usuario (`1.234,56`, `0,30`, `12`) y lo devuelve con punto
  * decimal para la API (`"1234.56"`). Devuelve null si no es un número o si tiene más de
  * `maxDecimals` decimales: no se redondea en silencio (ADR-0004). Un punto solo se toma
