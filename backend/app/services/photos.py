@@ -6,8 +6,8 @@ EXIF y sin metadatos, para que pese ~100–200 KB y quepa en el plan gratuito de
 """
 
 import io
+import logging
 import uuid
-import warnings
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import func, select
@@ -18,8 +18,10 @@ from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.db.models import AppUser, Product, ProductPhoto
 from app.services.audit import record_audit
-from app.services.inventory import lock_product
+from app.services.inventory import lock_product, product_not_found
 from app.services.photo_storage import get_photo_storage
+
+logger = logging.getLogger(__name__)
 
 MAX_PHOTOS = 5
 MAX_SIDE = 1200
@@ -42,29 +44,27 @@ def too_large(max_bytes: int) -> ApiError:
 
 def normalize_image(data: bytes) -> tuple[bytes, int, int]:
     """Devuelve el WebP normalizado y su tamaño, o lanza 415 si no es una imagen admitida."""
+    # El tamaño se comprueba en la cabecera, antes de decodificar los píxeles; no se tocan
+    # los filtros globales de advertencias, que no son seguros entre hilos.
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(io.BytesIO(data)) as source:
-                if source.format not in ACCEPTED_FORMATS:
-                    raise _unsupported()
-                if source.width * source.height > MAX_PIXELS:
-                    raise _unsupported()
-                image = ImageOps.exif_transpose(source)
-                has_alpha = image.mode in ("RGBA", "LA") or (
-                    image.mode == "P" and "transparency" in image.info
-                )
-                image = image.convert("RGBA" if has_alpha else "RGB")
-                image.thumbnail((MAX_SIDE, MAX_SIDE))
-                output = io.BytesIO()
-                # Sin `exif` ni `icc_profile`: el WebP no lleva metadatos.
-                image.save(output, format="WEBP", quality=WEBP_QUALITY)
-                return output.getvalue(), image.width, image.height
+        with Image.open(io.BytesIO(data)) as source:
+            if source.format not in ACCEPTED_FORMATS:
+                raise _unsupported()
+            if source.width * source.height > MAX_PIXELS:
+                raise _unsupported()
+            image = ImageOps.exif_transpose(source)
+            has_alpha = image.mode in ("RGBA", "LA") or (
+                image.mode == "P" and "transparency" in image.info
+            )
+            image = image.convert("RGBA" if has_alpha else "RGB")
+            image.thumbnail((MAX_SIDE, MAX_SIDE))
+            output = io.BytesIO()
+            # Sin `exif` ni `icc_profile`: el WebP no lleva metadatos.
+            image.save(output, format="WEBP", quality=WEBP_QUALITY)
+            return output.getvalue(), image.width, image.height
     except ApiError:
         raise
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
-        raise _unsupported() from exc
-    except Image.DecompressionBombWarning as exc:
         raise _unsupported() from exc
 
 
@@ -78,39 +78,54 @@ def _active(db: Session, product_id: uuid.UUID) -> list[ProductPhoto]:
     )
 
 
+def _active_count(db: Session, product_id: uuid.UUID) -> int:
+    return db.scalar(
+        select(func.count())
+        .select_from(ProductPhoto)
+        .where(ProductPhoto.product_id == product_id, ProductPhoto.removed_at.is_(None))
+    )
+
+
+def _max_photos() -> ApiError:
+    return ApiError(
+        409, "max_photos", f"Cada producto admite hasta {MAX_PHOTOS} fotos", max=MAX_PHOTOS
+    )
+
+
 def add_photo(db: Session, *, actor: AppUser, product_id: uuid.UUID, data: bytes) -> Product:
+    """Procesa y sube la foto sin bloquear el producto; el bloqueo solo cubre la
+    verificación final del máximo y el alta, para no frenar los movimientos de stock."""
     max_bytes = get_settings().photo_max_upload_bytes
     if len(data) > max_bytes:
         raise too_large(max_bytes)
-    product = lock_product(db, product_id)
-    count = db.scalar(
-        select(func.count())
-        .select_from(ProductPhoto)
-        .where(ProductPhoto.product_id == product.id, ProductPhoto.removed_at.is_(None))
-    )
-    if count >= MAX_PHOTOS:
-        raise ApiError(
-            409, "max_photos", f"Cada producto admite hasta {MAX_PHOTOS} fotos", max=MAX_PHOTOS
-        )
+    if db.get(Product, product_id) is None:
+        raise product_not_found()
+    if _active_count(db, product_id) >= MAX_PHOTOS:
+        raise _max_photos()
     webp, width, height = normalize_image(data)
-    next_order = db.scalar(
-        select(func.coalesce(func.max(ProductPhoto.sort_order) + 1, 0)).where(
-            ProductPhoto.product_id == product.id, ProductPhoto.removed_at.is_(None)
-        )
-    )
-    photo = ProductPhoto(
-        id=uuid.uuid7(),
-        product_id=product.id,
-        width=width,
-        height=height,
-        size_bytes=len(webp),
-        sort_order=next_order,
-        created_by=actor.id,
-    )
-    photo.storage_path = f"products/{product.id}/{photo.id}.webp"
+    photo_id = uuid.uuid7()
+    storage_path = f"products/{product_id}/{photo_id}.webp"
     storage = get_photo_storage()
-    storage.save(photo.storage_path, webp, "image/webp")
+    storage.save(storage_path, webp, "image/webp")
     try:
+        product = lock_product(db, product_id)
+        if _active_count(db, product.id) >= MAX_PHOTOS:
+            raise _max_photos()
+        next_order = db.scalar(
+            select(func.coalesce(func.max(ProductPhoto.sort_order) + 1, 0)).where(
+                ProductPhoto.product_id == product.id, ProductPhoto.removed_at.is_(None)
+            )
+        )
+        photo = ProductPhoto(
+            id=photo_id,
+            product_id=product.id,
+            storage_path=storage_path,
+            width=width,
+            height=height,
+            size_bytes=len(webp),
+            sort_order=next_order,
+            created_by=actor.id,
+        )
         db.add(photo)
         record_audit(
             db,
@@ -123,7 +138,7 @@ def add_photo(db: Session, *, actor: AppUser, product_id: uuid.UUID, data: bytes
         db.commit()
     except Exception:
         db.rollback()
-        storage.delete(photo.storage_path)
+        storage.delete(storage_path)
         raise
     return product
 
@@ -146,8 +161,12 @@ def remove_photo(
         details={"sku": product.sku, "photo_id": str(photo.id)},
     )
     db.commit()
-    # Después de confirmar: si borrar el objeto falla, solo queda un archivo huérfano.
-    get_photo_storage().delete(photo.storage_path)
+    # Después de confirmar: si borrar el objeto falla, la foto ya está quitada y solo queda
+    # un archivo huérfano en Storage; no se informa como error.
+    try:
+        get_photo_storage().delete(photo.storage_path)
+    except ApiError:
+        logger.warning("No se pudo borrar de Storage la foto %s", photo.storage_path)
 
 
 def reorder_photos(

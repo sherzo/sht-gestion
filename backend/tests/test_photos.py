@@ -143,3 +143,25 @@ def test_vendedor_no_sube_fotos(client, make_user, auth_headers, make_product, p
     product = make_product("FRT")
     headers = auth_headers(make_user(Role.SELLER, username="vendedor"))
     assert _upload(client, headers, product.id, _image()).status_code == 403
+
+
+def test_quitar_foto_aunque_storage_falle(
+    client, warehouse_headers, make_product, photo_dir, monkeypatch
+) -> None:
+    """R9: si borrar el objeto de Storage falla, la foto queda quitada igual (archivo huérfano)."""
+    from app.core.errors import ApiError
+    from app.services.photo_storage import LocalPhotoStorage
+
+    product = make_product("FRT")
+    [photo] = _upload(client, warehouse_headers, product.id, _image()).json()["photos"]
+
+    def fail(self, path):
+        raise ApiError(503, "photo_storage_unavailable", "Storage no responde")
+
+    monkeypatch.setattr(LocalPhotoStorage, "delete", fail)
+    response = client.delete(
+        f"/api/v1/products/{product.id}/photos/{photo['id']}", headers=warehouse_headers
+    )
+    assert response.status_code == 204
+    detail = client.get(f"/api/v1/products/{product.id}", headers=warehouse_headers).json()
+    assert detail["photos"] == []

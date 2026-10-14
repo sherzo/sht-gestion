@@ -19,6 +19,11 @@ class ApiError(Exception):
         self.extra = extra
 
 
+def validation_error(fields: dict[str, str]) -> ApiError:
+    """Error 422 con el mismo formato que los de validación de Pydantic."""
+    return ApiError(422, "validation_error", "Hay datos inválidos", fields=fields)
+
+
 # Mensajes en español para los tipos de error de validación más comunes de Pydantic.
 _VALIDATION_MESSAGES = {
     "missing": "Este campo es obligatorio",

@@ -267,3 +267,22 @@ def test_no_hay_kits(client, actors, category_id) -> None:
     """RN-13/FR-010: el producto no admite componentes."""
     response = _create(client, actors[Role.ADMIN], category_id("FRT"), name="Kit", components=["x"])
     assert response.status_code == 422
+
+
+def test_atributo_desactivado_se_conserva_al_editar(client, actors, make_product, db) -> None:
+    """FR-030: editar un producto sin enviar un atributo desactivado no borra su valor."""
+    from sqlalchemy import select
+
+    from app.db.models import AttributeDefinition
+
+    product = make_product("MAN", attributes={**HOSE, "material": "Caucho"})
+    material = db.scalar(select(AttributeDefinition).where(AttributeDefinition.key == "material"))
+    material.is_active = False
+    db.commit()
+    response = client.patch(
+        f"/api/v1/products/{product.id}",
+        json={"name": "Manguera renombrada", "attributes": HOSE},
+        headers=actors[Role.WAREHOUSE],
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["attributes"]["material"] == "Caucho"

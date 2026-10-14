@@ -146,11 +146,17 @@ export function ProductForm({ categories, units, product, onSaved, onCancel }: P
       setFields({ min_stock: "Revisa el stock mínimo" });
       return;
     }
-    const cleanAttributes = Object.fromEntries(
+    const shown = Object.fromEntries(
       attributes
         .map((attribute) => [attribute.key, attributeValue(attribute, values.attributes[attribute.key] ?? "")] as const)
         .filter(([, value]) => value !== ""),
     );
+    // Los atributos que el formulario no muestra (desactivados) conservan su valor (FR-030).
+    const hidden =
+      product && values.category_id === product.category.id
+        ? Object.fromEntries(Object.entries(product.attributes).filter(([key]) => !attributes.some((attribute) => attribute.key === key)))
+        : {};
+    const cleanAttributes = { ...hidden, ...shown };
     setSubmitting(true);
     try {
       let saved: Product;
@@ -173,7 +179,10 @@ export function ProductForm({ categories, units, product, onSaved, onCancel }: P
         if (values.category_id !== product.category.id) changes.category_id = values.category_id;
         if (values.unit_id !== product.unit.id && !category?.unit_locked) changes.unit_id = values.unit_id;
         if (minStock !== product.min_stock) changes.min_stock = minStock;
-        if (JSON.stringify(cleanAttributes) !== JSON.stringify(product.attributes) || changes.category_id) {
+        const sameAttributes =
+          Object.keys(cleanAttributes).length === Object.keys(product.attributes).length &&
+          Object.entries(cleanAttributes).every(([key, value]) => product.attributes[key] === value);
+        if (!sameAttributes || changes.category_id) {
           changes.attributes = cleanAttributes;
         }
         saved = await apiFetch<Product>(`/products/${product.id}`, { method: "PATCH", body: changes });

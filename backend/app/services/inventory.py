@@ -14,11 +14,11 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
-from app.core.errors import ApiError
+from app.core.errors import ApiError, validation_error
 from app.db.models import (
     AdjustmentRequest,
     AppUser,
@@ -31,6 +31,11 @@ from app.domain.business_time import day_bounds_utc
 from app.domain.roles import Role
 from app.domain.units import format_quantity, validate_quantity
 from app.services.audit import record_audit
+
+
+def low_stock_condition():
+    """Stock bajo: producto activo con stock menor o igual al mínimo (RF-11/FR-023)."""
+    return and_(Product.is_active.is_(True), Product.stock <= Product.min_stock)
 
 
 def product_not_found() -> ApiError:
@@ -116,9 +121,7 @@ def _quantity(value: Decimal, unit: Unit) -> Decimal:
     try:
         return validate_quantity(value, unit.decimals, allow_zero=False, allow_negative=True)
     except ValueError as exc:
-        raise ApiError(
-            422, "validation_error", "Hay datos inválidos", fields={"quantity_delta": str(exc)}
-        ) from exc
+        raise validation_error({"quantity_delta": str(exc)}) from exc
 
 
 def _stock_details(
@@ -426,11 +429,7 @@ class InventorySummary:
 def summary(db: Session, *, actor: AppUser) -> InventorySummary:
     """Contadores para el inicio. Las solicitudes pendientes son todas para el Admin y
     las propias para el Almacén."""
-    low_stock = db.scalar(
-        select(func.count())
-        .select_from(Product)
-        .where(Product.is_active.is_(True), Product.stock <= Product.min_stock)
-    )
+    low_stock = db.scalar(select(func.count()).select_from(Product).where(low_stock_condition()))
     pending = (
         select(func.count())
         .select_from(AdjustmentRequest)

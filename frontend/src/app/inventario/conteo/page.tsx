@@ -135,6 +135,7 @@ function CountDetailView({ id }: { id: string }) {
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [result, setResult] = useState<ApplyResult | null>(null);
+  const [serverUncounted, setServerUncounted] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -168,15 +169,25 @@ function CountDetailView({ id }: { id: string }) {
     setBusy(true);
     setError(null);
     try {
-      const applied = await apiFetch<ApplyResult>(`/stock-counts/${id}/apply`, { method: "POST", body: { acknowledge_uncounted: true } });
+      // Sin contar se confirma solo con el número que informó el servidor (FR-026).
+      const applied = await apiFetch<ApplyResult>(`/stock-counts/${id}/apply`, {
+        method: "POST",
+        body: { acknowledge_uncounted: serverUncounted !== null },
+      });
       setResult(applied);
       setCount(applied.count);
       setNotice(`Conteo aplicado: se generaron ${applied.adjustments} ajuste(s) por conteo físico.`);
+      setApplying(false);
+      setServerUncounted(null);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "No se pudo aplicar el conteo");
+      if (caught instanceof ApiError && caught.code === "uncounted_lines") {
+        setServerUncounted(Number(caught.extra.uncounted ?? 0));
+      } else {
+        setError(caught instanceof ApiError ? caught.message : "No se pudo aplicar el conteo");
+        setApplying(false);
+      }
     } finally {
       setBusy(false);
-      setApplying(false);
     }
   }
 
@@ -267,12 +278,25 @@ function CountDetailView({ id }: { id: string }) {
         )}
       </div>
 
-      <Dialog open={applying} title="Aplicar conteo" onClose={() => setApplying(false)}>
+      <Dialog
+        open={applying}
+        title="Aplicar conteo"
+        onClose={() => {
+          setApplying(false);
+          setServerUncounted(null);
+        }}
+      >
         <p>
           Cada producto con diferencia recibirá un ajuste con motivo «conteo físico». Esta acción no se puede deshacer; un error se corrige
           con un ajuste nuevo.
         </p>
-        {uncounted > 0 && <Alert variant="warning">Quedan {uncounted} producto(s) sin contar: no se ajustarán.</Alert>}
+        {serverUncounted !== null ? (
+          <Alert variant="warning">
+            Quedan {serverUncounted} producto(s) sin contar: no se ajustarán. Pulsa «Aplicar» de nuevo para confirmar.
+          </Alert>
+        ) : (
+          uncounted > 0 && <Alert variant="warning">Quedan {uncounted} producto(s) sin contar: no se ajustarán.</Alert>
+        )}
         {isReviewable(count) && count.status === "open" && <p className="text-sm text-ink-muted">El conteo todavía está abierto.</p>}
         <div className="flex flex-wrap gap-2">
           <Button variant="accent" loading={busy} onClick={apply}>

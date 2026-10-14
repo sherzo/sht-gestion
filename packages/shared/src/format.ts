@@ -77,7 +77,8 @@ export function formatUsd(value: string): string {
  * Lee un número escrito por el usuario (`1.234,56`, `0,30`, `12`) y lo devuelve con punto
  * decimal para la API (`"1234.56"`). Devuelve null si no es un número o si tiene más de
  * `maxDecimals` decimales: no se redondea en silencio (ADR-0004). Un punto solo se toma
- * como separador de miles si agrupa de a tres (`1.500`); si no, como decimal (`1.5`).
+ * como separador de miles si agrupa de a tres y no empieza en cero (`1.500`); si no, como
+ * decimal (`1.5`, `0.500`).
  */
 export function parseDecimalInput(text: string, maxDecimals: number): string | null {
   let value = text.trim().replace(/\s/g, "");
@@ -91,9 +92,9 @@ export function parseDecimalInput(text: string, maxDecimals: number): string | n
   if (value.includes(",")) {
     if (value.indexOf(",") !== value.lastIndexOf(",")) return null;
     const [intPart, fracPart] = value.split(",");
-    if (intPart.includes(".") && !/^\d{1,3}(\.\d{3})+$/.test(intPart)) return null;
+    if (intPart.includes(".") && !/^[1-9]\d{0,2}(\.\d{3})+$/.test(intPart)) return null;
     normalized = `${intPart.replace(/\./g, "")}.${fracPart}`;
-  } else if (/^\d{1,3}(\.\d{3})+$/.test(value)) {
+  } else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(value)) {
     normalized = value.replace(/\./g, "");
   } else {
     normalized = value;

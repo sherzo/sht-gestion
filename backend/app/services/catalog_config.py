@@ -8,12 +8,12 @@ El sistema se instala con las categorías, unidades y atributos de FR-028 (migra
 import uuid
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
-from app.core.errors import ApiError
+from app.core.errors import ApiError, validation_error
 from app.db.models import AppUser, AttributeDefinition, Category, Product, Unit
 from app.services.audit import record_audit
 
@@ -57,15 +57,23 @@ def list_categories(
 def category_with_attributes(
     db: Session, category_id: uuid.UUID
 ) -> tuple[Category, list[AttributeDefinition], bool]:
-    rows = list_categories(db, include_inactive=True)
-    return next(row for row in rows if row[0].id == category_id)
+    category = db.get(Category, category_id)
+    attributes = list(
+        db.scalars(
+            select(AttributeDefinition)
+            .where(AttributeDefinition.category_id == category_id)
+            .order_by(AttributeDefinition.sort_order, AttributeDefinition.label)
+        )
+    )
+    has_products = db.scalar(select(exists().where(Product.category_id == category_id)))
+    return category, attributes, bool(has_products)
 
 
 # --- Escritura: solo el Admin (FR-029 a FR-031) --------------------------------------
 
 
-def _validation(field: str, message: str) -> ApiError:
-    return ApiError(422, "validation_error", "Hay datos inválidos", fields={field: message})
+def validation_error_for(field: str, message: str) -> ApiError:
+    return validation_error({field: message})
 
 
 def _not_found(what: str) -> ApiError:
@@ -77,11 +85,15 @@ def _already_exists(message: str) -> ApiError:
 
 
 def _flush_or_conflict(db: Session, error: ApiError) -> None:
-    """Las restricciones únicas de la base resuelven las altas simultáneas."""
+    """Las restricciones únicas de la base resuelven las altas simultáneas. Un nombre de
+    categoría repetido entre las activas tiene su propio mensaje."""
     try:
         db.flush()
     except IntegrityError as exc:
         db.rollback()
+        constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+        if constraint == "ux_category_active_name":
+            raise _already_exists("Ya existe una categoría activa con ese nombre") from exc
         raise error from exc
 
 
@@ -174,7 +186,7 @@ def _category_snapshot(category: Category) -> dict[str, Any]:
 def _active_unit(db: Session, unit_id: uuid.UUID) -> Unit:
     unit = db.get(Unit, unit_id)
     if unit is None or not unit.is_active:
-        raise _validation("default_unit_id", "Elige una unidad activa")
+        raise validation_error_for("default_unit_id", "Elige una unidad activa")
     return unit
 
 
@@ -285,20 +297,20 @@ def _clean_options(
     for option in options or []:
         value = str(option.get("value", "")).strip()
         if not value or len(value) > MAX_OPTION_LENGTH:
-            raise _validation(
+            raise validation_error_for(
                 "options", f"Cada opción necesita un texto de hasta {MAX_OPTION_LENGTH} caracteres"
             )
         if value in seen:
-            raise _validation("options", f"La opción {value} está repetida")
+            raise validation_error_for("options", f"La opción {value} está repetida")
         seen.add(value)
         cleaned.append({"value": value, "is_active": bool(option.get("is_active", True))})
     missing = [option["value"] for option in previous or [] if option["value"] not in seen]
     if missing:
-        raise _validation(
+        raise validation_error_for(
             "options", f"Las opciones no se borran, se desactivan. Falta: {', '.join(missing)}"
         )
     if not any(option["is_active"] for option in cleaned):
-        raise _validation("options", "Deja al menos una opción activa")
+        raise validation_error_for("options", "Deja al menos una opción activa")
     return cleaned
 
 
@@ -332,7 +344,7 @@ def create_attribute(
         raise duplicate
     is_option = data["data_type"] == "option"
     if not is_option and data.get("options"):
-        raise _validation("options", "Solo los atributos de opción tienen opciones")
+        raise validation_error_for("options", "Solo los atributos de opción tienen opciones")
     attribute = AttributeDefinition(
         category_id=category.id,
         key=data["key"],
@@ -370,7 +382,7 @@ def update_attribute(
     before = _attribute_snapshot(attribute)
     if "options" in changes:
         if attribute.data_type != "option":
-            raise _validation("options", "Solo los atributos de opción tienen opciones")
+            raise validation_error_for("options", "Solo los atributos de opción tienen opciones")
         attribute.options = _clean_options(changes["options"], attribute.options)
     for field in ("label", "is_required", "is_filterable", "sort_order", "is_active"):
         if field in changes:

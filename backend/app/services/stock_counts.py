@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
-from app.core.errors import ApiError
+from app.core.errors import ApiError, validation_error
 from app.db.models import AppUser, Category, Product, StockCount, StockCountLine, Unit
 from app.domain.roles import Role
 from app.domain.units import format_quantity, validate_quantity
@@ -30,10 +30,6 @@ from app.services.inventory import apply_adjustment, lock_product
 
 def _invalid_state(message: str) -> ApiError:
     return ApiError(409, "invalid_state", message)
-
-
-def _validation(field: str, message: str) -> ApiError:
-    return ApiError(422, "validation_error", "Hay datos inválidos", fields={field: message})
 
 
 def get_count(db: Session, count_id: uuid.UUID, *, lock: bool = False) -> StockCount:
@@ -83,14 +79,14 @@ def _scope_products(db: Session, scope: dict[str, Any]) -> list[uuid.UUID]:
         ids = list(dict.fromkeys(scope.get("ids") or []))
         found = set(db.scalars(select(Product.id).where(Product.id.in_(ids))))
         if not ids or found != set(ids):
-            raise _validation("scope.ids", "Elige productos que existan")
+            raise validation_error({"scope.ids": "Elige productos que existan"})
         return ids
     query = select(Product.id).where(or_(Product.is_active.is_(True), Product.stock != 0))
     if kind == "categories":
         ids = list(dict.fromkeys(scope.get("ids") or []))
         found = set(db.scalars(select(Category.id).where(Category.id.in_(ids))))
         if not ids or found != set(ids):
-            raise _validation("scope.ids", "Elige categorías que existan")
+            raise validation_error({"scope.ids": "Elige categorías que existan"})
         query = query.where(Product.category_id.in_(ids))
     return list(db.scalars(query.order_by(Product.name)))
 
@@ -120,7 +116,7 @@ def open_count(
 ) -> StockCount:
     product_ids = _scope_products(db, scope)
     if not product_ids:
-        raise _validation("scope", "El conteo no tiene productos")
+        raise validation_error({"scope": "El conteo no tiene productos"})
     conflicts = _conflicts(db, product_ids)
     if conflicts:
         raise _in_open_count(conflicts)
@@ -178,7 +174,7 @@ def record_line(
     try:
         quantity = validate_quantity(counted, unit.decimals, allow_zero=True, allow_negative=False)
     except ValueError as exc:
-        raise _validation("counted_quantity", str(exc)) from exc
+        raise validation_error({"counted_quantity": str(exc)}) from exc
     line.counted_quantity = quantity
     line.expected_quantity = product.stock
     line.counted_by = actor.id

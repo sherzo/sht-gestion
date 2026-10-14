@@ -17,11 +17,11 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
-from app.core.errors import ApiError
+from app.core.errors import ApiError, validation_error
 from app.db.models import (
     AppUser,
     AttributeDefinition,
@@ -38,14 +38,10 @@ from app.domain.search import build_search_text, search_tokens
 from app.domain.sku import format_sku
 from app.domain.units import format_quantity, validate_quantity
 from app.services.audit import record_audit
-from app.services.inventory import lock_product, product_not_found
+from app.services.inventory import lock_product, low_stock_condition, product_not_found
 
 # Campos descriptivos que registra `product.updated` con su valor anterior y nuevo.
 DESCRIPTIVE_FIELDS = ("name", "description", "attributes", "min_stock", "unit")
-
-
-def validation_error(fields: dict[str, str]) -> ApiError:
-    return ApiError(422, "validation_error", "Hay datos inválidos", fields=fields)
 
 
 @dataclass(frozen=True)
@@ -96,11 +92,6 @@ def get_product(db: Session, product_id: uuid.UUID, *, role: Role) -> Product:
     if product is None or (role == Role.SELLER and not product.is_active):
         raise product_not_found()
     return product
-
-
-def low_stock_condition():
-    """Stock bajo: producto activo con stock menor o igual al mínimo (RF-11/FR-023)."""
-    return and_(Product.is_active.is_(True), Product.stock <= Product.min_stock)
 
 
 def filterable_keys(db: Session) -> set[str]:
@@ -374,8 +365,14 @@ def update_product(
         unit = old_unit
 
     if "attributes" in changes or category_changed:
-        values = changes.get("attributes", product.attributes)
+        values = dict(changes.get("attributes", product.attributes))
         previous = None if category_changed else product.attributes
+        if not category_changed:
+            # Un atributo desactivado no aparece en el formulario: su valor guardado se
+            # conserva aunque no venga en la petición (FR-030).
+            inactive = {spec.key for spec in attribute_specs(db, category.id) if not spec.is_active}
+            for key in inactive & product.attributes.keys() - values.keys():
+                values[key] = product.attributes[key]
         product.attributes = _clean_attributes(db, category.id, values, previous)
     if "name" in changes:
         product.name = changes["name"]
