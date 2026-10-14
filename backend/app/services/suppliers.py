@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
 from app.core.errors import ApiError, validation_error
+from app.db.errors import constraint_name
 from app.db.models import AppUser, Supplier
 from app.domain.rif import normalize_rif
 from app.domain.search import normalize_text
@@ -55,12 +56,13 @@ def _check_rif_free(db: Session, rif: str | None, own_id: uuid.UUID | None = Non
         )
 
 
-def _commit(db: Session, rif: str | None) -> None:
+def _commit(db: Session) -> None:
     try:
         db.commit()
-    except IntegrityError:  # el mismo RIF guardado al mismo tiempo por otra persona
+    except IntegrityError as exc:
         db.rollback()
-        _check_rif_free(db, rif)
+        if constraint_name(exc) == "ux_supplier_rif":  # el mismo RIF, al mismo tiempo
+            raise ApiError(409, "rif_in_use", "Ese RIF ya pertenece a otro proveedor") from exc
         raise
 
 
@@ -100,7 +102,7 @@ def create_supplier(
         entity_id=supplier.id,
         after=_snapshot(supplier),
     )
-    _commit(db, normalized)
+    _commit(db)
     return supplier
 
 
@@ -138,7 +140,7 @@ def update_supplier(
             before=before,
             after=after,
         )
-    _commit(db, supplier.rif)
+    _commit(db)
     return supplier
 
 
@@ -150,8 +152,11 @@ def list_suppliers(
     if is_active is not None:
         query = query.where(Supplier.is_active.is_(is_active))
     if q and q.strip():
-        pattern = f"%{normalize_text(q)}%"
-        conditions = [func.translate(func.lower(Supplier.name), *_ACCENTS).like(pattern)]
+        conditions = [
+            func.translate(func.lower(Supplier.name), *_ACCENTS).contains(
+                normalize_text(q), autoescape=True
+            )
+        ]
         compact = "".join(ch for ch in q.upper() if ch.isalnum())
         if compact:
             conditions.append(func.replace(Supplier.rif, "-", "").like(f"%{compact}%"))

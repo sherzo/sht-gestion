@@ -235,3 +235,30 @@ def test_bs_confirmada_conserva_su_tasa(
     assert again["exchange_rate"] == "40.00000000"
     assert again["items"][0]["unit_cost_usd"] == "2.500000"
     assert again["total_usd"] == purchase["total_usd"]
+
+
+def test_la_tasa_cambio_desde_el_ultimo_guardado(
+    client, warehouse, supplier, make_product, make_rate, make_purchase, db
+) -> None:
+    """Regresión del code review: no se confirma con costos que nadie revisó."""
+    rate = make_rate(business_date(clock.utcnow()), "40")
+    product = make_product("FRT")
+    purchase = make_purchase(warehouse, supplier, [(product, "10", "100.00")], currency="VES")
+    rate.rate = Decimal("50")
+    db.commit()
+    response = confirm(client, warehouse, purchase)
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "rate_changed"
+    assert product_state(db, product)[0] == Decimal("0")
+    saved = client.put(
+        f"{URL}/{purchase['id']}",
+        json={
+            "supplier_id": str(supplier.id),
+            "purchase_date": purchase["purchase_date"],
+            "currency": "VES",
+            "items": [{"product_id": str(product.id), "quantity": "10", "unit_cost": "100.00"}],
+        },
+        headers=warehouse,
+    ).json()
+    assert saved["items"][0]["unit_cost_usd"] == "2.000000"
+    assert confirm(client, warehouse, saved).status_code == 200

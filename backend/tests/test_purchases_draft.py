@@ -400,3 +400,34 @@ def test_mas_de_20_gastos(client, warehouse, supplier, make_product) -> None:
     ]
     data = body(supplier, [(make_product("FRT"), "1", "1")], charges=charges)
     assert client.post(URL, json=data, headers=warehouse).status_code == 422
+
+
+def test_gasto_de_centavos_no_deja_lineas_negativas(
+    client, warehouse, supplier, make_product
+) -> None:
+    """Regresión del code review: 4 líneas iguales y 0,02 de gastos daba un reparto negativo."""
+    products = [make_product("FRT") for _ in range(4)]
+    charges = [
+        {"description": "Bolsa", "charge_type": "fixed", "amount": "0.02", "currency": "USD"}
+    ]
+    response = client.post(
+        URL,
+        json=body(supplier, [(p, "1", "1") for p in products], charges=charges),
+        headers=warehouse,
+    )
+    assert response.status_code == 201, response.text
+    shares = [i["allocated_charges_usd"] for i in response.json()["items"]]
+    assert shares == ["0.02", "0.00", "0.00", "0.00"]
+
+
+def test_costo_en_bs_que_queda_en_cero_en_usd(
+    client, warehouse, supplier, make_product, make_rate
+) -> None:
+    make_rate(today(), "50000")
+    response = client.post(
+        URL,
+        json=body(supplier, [(make_product("FRT"), "1", "0.01")], currency="VES"),
+        headers=warehouse,
+    )
+    assert response.status_code == 422
+    assert "items.0.unit_cost" in response.json()["detail"]["fields"]

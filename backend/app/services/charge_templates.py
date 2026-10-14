@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
 from app.core.errors import ApiError, validation_error
+from app.db.errors import constraint_name
 from app.db.models import AppUser, ChargeTemplate
 from app.domain.money import validate_percent, validate_usd_amount, validate_ves
 from app.services.audit import record_audit
@@ -63,11 +64,13 @@ def _name_in_use(db: Session, name: str, own_id: uuid.UUID | None = None) -> Non
 def _commit(db: Session) -> None:
     try:
         db.commit()
-    except IntegrityError as exc:  # el mismo nombre guardado al mismo tiempo
+    except IntegrityError as exc:
         db.rollback()
-        raise ApiError(
-            409, "template_name_in_use", "Ya hay un gasto frecuente con ese nombre"
-        ) from exc
+        if constraint_name(exc) == "ux_charge_template_active_name":  # mismo nombre a la vez
+            raise ApiError(
+                409, "template_name_in_use", "Ya hay un gasto frecuente con ese nombre"
+            ) from exc
+        raise
 
 
 def create_template(

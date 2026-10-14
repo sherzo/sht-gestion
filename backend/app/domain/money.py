@@ -6,7 +6,7 @@ cálculos redondean solo con los helpers de este módulo, siempre mitad hacia ar
 (`ROUND_HALF_UP`, ADR-0004); el costo de compras los usa desde `domain/costing.py`.
 """
 
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
 
 PRICE_DECIMALS = 2  # usd_amount: NUMERIC(14,2)
 COST_DECIMALS = 6  # usd_cost: NUMERIC(18,6)
@@ -89,6 +89,12 @@ def validate_percent(value: Decimal) -> Decimal:
 def round_usd(value: Decimal) -> Decimal:
     """Monto en USD o en Bs a 2 decimales, mitad hacia arriba."""
     return value.quantize(_USD_STEP, rounding=ROUND_HALF_UP)
+
+
+def floor_usd(value: Decimal) -> Decimal:
+    """Monto a 2 decimales hacia abajo: solo para repartir un total en partes (RN-20); el
+    residuo se asigna aparte, así ninguna parte queda negativa."""
+    return value.quantize(_USD_STEP, rounding=ROUND_DOWN)
 
 
 def round_cost(value: Decimal) -> Decimal:

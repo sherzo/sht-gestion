@@ -75,3 +75,9 @@ def test_el_kardex_enlaza_la_compra(client, setup) -> None:
     ).json()["items"]
     linked = {(m["type"], m["purchase"]["number"]) for m in movements}
     assert linked == {("purchase", "C-000001"), ("purchase_void", "C-000001")}
+
+
+def test_la_busqueda_toma_comodines_como_texto(client, setup) -> None:
+    """Regresión del code review: `%` y `_` no son comodines en la búsqueda."""
+    assert numbers(client, setup["admin"], q="%") == []
+    assert numbers(client, setup["admin"], q="pi_118") == []

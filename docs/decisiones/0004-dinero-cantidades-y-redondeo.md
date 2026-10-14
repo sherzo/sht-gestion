@@ -50,7 +50,7 @@ exactamente el mismo resultado. El principio I prohíbe el punto flotante.
 | Vuelto en Bs | excedente USD × tasa | 2 decimales |
 | Costo de compra en Bs a USD (RF-15) | costo Bs ÷ tasa de la compra | 6 decimales |
 | Gasto de compra en USD (RN-20) | total de mercancía USD × porcentaje, monto USD, o monto Bs ÷ tasa de la compra | 2 decimales |
-| Reparto de los gastos entre líneas (RN-20) | proporcional al total USD de cada línea; el residuo de redondeo va a la línea de mayor valor (la primera, si hay empate) | 2 decimales |
+| Reparto de los gastos entre líneas (RN-20) | proporcional al total USD de cada línea, cada parte **truncada** a centavos; el residuo (nunca negativo) va a la línea de mayor valor (la primera, si hay empate) | 2 decimales |
 | Costo final por unidad (RN-20) | costo unitario USD + gasto asignado ÷ cantidad | 6 decimales |
 | Costo promedio ponderado (RN-09) | (stock × costo + cantidad × costo final) ÷ (stock + cantidad) | 6 decimales |
 

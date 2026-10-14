@@ -144,3 +144,15 @@ def test_solo_el_admin_anula(
     )
     assert void(client, warehouse, purchase).status_code == 403
     assert client.get(f"{URL}/{purchase['id']}/void-preview", headers=warehouse).status_code == 403
+
+
+def test_sin_costo_previo_no_crea_alerta(
+    client, admin, make_supplier, make_product, make_purchase, db
+) -> None:
+    """Regresión del code review: si el producto no tenía costo no hay nada que conservar."""
+    product = make_product("FRT")
+    purchase = make_purchase(admin, make_supplier(), [(product, "5", "2")], confirm=True)
+    db.execute(Product.__table__.update().where(Product.id == product.id).values(avg_cost_usd=None))
+    db.commit()
+    assert void(client, admin, purchase).json()["alerts_created"] == 0
+    assert db.scalar(select(func.count()).select_from(Alert)) == 0

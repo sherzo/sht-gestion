@@ -154,7 +154,7 @@ def _validated_items(
         raise validation_error({"items": f"Una compra admite como máximo {MAX_ITEMS} líneas"})
     ids = [item.product_id for item in data.items]
     products = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_(set(ids))))}
-    units = {unit.id: unit for unit in db.scalars(select(Unit))}
+    units = _units(db)
     errors: dict[str, str] = {}
     seen: set[uuid.UUID] = set()
     clean: list[ItemData] = []
@@ -268,9 +268,16 @@ def _recalculate(
     purchase.exchange_rate_date = rate.business_date if rate else None
 
     ordered = sorted(items, key=lambda item: item.line_number)
-    for item in ordered:
+    for index, item in enumerate(ordered):
         if purchase.currency == "VES":
             item.unit_cost_usd = ves_to_usd_cost(item.unit_cost_ves, rate.rate)
+            if item.unit_cost_usd <= 0:
+                raise validation_error(
+                    {
+                        f"items.{index}.unit_cost": "El costo en Bs es tan pequeño que en USD "
+                        "queda en cero con esta tasa"
+                    }
+                )
             item.line_total_ves = round_usd(item.quantity * item.unit_cost_ves)
         else:
             item.unit_cost_ves = None
@@ -526,11 +533,11 @@ def list_purchases(
             )
         )
     if q and q.strip():
-        pattern = f"%{q.strip().lower()}%"
+        text = q.strip().lower()
         query = query.where(
             or_(
-                func.lower(Purchase.number).like(pattern),
-                func.lower(Purchase.supplier_invoice_number).like(pattern),
+                func.lower(Purchase.number).contains(text, autoescape=True),
+                func.lower(Purchase.supplier_invoice_number).contains(text, autoescape=True),
             )
         )
     total = db.scalar(select(func.count()).select_from(query.subquery()))
@@ -646,8 +653,19 @@ def confirm_purchase(
             "Hay productos inactivos en la compra: reactívalos o quítalos",
             skus=inactive,
         )
-    # La tasa puede haberse corregido desde el último guardado (FR-012).
+    # Si la tasa de esa fecha cambió desde el último guardado (FR-012), los costos que se
+    # revisaron ya no son los que se confirmarían: hay que guardar y revisar de nuevo.
+    saved_rate = purchase.exchange_rate
     _recalculate(db, purchase, items, charges)
+    if purchase.exchange_rate != saved_rate and (
+        purchase.currency == "VES" or any(c.currency == "VES" for c in charges)
+    ):
+        raise ApiError(
+            409,
+            "rate_changed",
+            "La tasa BCV de la fecha de la compra cambió desde que la guardaste: guárdala de "
+            "nuevo para recalcular los costos y revísalos antes de confirmar",
+        )
     db.flush()
 
     changes: list[CostChange] = []
@@ -795,7 +813,7 @@ def void_purchase(
             cost_before_usd=line.cost_before_usd,
             cost_after_usd=line.cost_after_usd,
         )
-        if line.keeps_cost:
+        if line.keeps_cost and line.cost_before_usd is not None:
             alerts += 1
             create_alert(
                 db,

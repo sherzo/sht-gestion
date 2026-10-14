@@ -8,7 +8,7 @@ helpers de `domain/money.py`.
 from dataclasses import dataclass
 from decimal import Decimal
 
-from app.domain.money import round_cost, round_usd
+from app.domain.money import floor_usd, round_cost, round_usd
 
 ZERO = Decimal("0")
 
@@ -39,15 +39,16 @@ def charge_amount_usd(
 def allocate_by_value(line_totals: list[Decimal], charges_total: Decimal) -> list[Decimal]:
     """Reparte los gastos en proporción al total de cada línea, a 2 decimales (FR-031).
 
-    El residuo de redondeo va a la línea de mayor valor (la primera, si hay empate), así
-    la suma de lo repartido es exactamente `charges_total`.
+    Cada parte se trunca a centavos y el residuo, que así nunca es negativo, va a la línea
+    de mayor valor (la primera, si hay empate): la suma de lo repartido es exactamente
+    `charges_total` y ninguna línea queda con un gasto negativo.
     """
     if not line_totals:
         return []
     base = sum(line_totals, ZERO)
     if charges_total == 0 or base == 0:
         return [round_usd(ZERO) for _ in line_totals]
-    shares = [round_usd(charges_total * total / base) for total in line_totals]
+    shares = [floor_usd(charges_total * total / base) for total in line_totals]
     residue = charges_total - sum(shares, ZERO)
     if residue:
         largest = max(range(len(line_totals)), key=lambda i: (line_totals[i], -i))
