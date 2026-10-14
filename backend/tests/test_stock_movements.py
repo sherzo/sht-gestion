@@ -146,3 +146,21 @@ def test_la_suma_de_los_movimientos_es_el_stock(db, make_product) -> None:
     for delta in ("12.30", "-0.30", "5", "-7.15", "0.01"):
         _move(db, product, delta)
     assert _sum_deltas(db, product) == _stock(db, product) == Decimal("9.86")
+
+
+def test_el_movimiento_guarda_el_costo_antes_y_despues(db, make_product) -> None:
+    """Las compras y sus anulaciones guardan el costo antes y después (RN-09, R3)."""
+    product = make_product("MAN")
+    movement = post_movement(
+        db,
+        product_id=product.id,
+        type="purchase",
+        quantity_delta=Decimal("5"),
+        created_by=None,
+        cost_before_usd=Decimal("2.000000"),
+        cost_after_usd=Decimal("2.750000"),
+    )
+    db.commit()
+    db.refresh(movement)
+    assert movement.cost_before_usd == Decimal("2.000000")
+    assert movement.cost_after_usd == Decimal("2.750000")

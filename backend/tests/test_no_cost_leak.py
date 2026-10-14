@@ -89,6 +89,25 @@ LEAK_CASES: list[LeakCase] = [
 # Claves que el Almacén no recibe en un conteo, porque cuenta a ciegas (FR-025).
 BLIND_KEYS = ("expected", "difference")
 
+# Excepción del principio IV (constitución 1.2.0, FR-009, FR-022): el Almacén recibe los
+# costos de factura de las compras que registra, solo dentro de las líneas de una compra
+# (objetos con `landed_unit_cost_usd`). El costo promedio, el costo antes y después de
+# una compra y los márgenes siguen prohibidos en cualquier parte.
+PURCHASE_ITEM_KEYS = frozenset(
+    {
+        "unit_cost_ves",
+        "unit_cost_usd",
+        "line_total_usd",
+        "line_total_ves",
+        "allocated_charges_usd",
+        "landed_unit_cost_usd",
+    }
+)
+
+
+def _allowed_purchase_cost(data: dict, name: str, role: Role) -> bool:
+    return role == WAREHOUSE and name in PURCHASE_ITEM_KEYS and "landed_unit_cost_usd" in data
+
 
 def forbidden_keys(data: Any, role: Role, path: str = "") -> list[str]:
     """Claves prohibidas para el rol, en cualquier nivel del JSON."""
@@ -99,7 +118,10 @@ def forbidden_keys(data: Any, role: Role, path: str = "") -> list[str]:
             warehouse_only = role == WAREHOUSE and (
                 "price" in name or any(blind in name for blind in BLIND_KEYS)
             )
-            if "cost" in name or "margin" in name or warehouse_only:
+            costly = ("cost" in name and not _allowed_purchase_cost(data, name, role)) or (
+                "margin" in name
+            )
+            if costly or warehouse_only:
                 found.append(f"{path}{key}")
             found.extend(forbidden_keys(value, role, f"{path}{key}."))
     elif isinstance(data, list):
@@ -119,6 +141,22 @@ def test_detector_de_claves_prohibidas() -> None:
     data = {"items": [{"sale_price_usd": "1.00", "detail": {"avg_cost_usd": "0.5"}}]}
     assert forbidden_keys(data, SELLER) == ["items.detail.avg_cost_usd"]
     assert forbidden_keys(data, WAREHOUSE) == ["items.sale_price_usd", "items.detail.avg_cost_usd"]
+
+
+def test_detector_permite_al_almacen_solo_costos_de_factura() -> None:
+    """Excepción del principio IV: costos de factura solo en las líneas de una compra."""
+    line = {"unit_cost_usd": "10.000000", "landed_unit_cost_usd": "14.500000"}
+    purchase = {"items": [line], "cost_changes": [], "unit_cost_usd": "1"}
+    assert forbidden_keys(purchase, WAREHOUSE) == ["cost_changes", "unit_cost_usd"]
+    assert forbidden_keys(purchase, SELLER) == [
+        "items.unit_cost_usd",
+        "items.landed_unit_cost_usd",
+        "cost_changes",
+        "unit_cost_usd",
+    ]
+    assert forbidden_keys({"items": [{**line, "avg_cost_usd": "1"}]}, WAREHOUSE) == [
+        "items.avg_cost_usd"
+    ]
 
 
 @pytest.fixture

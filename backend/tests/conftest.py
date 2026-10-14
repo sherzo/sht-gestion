@@ -22,7 +22,7 @@ os.environ["ARGON2_MEMORY_COST"] = "1024"
 os.environ["ARGON2_PARALLELISM"] = "1"
 
 from collections.abc import Callable, Iterator  # noqa: E402
-from datetime import timedelta  # noqa: E402
+from datetime import date, timedelta  # noqa: E402
 from pathlib import Path  # noqa: E402
 from typing import Annotated  # noqa: E402
 
@@ -40,11 +40,15 @@ from app.core.security import hash_secret  # noqa: E402
 from app.db.models import (  # noqa: E402
     AppUser,
     Category,
+    ChargeTemplate,
+    ExchangeRate,
     Product,
     StockMovement,
+    Supplier,
     Unit,
 )
 from app.db.session import get_sessionmaker  # noqa: E402
+from app.domain.business_time import business_date  # noqa: E402
 from app.domain.roles import Role  # noqa: E402
 from app.domain.search import build_search_text  # noqa: E402
 from app.domain.sku import format_sku  # noqa: E402
@@ -99,8 +103,17 @@ TABLES = (
     "adjustment_request",
     "stock_count",
     "stock_count_line",
+    "alert",
+    "purchase_void",
+    "purchase_charge",
+    "purchase_item",
+    "purchase",
+    "charge_template",
+    "exchange_rate",
+    "supplier",
+    "sequence_counter",
 )
-SEEDED_TABLES = ("unit", "category", "attribute_definition")
+SEEDED_TABLES = ("unit", "category", "attribute_definition", "sequence_counter")
 
 
 @pytest.fixture(scope="session")
@@ -310,3 +323,117 @@ def give_stock(db: Session) -> Callable[[Product, str], StockMovement]:
         return movement
 
     return apply
+
+
+# --- Proveedores, compras y tasa (etapa 1.2) -------------------------------------------
+
+
+@pytest.fixture
+def make_supplier(db: Session) -> Callable[..., Supplier]:
+    """Proveedor directo en la base (sus servicios llegan con US1)."""
+
+    def factory(
+        name: str = "Proveedor", *, rif: str | None = None, is_active: bool = True
+    ) -> Supplier:
+        supplier = Supplier(name=name, rif=rif, is_active=is_active)
+        db.add(supplier)
+        db.commit()
+        return supplier
+
+    return factory
+
+
+@pytest.fixture
+def make_rate(
+    db: Session, make_user: Callable[..., AppUser]
+) -> Callable[[date, str], ExchangeRate]:
+    """Tasa BCV directa en la base (la carga por la API llega con US6)."""
+    holder: dict[str, AppUser] = {}
+
+    def factory(business_date: date, rate: str) -> ExchangeRate:
+        if "admin" not in holder:
+            holder["admin"] = make_user(Role.ADMIN, username="tasas")
+        row = ExchangeRate(
+            rate_type="BCV",
+            business_date=business_date,
+            rate=Decimal(rate),
+            created_by=holder["admin"].id,
+            created_at=clock.utcnow(),
+        )
+        db.add(row)
+        db.commit()
+        return row
+
+    return factory
+
+
+@pytest.fixture
+def make_charge_template(db: Session) -> Callable[..., ChargeTemplate]:
+    """Gasto frecuente directo en la base (sus servicios llegan con US7)."""
+
+    def factory(
+        name: str,
+        charge_type: str,
+        default_value: str | None = None,
+        currency: str | None = None,
+        *,
+        is_active: bool = True,
+    ) -> ChargeTemplate:
+        row = ChargeTemplate(
+            name=name,
+            charge_type=charge_type,
+            default_value=None if default_value is None else Decimal(default_value),
+            currency=currency,
+            is_active=is_active,
+        )
+        db.add(row)
+        db.commit()
+        return row
+
+    return factory
+
+
+@pytest.fixture
+def make_purchase(client: TestClient) -> Callable[..., dict]:
+    """Crea (y si se pide confirma) una compra por la API, como lo haría la pantalla.
+
+    `items` es una lista de `(producto, cantidad, costo unitario)` en la moneda de la
+    compra; `charges`, una lista de gastos con el formato de `PurchaseInput`.
+    """
+
+    def factory(
+        headers: dict[str, str],
+        supplier: Supplier,
+        items: list[tuple[Product, str, str]],
+        *,
+        charges: list[dict] | None = None,
+        currency: str = "USD",
+        purchase_date: date | None = None,
+        supplier_invoice_number: str | None = None,
+        confirm: bool = False,
+    ) -> dict:
+        body = {
+            "supplier_id": str(supplier.id),
+            "purchase_date": (purchase_date or business_date(clock.utcnow())).isoformat(),
+            "currency": currency,
+            "supplier_invoice_number": supplier_invoice_number,
+            "items": [
+                {"product_id": str(product.id), "quantity": quantity, "unit_cost": unit_cost}
+                for product, quantity, unit_cost in items
+            ],
+            "charges": charges or [],
+        }
+        response = client.post("/api/v1/purchases", json=body, headers=headers)
+        assert response.status_code == 201, response.text
+        purchase = response.json()
+        if confirm:
+            response = client.post(
+                f"/api/v1/purchases/{purchase['id']}/confirm",
+                json={"updated_at": purchase["updated_at"]},
+                headers=headers,
+            )
+            assert response.status_code == 200, response.text
+            purchase = response.json()
+        return purchase
+
+    return factory

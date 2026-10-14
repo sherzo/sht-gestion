@@ -84,6 +84,27 @@ export function formatCost(value: string): string {
   return `${integer},${trimmed}`;
 }
 
+/** Monto en Bs con 2 decimales y prefijo: `Bs 1.234,56`. */
+export function formatVes(value: string): string {
+  return `Bs ${formatDecimal(value, 2)}`;
+}
+
+/** Tasa BCV (hasta 8 decimales, ADR-0004) sin los ceros que sobran: `36,5`, `36,55`. */
+export function formatRate(value: string): string {
+  const full = formatDecimal(value, 8);
+  const [integer, fraction = ""] = full.split(",");
+  const trimmed = fraction.replace(/0+$/, "");
+  return trimmed ? `${integer},${trimmed}` : integer;
+}
+
+/** Porcentaje sin los ceros que sobran: `10 %`, `12,5 %`. */
+export function formatPercent(value: string): string {
+  const full = formatDecimal(value, 2);
+  const [integer, fraction = ""] = full.split(",");
+  const trimmed = fraction.replace(/0+$/, "");
+  return `${trimmed ? `${integer},${trimmed}` : integer} %`;
+}
+
 /**
  * Lee un número escrito por el usuario (`1.234,56`, `0,30`, `12`) y lo devuelve con punto
  * decimal para la API (`"1234.56"`). Devuelve null si no es un número o si tiene más de

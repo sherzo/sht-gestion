@@ -1,0 +1,41 @@
+{
+  "_doc": "Casos compartidos del costo de compras (RN-09, RN-14, RN-20; specs/003-proveedores-compras, R1, SC-001, SC-010). Valores decimales como cadenas.",
+  "weighted_average": [
+    {"name": "promedio con stock positivo", "stock": "10", "cost": "2", "quantity": "30", "unit_cost": "3", "expected": "2.750000"},
+    {"name": "stock negativo: costo de la compra", "stock": "-2", "cost": "10", "quantity": "5", "unit_cost": "12", "expected": "12.000000"},
+    {"name": "stock cero con costo inicial", "stock": "0", "cost": "4", "quantity": "10", "unit_cost": "5", "expected": "5.000000"},
+    {"name": "stock positivo sin costo", "stock": "5", "cost": null, "quantity": "3", "unit_cost": "7", "expected": "7.000000"},
+    {"name": "promedio con costo final de importación", "stock": "10", "cost": "12", "quantity": "10", "unit_cost": "14.5", "expected": "13.250000"},
+    {"name": "redondeo mitad hacia arriba", "stock": "3", "cost": "1", "quantity": "3", "unit_cost": "1.000001", "expected": "1.000001"},
+    {"name": "promedio con decimales periódicos", "stock": "1", "cost": "1", "quantity": "2", "unit_cost": "2", "expected": "1.666667"}
+  ],
+  "undo_purchase": [
+    {"name": "deshacer sin movimientos posteriores", "stock": "40", "cost": "2.75", "quantity": "30", "unit_cost": "3", "expected": "2.000000"},
+    {"name": "stock resultante cero", "stock": "30", "cost": "3", "quantity": "30", "unit_cost": "3", "expected": null},
+    {"name": "stock resultante negativo", "stock": "20", "cost": "2.75", "quantity": "30", "unit_cost": "3", "expected": null},
+    {"name": "costo resultante negativo", "stock": "11", "cost": "1", "quantity": "10", "unit_cost": "5", "expected": null},
+    {"name": "producto sin costo", "stock": "40", "cost": null, "quantity": "30", "unit_cost": "3", "expected": null}
+  ],
+  "charges": [
+    {"name": "porcentaje de la factura", "charge": {"charge_type": "percent", "percent": "10", "amount": null, "currency": null}, "merchandise_total_usd": "1000.00", "rate": null, "expected": "100.00"},
+    {"name": "monto fijo en USD", "charge": {"charge_type": "fixed", "percent": null, "amount": "250.00", "currency": "USD"}, "merchandise_total_usd": "1000.00", "rate": null, "expected": "250.00"},
+    {"name": "monto fijo en Bs", "charge": {"charge_type": "fixed", "percent": null, "amount": "3650.00", "currency": "VES"}, "merchandise_total_usd": "1000.00", "rate": "36.5", "expected": "100.00"},
+    {"name": "porcentaje con redondeo", "charge": {"charge_type": "percent", "percent": "12.5", "amount": null, "currency": null}, "merchandise_total_usd": "33.33", "rate": null, "expected": "4.17"}
+  ],
+  "allocation": [
+    {"name": "reparto por valor", "line_totals": ["600.00", "400.00"], "charges_total": "450.00", "expected": ["270.00", "180.00"]},
+    {"name": "empate: el residuo va a la primera", "line_totals": ["100.00", "100.00", "100.00"], "charges_total": "100.00", "expected": ["33.34", "33.33", "33.33"]},
+    {"name": "residuo a la de mayor valor", "line_totals": ["10.00", "20.00"], "charges_total": "1.00", "expected": ["0.33", "0.67"]},
+    {"name": "sin gastos", "line_totals": ["10.00", "20.00"], "charges_total": "0.00", "expected": ["0.00", "0.00"]}
+  ],
+  "landed": [
+    {"name": "costo final con gastos", "unit_cost_usd": "10", "allocated": "270.00", "quantity": "60", "expected": "14.500000"},
+    {"name": "costo final sin gastos", "unit_cost_usd": "2.739726", "allocated": "0.00", "quantity": "7", "expected": "2.739726"},
+    {"name": "costo final periódico", "unit_cost_usd": "1", "allocated": "1.00", "quantity": "3", "expected": "1.333333"}
+  ],
+  "ves_to_usd": [
+    {"name": "100 Bs a 36,50", "amount_ves": "100.00", "rate": "36.5", "expected": "2.739726"},
+    {"name": "100 Bs a 40", "amount_ves": "100.00", "rate": "40", "expected": "2.500000"},
+    {"name": "365 Bs a 36,50", "amount_ves": "365.00", "rate": "36.5", "expected": "10.000000"}
+  ]
+}

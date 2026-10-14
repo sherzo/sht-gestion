@@ -5,16 +5,21 @@
 - Productos, categorías e inventario (RF-01 a RF-12): specs/002-productos-inventario/
   data-model.md y docs/modelo-de-datos.md §3.2 y §3.3; los crea la migración 0004, que
   además impone con triggers el kardex y la inmutabilidad.
+- Proveedores, compras y tasa BCV (RF-13 a RF-17): specs/003-proveedores-compras/
+  data-model.md y docs/modelo-de-datos.md §3.4 y §3.5; los crea la migración 0005. Las
+  reglas (`CHECK` y triggers) viven en la migración.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -434,3 +439,164 @@ class StockCountLine(Base):
     # Se apaga al aplicar o cancelar el conteo; el índice único parcial sobre las líneas
     # abiertas impide que un producto esté en dos conteos a la vez (FR-024).
     is_open: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+# --- Proveedores, compras y tasa BCV (etapa 1.2) --------------------------------------
+# specs/003-proveedores-compras/data-model.md; migración 0005, que impone con triggers la
+# inmutabilidad de las compras confirmadas (RN-14, research R2).
+
+VesAmount = Numeric(16, 2)
+Rate = Numeric(18, 8)
+Percent = Numeric(5, 2)
+PURCHASE_STATUSES = ("draft", "confirmed", "voided")
+CURRENCIES = ("USD", "VES")
+CHARGE_TYPES = ("percent", "fixed")
+
+
+class Supplier(Base):
+    """Proveedor (RF-13/FR-001); nunca se borra."""
+
+    __tablename__ = "supplier"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    name: Mapped[str] = mapped_column(Text)
+    rif: Mapped[str | None] = mapped_column(Text, unique=True)
+    phone: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ExchangeRate(Base):
+    """Tasa BCV de una fecha (RF-17, RN-03, RN-15); se corrige, nunca se borra."""
+
+    __tablename__ = "exchange_rate"
+    __table_args__ = (UniqueConstraint("rate_type", "business_date"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    rate_type: Mapped[str] = mapped_column(Text, default="BCV")
+    business_date: Mapped[date] = mapped_column(Date)
+    rate: Mapped[Decimal] = mapped_column(Rate)
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ChargeTemplate(Base):
+    """Gasto frecuente que el Admin mantiene para las compras (RF-14/FR-032)."""
+
+    __tablename__ = "charge_template"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    name: Mapped[str] = mapped_column(Text)
+    charge_type: Mapped[str] = mapped_column(Text)
+    default_value: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))
+    currency: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Purchase(Base):
+    """Compra a un proveedor (RF-14 a RF-16); inmutable una vez confirmada (RN-14)."""
+
+    __tablename__ = "purchase"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    number: Mapped[str | None] = mapped_column(Text, unique=True)
+    supplier_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("supplier.id"))
+    purchase_date: Mapped[date] = mapped_column(Date)
+    supplier_invoice_number: Mapped[str | None] = mapped_column(Text)
+    currency: Mapped[str] = mapped_column(Text)
+    exchange_rate: Mapped[Decimal | None] = mapped_column(Rate)
+    exchange_rate_date: Mapped[date | None] = mapped_column(Date)
+    merchandise_total_usd: Mapped[Decimal] = mapped_column(UsdAmount, default=Decimal("0"))
+    merchandise_total_ves: Mapped[Decimal | None] = mapped_column(VesAmount)
+    charges_total_usd: Mapped[Decimal] = mapped_column(UsdAmount, default=Decimal("0"))
+    total_usd: Mapped[Decimal] = mapped_column(UsdAmount, default=Decimal("0"))
+    status: Mapped[str] = mapped_column(Text, default="draft")
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    confirmed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PurchaseItem(Base):
+    """Línea de una compra con su costo final por unidad (FR-004, FR-031; RN-20)."""
+
+    __tablename__ = "purchase_item"
+    __table_args__ = (UniqueConstraint("purchase_id", "product_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    purchase_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("purchase.id"))
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("product.id"))
+    line_number: Mapped[int] = mapped_column(Integer)
+    quantity: Mapped[Decimal] = mapped_column(Quantity)
+    unit_cost_ves: Mapped[Decimal | None] = mapped_column(VesAmount)
+    unit_cost_usd: Mapped[Decimal] = mapped_column(UsdCost)
+    line_total_ves: Mapped[Decimal | None] = mapped_column(VesAmount)
+    line_total_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    allocated_charges_usd: Mapped[Decimal] = mapped_column(UsdAmount, default=Decimal("0"))
+    landed_unit_cost_usd: Mapped[Decimal] = mapped_column(UsdCost)
+
+
+class PurchaseCharge(Base):
+    """Gasto de una compra: porcentaje de la factura o monto fijo (RN-20/FR-029)."""
+
+    __tablename__ = "purchase_charge"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    purchase_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("purchase.id"))
+    line_number: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str] = mapped_column(Text)
+    charge_type: Mapped[str] = mapped_column(Text)
+    percent: Mapped[Decimal | None] = mapped_column(Percent)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))
+    currency: Mapped[str | None] = mapped_column(Text)
+    amount_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    allocation_method: Mapped[str] = mapped_column(Text, default="value")
+    charge_template_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("charge_template.id")
+    )
+
+
+class PurchaseVoid(Base):
+    """Anulación de una compra confirmada, de solo inserción (RN-14/FR-017)."""
+
+    __tablename__ = "purchase_void"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    purchase_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("purchase.id"), unique=True)
+    reason: Mapped[str] = mapped_column(Text)
+    voided_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    voided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Alert(Base):
+    """Aviso para el Admin (RN-14, research R8); solo se marca como revisado."""
+
+    __tablename__ = "alert"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    type: Mapped[str] = mapped_column(Text)
+    entity_type: Mapped[str] = mapped_column(Text)
+    entity_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+
+
+class SequenceCounter(Base):
+    """Correlativo sin huecos de documentos del servidor, como las compras (FR-008, R3)."""
+
+    __tablename__ = "sequence_counter"
+
+    name: Mapped[str] = mapped_column(Text, primary_key=True)
+    next_number: Mapped[int] = mapped_column(BigInteger)
