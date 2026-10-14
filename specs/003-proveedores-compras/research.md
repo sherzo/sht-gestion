@@ -67,7 +67,11 @@ triggers ya son el patrón del proyecto).
 **Decisión:** `services/purchases.py::confirm_purchase`, en una sola transacción:
 
 1. Lee la compra con `SELECT … FOR UPDATE`. Si no está en `draft`, responde 409
-   `invalid_state`; así una segunda confirmación (doble clic) falla.
+   `invalid_state`; así una segunda confirmación (doble clic) falla. Si el
+   `updated_at` recibido no coincide con el guardado, responde 409 `stale_data` con la
+   compra actual: otro usuario la cambió y hay que revisarla antes de confirmar (spec,
+   Edge Cases). A diferencia de guardar (R4), aquí no se sigue adelante, porque
+   confirmar es irreversible.
 2. Revalida que el proveedor y los productos estén activos y vuelve a buscar la tasa
    para la fecha (R6).
 3. Recalcula y guarda los montos con `costing` (las líneas siguen en borrador).
@@ -120,7 +124,7 @@ necesidad).
 **Decisión:** `domain/rif.py::normalize_rif(text)`:
 
 - acepta mayúsculas o minúsculas, con o sin guiones o espacios;
-- exige la letra `J|G|V|E|P|C`, de 1 a 9 dígitos de número y 1 dígito verificador;
+- exige la letra `J|G|V|E|P|C`, de 1 a 8 dígitos de número y 1 dígito verificador;
 - rellena el número con ceros a la izquierda hasta 8 dígitos;
 - devuelve `X-NNNNNNNN-N`.
 

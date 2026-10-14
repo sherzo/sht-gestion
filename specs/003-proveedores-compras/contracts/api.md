@@ -17,6 +17,7 @@ paginación son las de los contratos de la 1.1a y la 1.1b
 | 409 | `rate_exists` | Ya hay tasa BCV para esa fecha; se corrige con `PUT` (FR-025) |
 | 409 | `exchange_rate_missing` | Compra en Bs o con gastos en Bs sin tasa en o antes de su fecha (FR-012) |
 | 409 | `invalid_state` | Editar, confirmar o descartar una compra que no está en borrador; anular una que no está confirmada |
+| 409 | `stale_data` | Confirmar con un `updated_at` distinto del guardado; incluye `purchase` con la versión actual |
 | 409 | `inactive_supplier` | Proveedor inactivo al crear o confirmar (FR-003) |
 | 409 | `inactive_products` | Productos inactivos al confirmar; incluye sus `skus` |
 | 409 | `template_name_in_use` | Nombre repetido entre los gastos frecuentes activos |
@@ -174,7 +175,7 @@ paginación son las de los contratos de la 1.1a y la 1.1b
 | `GET /purchases/{id}` | Admin, Almacén | `Purchase` |
 | `PUT /purchases/{id}` | Admin, Almacén | Reemplaza el borrador completo y recalcula (R4); `invalid_state` |
 | `DELETE /purchases/{id}` | Admin, Almacén | Descarta un borrador → 204; `invalid_state` |
-| `POST /purchases/{id}/confirm` | Admin, Almacén | Confirma (R3) → 200 `Purchase`. Para el Admin agrega `cost_changes: [{product_id, sku, cost_before_usd, cost_after_usd}]`. Errores: `invalid_state`, `inactive_supplier`, `inactive_products`, `exchange_rate_missing` |
+| `POST /purchases/{id}/confirm` | Admin, Almacén | `{updated_at}` (el de la versión que se revisó). Confirma (R3) → 200 `Purchase`. Para el Admin agrega `cost_changes: [{product_id, sku, cost_before_usd, cost_after_usd}]`. Errores: `invalid_state`, `stale_data`, `inactive_supplier`, `inactive_products`, `exchange_rate_missing` |
 | `GET /purchases/{id}/void-preview` | Admin | `{items: [{product_id, sku, stock_before, stock_after, cost_before_usd, cost_after_usd, keeps_cost}]}` (FR-019); `invalid_state` |
 | `POST /purchases/{id}/void` | Admin | `{reason}` (5–500 caracteres) → 200 `Purchase` con `void` y `alerts_created`; `invalid_state` |
 

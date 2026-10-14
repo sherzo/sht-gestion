@@ -327,9 +327,9 @@ promedio usa el costo final.
   kardex y del costo promedio es el de confirmación, no el de la fecha de la factura.
 - **Confirmar dos veces la misma compra** (doble clic o dos personas): la segunda vez
   se rechaza; el stock sube una sola vez.
-- **Confirmar un borrador que otro usuario cambió**: se confirma la última versión
-  guardada; si quien confirma la abrió antes del cambio, el sistema le advierte que
-  cambió para que revise antes de confirmar.
+- **Confirmar un borrador que otro usuario cambió**: si quien confirma lo abrió antes
+  del último cambio guardado, el sistema no lo confirma: le avisa que cambió y le
+  muestra la versión actual para que la revise y vuelva a confirmar.
 - **Compra con muchas líneas** (por ejemplo, la carga del inventario real): se admiten
   al menos 200 líneas por compra.
 - **Anular una compra cuando hubo compras posteriores del mismo producto**: el costo
@@ -376,8 +376,9 @@ promedio usa el costo final.
   proveedores con: nombre (obligatorio), RIF (opcional), teléfono (opcional) y notas
   (opcional). Los proveedores nunca se borran.
 - **FR-002**: El RIF, si se indica, MUST normalizarse a mayúsculas con el formato
-  `X-NNNNNNNN-N` (letra J, G, V, E, P o C, 8 dígitos y dígito verificador) y MUST ser
-  único entre todos los proveedores, activos o no.
+  `X-NNNNNNNN-N` (letra J, G, V, E, P o C; de 1 a 8 dígitos de número, rellenados con
+  ceros a la izquierda hasta 8; y dígito verificador) y MUST ser único entre todos los
+  proveedores, activos o no.
 - **FR-003**: Las compras nuevas MUST ofrecer solo proveedores activos; las compras
   existentes conservan su proveedor aunque se desactive.
 
