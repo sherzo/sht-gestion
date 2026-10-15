@@ -26,6 +26,19 @@
   inicial y una caja abierta por equipo (RF-29, RF-30, RN-16) se adelanta a esta etapa,
   para que cada venta y cada pago queden ligados a su caja desde el principio. Egresos,
   cierre y cuadre siguen en la 1.4 (User Story 1, FR-005 a FR-009).
+- Q: Si un cliente devuelve solo parte de lo que compró, ¿hay devolución parcial? → A:
+  No: solo anulación completa; para devolver una parte se anula la venta y se registra
+  una nueva con lo que el cliente se queda (FR-041).
+- Q: ¿El vuelto debe ser exactamente el excedente? → A: No: puede ser menor o igual;
+  la diferencia queda como sobrepago visible en la venta y la caja cuenta el dinero
+  real (FR-038).
+- Q: Al aprobar una solicitud de descuento, ¿el Admin puede cambiar el valor? → A: Sí:
+  puede aprobarla con otro valor del mismo tipo, menor o igual al pedido, y el vendedor
+  recibe el descuento ajustado, que es el que se aplica a la venta (FR-025, FR-026).
+- Q: Si el Admin carga la tasa del día con la caja abierta o con una venta a medio
+  hacer, ¿desde cuándo se usa? → A: Cada venta toma la tasa vigente al empezar; si
+  cambia mientras se arma, se avisa para actualizarla antes de registrar pagos; con un
+  pago registrado, la tasa de esa venta queda fija (FR-014).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -152,6 +165,9 @@ Efectivo USD, o 83,95 Bs en Efectivo Bs.
 7. **Given** un cliente que paga por Zelle y recibe el vuelto en Efectivo Bs, **When**
    se registra, **Then** se permite: el vuelto puede entregarse en cualquier método o
    moneda (supuesto 4), pero nunca supera el excedente pagado.
+8. **Given** un excedente de 0,30 USD y sin sencillo, **When** el vendedor registra un
+   vuelto menor o ninguno, **Then** la venta se confirma y el detalle muestra el
+   sobrepago de la diferencia.
 
 ---
 
@@ -187,6 +203,10 @@ de 5,00 USD sobre el total, por solicitud que el Admin aprueba desde otro equipo
 5. **Given** un Vendedor que envía una solicitud de descuento, **When** el Admin la ve
    en su sesión y la aprueba, **Then** el vendedor ve la aprobación y puede confirmar la
    venta con ese descuento; si el Admin la rechaza, el descuento no se aplica.
+5a. **Given** una solicitud de 10 % sobre una línea, **When** el Admin la aprueba con
+   5 %, **Then** el vendedor ve que se aprobó con 5 %, la línea queda con ese descuento
+   y la venta registra el valor pedido y el aprobado; el Admin no puede aprobar un valor
+   mayor que el pedido ni cambiar el tipo (monto o porcentaje).
 6. **Given** un descuento mayor que el monto al que se aplica, **When** se intenta,
    **Then** no se acepta: ninguna línea ni venta queda en negativo; un descuento del
    100 % sí se permite.
@@ -286,6 +306,9 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
   debe cargar la tasa BCV.
 - **Tasa corregida después de vender**: las ventas ya registradas conservan la tasa con
   la que se hicieron (RN-05, RN-15).
+- **Tasa nueva con una venta a medio hacer**: sin pagos, aviso y actualización de la
+  tasa de la venta antes del primer pago; con pagos, la venta conserva su tasa
+  (FR-014).
 - **Cambio de precio mientras la venta está en pantalla**: la venta usa el precio que
   el equipo mostró; si al registrarse no coincide con el vigente en el servidor, se
   registra igual y se alerta al Admin (ADR-0003).
@@ -361,6 +384,13 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
   equipo y en el servidor con exactamente las mismas reglas (RN-02, ADR-0004).
 - **FR-014**: La venta MUST usar la tasa BCV del día o, si no hay, la última disponible,
   mostrando su fecha (RF-18), y guardar la tasa y su fecha; nunca se recalcula (RN-05).
+  Cada venta toma la tasa vigente al empezar. Si la tasa vigente cambia mientras la
+  venta se arma y todavía no tiene pagos, el sistema MUST avisarlo y pedir que se
+  actualice (recalculando los montos en Bs) antes de registrar el primer pago; con al
+  menos un pago registrado, la
+  tasa de la venta queda fija y la nueva aplica desde la venta siguiente. El equipo MUST
+  comprobar la tasa vigente al empezar cada venta y al menos cada 5 minutos mientras
+  una venta está abierta.
 - **FR-015**: Cada venta MUST guardar: número, fecha y hora, fecha de negocio (Caracas),
   vendedor, equipo, caja, cliente (opcional), ítems con cantidad y precio unitario en
   USD, descuentos con quién los autorizó, tasa y su fecha, totales en USD y Bs, pagos y
@@ -395,9 +425,12 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
   bloqueo tras 5 intentos fallidos (etapa 1.1a).
 - **FR-025**: El Vendedor MUST poder enviar una solicitud de descuento con el detalle
   (línea o total, tipo y valor, montos afectados); el Admin MUST verla en su sesión y
-  aprobarla o rechazarla, y el vendedor MUST ver la respuesta sin recargar a mano.
+  aprobarla tal cual, aprobarla con otro valor del mismo tipo menor o igual al pedido,
+  o rechazarla (con motivo opcional); el vendedor MUST ver la respuesta, con el valor
+  aprobado, sin recargar a mano.
 - **FR-026**: Una autorización (por PIN o solicitud) MUST valer solo para el descuento
-  autorizado; si cambia la línea o el monto afectado, se pide de nuevo.
+  autorizado, con el valor aprobado; si cambia la línea, el monto afectado o el valor,
+  se pide de nuevo. La autorización guarda el valor pedido y el aprobado.
 - **FR-027**: Cada descuento MUST guardar quién lo autorizó, cómo (`PIN`, `solicitud`,
   `admin vende`) y cuándo, y quedar en la auditoría (RN-07, RF-46).
 - **FR-028**: Si una venta llega al servidor con un descuento de Vendedor sin
@@ -435,7 +468,10 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
 - **FR-038**: Si los pagos superan el total, el sistema MUST calcular el vuelto y
   registrarlo con su método y moneda (cualquiera de los seis, con referencia si el
   método la exige); el vuelto en Bs es excedente USD × tasa, redondeado (RF-25,
-  ADR-0004). El vuelto no puede superar el excedente.
+  ADR-0004). El vuelto puede ser uno o varios (por ejemplo, parte en USD y parte en
+  Bs), y su total en USD MUST ser menor o igual que el excedente; si es menor (por
+  ejemplo, no hay sencillo y el cliente deja la diferencia), la diferencia queda como
+  sobrepago, visible en el detalle de la venta.
 - **FR-039**: Cada pago y vuelto MUST quedar ligado a la caja de la venta.
 
 **Dinero compartido**
@@ -448,6 +484,9 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
 **Anulación**
 
 - **FR-041**: Solo el Admin MUST poder anular una venta, con motivo obligatorio (RF-27).
+  La anulación es siempre de la venta completa: no hay devoluciones parciales; para
+  devolver una parte se anula y se registra una venta nueva con lo que el cliente se
+  queda.
 - **FR-042**: Anular MUST generar un movimiento de reverso de kardex por cada línea, y
   devoluciones de dinero en la caja de la venta por los pagos netos del vuelto, en una
   sola transacción (RF-27). La caja que recibe la devolución cuando la caja de la venta
@@ -496,8 +535,9 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
   efectivo.
 - **Autorización de descuento**: descuento al que aplica, Admin que autorizó, forma
   (PIN, solicitud, Admin vende) y fecha.
-- **Solicitud de descuento**: quién la pide, desde qué equipo, detalle, estado
-  (pendiente, aprobada, rechazada), quién decidió y cuándo.
+- **Solicitud de descuento**: quién la pide, desde qué equipo, detalle, valor pedido y
+  aprobado, estado (pendiente, aprobada, rechazada), quién decidió, cuándo y motivo del
+  rechazo.
 - **Anulación de venta**: venta, motivo, quién y cuándo.
 - **Operación de la cola de salida**: identificador único del equipo, tipo, contenido,
   resultado; garantiza que un reenvío no duplique.
@@ -543,8 +583,6 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
 - El vuelto puede entregarse en cualquier método y moneda (supuesto 4 del PRD); en esta
   etapa no se valida contra el efectivo disponible en caja (eso es cuadre, 1.4).
 - No hay ventas a crédito ni pagos parciales en la Fase 1; el crédito es Fase 2.
-- No hay devoluciones parciales: para devolver parte de una venta se anula completa y
-  se registra de nuevo lo que el cliente se queda.
 - La nota de entrega impresa es Fase 2; en esta etapa la venta se consulta en pantalla.
 - Los precios incluyen IVA (RN-17); la venta no desglosa impuestos (Fase 3). El modelo
   conserva el neto por línea para la futura base imponible.

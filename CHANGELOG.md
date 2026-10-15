@@ -12,7 +12,9 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3
   suficiente, con advertencia y alerta al admin (RN-10); sin conexión se permiten
   descuentos, con la venta marcada para revisión del admin (RN-07). La apertura de caja
   (RF-29, RF-30, RN-16) se adelanta de la etapa 1.4 a la 1.3 (también en
-  `docs/plan-de-fases.md`).
+  `docs/plan-de-fases.md`). Aclaraciones de la 1.3: tasa de cada venta al empezarla
+  (RF-18), aprobación de descuentos con un valor menor (RF-22), vuelto menor o igual que
+  el excedente con sobrepago (RF-25) y anulación solo completa (RF-27).
 
 ## [0.3.0] — 2026-10-15 — Etapa 1.2: proveedores, compras y tasa BCV
 

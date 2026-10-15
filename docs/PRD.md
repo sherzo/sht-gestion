@@ -137,14 +137,14 @@ Cada requisito tiene un identificador (`RF-XX`) para poder referenciarlo en tare
 ### 6.4 Tasa de cambio
 
 - **RF-17** El admin carga la **tasa BCV del día**. Se guarda el histórico con fecha y usuario.
-- **RF-18** Si no hay tasa cargada para el día, el sistema avisa al abrir caja y usa la última disponible, indicando su fecha.
+- **RF-18** Si no hay tasa cargada para el día, el sistema avisa al abrir caja y usa la última disponible, indicando su fecha. Cada venta toma la tasa vigente al empezar; si cambia mientras se arma y aún no tiene pagos, se avisa y se actualiza antes del primer pago; con pagos, conserva la suya.
 - **RF-19** (Opcional, posterior) Obtener la tasa BCV automáticamente, con la carga manual como respaldo.
 
 ### 6.5 Ventas
 
 - **RF-20** Pantalla de venta: buscar productos, agregar cantidades y ver el total en **USD y en Bs** (tasa BCV vigente).
 - **RF-21** Validar cantidades según la unidad: decimales para metros y enteros para unidades. En productos por metro, el vendedor puede escribir la cantidad en **metros o en centímetros** (ej. 30 cm); el sistema la convierte a metros (0,30 m), calcula el precio (precio por metro × 0,30) y descuenta 0,30 m del inventario.
-- **RF-22** **Descuentos**: pueden aplicarse a un ítem o al total de la venta, como monto en USD o como porcentaje. El vendedor solo puede aplicarlos con autorización del admin, mediante PIN del admin en el momento o mediante solicitud que el admin aprueba. Queda registrado quién autorizó.
+- **RF-22** **Descuentos**: pueden aplicarse a un ítem o al total de la venta, como monto en USD o como porcentaje. El vendedor solo puede aplicarlos con autorización del admin, mediante PIN del admin en el momento o mediante solicitud que el admin aprueba (tal cual o con un valor menor del mismo tipo) o rechaza. Queda registrado quién autorizó y, en las solicitudes, el valor pedido y el aprobado.
 - **RF-23** **Pagos mixtos**: una venta puede pagarse con uno o varios métodos hasta cubrir el total.
 - **RF-24** Métodos de pago:
 
@@ -157,9 +157,9 @@ Cada requisito tiene un identificador (`RF-XX`) para poder referenciarlo en tare
 | Zelle | USD | ✅ |
 | Binance USDT | USDT (1:1 USD) | ✅ |
 
-- **RF-25** Calcular el **vuelto** cuando el pago excede el total y registrar en qué método y moneda se entregó.
+- **RF-25** Calcular el **vuelto** cuando el pago excede el total y registrar en qué método y moneda se entregó. Puede entregarse en uno o varios métodos y ser menor o igual que el excedente (por ejemplo, sin sencillo); la diferencia queda como sobrepago de la venta.
 - **RF-26** Cada venta guarda: número correlativo, fecha y hora, vendedor, caja, ítems con precio unitario en USD, tasa BCV usada, descuentos, pagos y vuelto.
-- **RF-27** Solo el admin puede anular una venta, con motivo obligatorio. La anulación devuelve el stock y revierte los movimientos de caja.
+- **RF-27** Solo el admin puede anular una venta, con motivo obligatorio. La anulación es de la venta completa, devuelve el stock y revierte los movimientos de caja. No hay devoluciones parciales: se anula y se registra una venta nueva con lo que el cliente se queda.
 - **RF-28** Cliente opcional en la venta: nombre, cédula o RIF y teléfono. Será obligatorio para ventas a crédito en la fase 2.
 
 ### 6.6 Caja
@@ -326,4 +326,4 @@ El detalle va en `docs/plan-de-fases.md`.
 | 0.7 | 2026-10-07 | Aclaraciones de la etapa 1.1a: jornada de 12 horas e instalación con código secreto (RF-44); un rol por usuario y contraseña temporal asignada por el admin (RF-45). |
 | 0.8 | 2026-10-08 | Aclaraciones de la etapa 1.1b: costo inicial fijado por el admin mientras no haya compras confirmadas (RN-09); un solo precio de venta por producto, sin precios de mayorista en la Fase 1 (RN-18). Respondida la pregunta abierta sobre mayoristas. Salidas de inventario del Almacén con aprobación del admin y conteos aplicados solo por el admin (RN-19, matriz de permisos). Solo el admin publica productos en el catálogo y el vendedor no ve el kardex (matriz de permisos). |
 | 0.9 | 2026-10-13 | Aclaraciones de la etapa 1.2: si al confirmar una compra el stock previo es cero o negativo, o el producto no tiene costo, el costo pasa a ser el costo final por unidad de la compra, sin promediar (RN-09; respondida la pregunta abierta). El Almacén registra y confirma compras y ve los costos de factura que escribe, pero no el costo promedio ni márgenes (matriz de permisos). La carga de la tasa BCV (RF-17, RN-15) se adelanta a la etapa 1.2 y se confirma el supuesto 2 (§9, §11). Gastos de las compras (importaciones): por porcentaje de la factura o monto fijo, lista de gastos frecuentes y costo final por unidad repartido por valor (RF-14, RN-20, RN-09, matriz de permisos, §5.4). |
-| 0.10 | 2026-10-15 | Respondidas las preguntas abiertas de la etapa 1.3: con conexión se permite vender sin stock suficiente, con advertencia y alerta al admin por el stock negativo (RN-10); sin conexión se permiten descuentos, con la venta marcada para revisión del admin (RN-07). La apertura de caja (RF-29, RF-30, RN-16) se adelanta de la etapa 1.4 a la 1.3 (§11). |
+| 0.10 | 2026-10-15 | Respondidas las preguntas abiertas de la etapa 1.3: con conexión se permite vender sin stock suficiente, con advertencia y alerta al admin por el stock negativo (RN-10); sin conexión se permiten descuentos, con la venta marcada para revisión del admin (RN-07). La apertura de caja (RF-29, RF-30, RN-16) se adelanta de la etapa 1.4 a la 1.3 (§11). Aclaraciones de la etapa 1.3: tasa de cada venta al empezarla (RF-18), aprobación de descuentos con un valor menor (RF-22), vuelto menor o igual que el excedente con sobrepago (RF-25) y anulación solo completa (RF-27). |
