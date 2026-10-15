@@ -2,9 +2,22 @@
 
 Cambios por funcionalidad terminada (RNF-09). Formato basado en
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Cada etapa terminada de la
-Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, y así sucesivamente.
+Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3.0`, y así sucesivamente.
 
 ## [Sin publicar]
+
+## [0.3.0] — 2026-10-15 — Etapa 1.2: proveedores, compras y tasa BCV
+
+Validada en producción: carga de la tasa del día, compra real registrada y confirmada
+con su entrada en el kardex y el costo promedio, y respaldo nocturno restaurado en local
+junto con las fotos.
+
+### Corregido
+
+- Respaldo diario: la copia de fotos compara tamaño y MD5 (`rclone --checksum`) en
+  lugar de la fecha, que Supabase y Cloud Storage guardan con distinta precisión. Desde
+  el 2026-10-14 el paso fallaba con `immutable file modified` sobre una foto ya copiada;
+  los volcados de la base sí se subieron (RNF-06, ADR-0009).
 
 ### Añadido
 

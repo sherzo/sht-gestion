@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.1 |
-| Fecha | 2026-10-13 |
-| Estado | Vigente (etapas 1.0 y 1.1 terminadas; en curso: 1.2) |
+| Versión | 1.2 |
+| Fecha | 2026-10-15 |
+| Estado | Vigente (etapas 1.0, 1.1 y 1.2 terminadas; siguiente: 1.3) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,
@@ -84,7 +84,7 @@ La etapa 1.1 completa se publicó como versión `0.2.0`.
 | **Requisitos** | RF-13 a RF-17, RN-03, RN-05, RN-09, RN-14, RN-15, RN-20 |
 | **Entregables** | Proveedores; compras en USD o Bs en borrador y confirmadas; gastos de la compra (porcentaje o monto fijo) con costo final por unidad y gastos frecuentes; costo promedio ponderado; anulación de compras por el admin; carga, corrección auditada e histórico de la tasa BCV (adelantados de la 1.3 para las compras en Bs) |
 | **Terminada cuando** | Las pruebas del costo promedio (incluida la anulación) pasan con los casos compartidos; una compra confirmada no puede modificarse ni en la base de datos |
-| **Estado** | Integrada a `main` y desplegada (`specs/003-proveedores-compras/`): pruebas automatizadas, recorrido del quickstart y revisión de seguridad y de código hechos; falta la validación en producción (compra real y restauración del respaldo) para cerrarla como versión `0.3.0` |
+| **Estado** | ✅ Terminada el 2026-10-15 (`specs/003-proveedores-compras/`): pruebas automatizadas del costo promedio con los casos compartidos e inmutabilidad en la base, revisión de seguridad y de código, escenarios del quickstart recorridos por el dueño y validación en producción (tasa del día, compra real con kardex y costo, y respaldo con fotos restaurado en local). Publicada como versión `0.3.0` |
 
 ### 1.3 — Ventas multimoneda, pagos mixtos y descuentos
 
