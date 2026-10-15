@@ -60,9 +60,9 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 **Purpose**: dependencias nuevas, ejecutor de pruebas de TypeScript y casos compartidos (R1, R2).
 
-- [ ] T001 Agregar `decimal.js` a `packages/shared/package.json` (dependencia) y `dexie` a `frontend/package.json` (dependencia), con versiones exactas publicadas hace al menos dos semanas; `pnpm install` y comprobar que `pnpm-lock.yaml` cambia solo por ellas (R1, R4)
-- [ ] T002 Agregar a `packages/shared/package.json` el script `"test": "node --test src/**/*.test.ts"`; a la raíz `package.json` el script `"test": "pnpm -r --if-present test"`; y a `.github/workflows/ci.yml`, en el trabajo `frontend`, el paso `pnpm test` antes de `pnpm typecheck` (R2)
-- [ ] T003 Crear `packages/shared/test-vectors/money.json` con la estructura `{"quantities": [...], "sales": [...], "payments": [...]}` y estos casos de la spec y de research R1:
+- [X] T001 Agregar `decimal.js` a `packages/shared/package.json` (dependencia) y `dexie` a `frontend/package.json` (dependencia), con versiones exactas publicadas hace al menos dos semanas; `pnpm install` y comprobar que `pnpm-lock.yaml` cambia solo por ellas (R1, R4)
+- [X] T002 Agregar a `packages/shared/package.json` el script `"test": "node --test src/**/*.test.ts"`; a la raíz `package.json` el script `"test": "pnpm -r --if-present test"`; y a `.github/workflows/ci.yml`, en el trabajo `frontend`, el paso `pnpm test` antes de `pnpm typecheck` (R2)
+- [X] T003 Crear `packages/shared/test-vectors/money.json` con la estructura `{"quantities": [...], "sales": [...], "payments": [...]}` y estos casos de la spec y de research R1:
   - **Cantidades**: `30` cm → `0.30`; `0,305` m → error "admite como máximo 2 decimales"; `30,5` cm → error; `1.5` en unidad → error "solo admite cantidades enteras"; `0` → error.
   - **Venta de la US2**: 2 × `3.25` + `0.30` × `4.00` a tasa `36.50` → subtotales `6.50` y `1.20`, total `7.70`, Bs `281.05`.
   - **Descuentos**: línea `20.00` con `10 %` → descuento `2.00`, neto `18.00`; descuento total de `5.00` sobre netos `10.00`, `10.00` y `10.00` → cada parte se redondea a `1.67` y el residuo `-0.01` va a la primera de mayor neto, así que el reparto es `1.66`, `1.67` y `1.67`, con la suma exacta; descuento del `100 %` → `0.00`.
@@ -80,24 +80,24 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 **⚠️ CRITICAL**: ninguna historia empieza antes de terminar esta fase.
 
-- [ ] T004 [P] Agregar a `backend/app/domain/money.py` `ves_to_usd(amount_ves, rate) -> Decimal` (`round_usd(amount_ves / rate)`, RN-06) y `usd_to_ves(amount_usd, rate) -> Decimal` (`round_usd(amount_usd * rate)`, RN-02); actualizar el docstring del módulo (ADR-0004)
-- [ ] T005 [P] Crear `backend/app/domain/sale_math.py` con las dataclasses inmutables `LineInput` (`id`, `unit_price_usd`, `quantity`, `discount_type`, `discount_value`), `MoneyInput` (`method`, `currency`, `amount`) y `SaleInput` (`rate`, `lines`, `discount_type`, `discount_value`, `payments`, `change`), y la función pura `compute_sale(sale: SaleInput) -> SaleResult`, siguiendo la tabla de ADR-0004 y research R1:
+- [X] T004 [P] Agregar a `backend/app/domain/money.py` `ves_to_usd(amount_ves, rate) -> Decimal` (`round_usd(amount_ves / rate)`, RN-06) y `usd_to_ves(amount_usd, rate) -> Decimal` (`round_usd(amount_usd * rate)`, RN-02); actualizar el docstring del módulo (ADR-0004)
+- [X] T005 [P] Crear `backend/app/domain/sale_math.py` con las dataclasses inmutables `LineInput` (`id`, `unit_price_usd`, `quantity`, `discount_type`, `discount_value`), `MoneyInput` (`method`, `currency`, `amount`) y `SaleInput` (`rate`, `lines`, `discount_type`, `discount_value`, `payments`, `change`), y la función pura `compute_sale(sale: SaleInput) -> SaleResult`, siguiendo la tabla de ADR-0004 y research R1:
   - Por línea: `line_subtotal_usd = round_usd(precio × cantidad)`; descuento propio en monto (> 0 y ≤ subtotal) o en porcentaje (`round_usd(subtotal × % ÷ 100)`, % > 0 y ≤ 100).
   - Venta: `subtotal_usd` = Σ netos de línea; descuento total sobre esa suma; reparto proporcional al neto de cada línea con `round_usd`, residuo a la línea de mayor neto (la primera si hay empate) y suma exacta; `total_usd`; `total_ves = usd_to_ves(total, tasa)`.
   - Pagos: `amount_usd` de cada uno (VES → `ves_to_usd`; USD y USDT → 1:1); `paid_usd`, `balance_usd`, `balance_ves = usd_to_ves(balance)` y `excess_usd`.
   - Vuelto: `change_usd`, que debe ser ≤ excedente (si no, `ValueError` con mensaje en español), y `overpaid_usd = excess − change`.
   - Validaciones: los límites de R16 (100 líneas, 10 pagos, 5 vueltos) lanzan `ValueError`.
   - Sin acceso a la base de datos (RF-21, RF-22, RF-25, RN-02, RN-04, RN-06)
-- [ ] T006 [P] Crear `backend/tests/test_sale_math.py` (sin marca `db`). Recorre todos los casos de `packages/shared/test-vectors/money.json`: cantidades con `domain/units.py` (metros `cm ÷ 100`) y ventas y pagos con `domain/sale_math.py`. Además comprueba, con 200 ventas aleatorias de semilla fija, que la suma del reparto es exactamente el descuento total, y con 200 saldos y tasas entre `1.01` y `1000`, que `ves_to_usd(usd_to_ves(saldo))` devuelve el saldo (RN-02, RN-06/FR-013, FR-021, FR-036, FR-040, SC-003)
-- [ ] T007 [P] Crear `packages/shared/src/money.ts`, con `Decimal` de `decimal.js` configurado con `rounding: Decimal.ROUND_HALF_UP` y precisión suficiente:
+- [X] T006 [P] Crear `backend/tests/test_sale_math.py` (sin marca `db`). Recorre todos los casos de `packages/shared/test-vectors/money.json`: cantidades con `domain/units.py` (metros `cm ÷ 100`) y ventas y pagos con `domain/sale_math.py`. Además comprueba, con 200 ventas aleatorias de semilla fija, que la suma del reparto es exactamente el descuento total, y con 200 saldos y tasas entre `1.01` y `1000`, que `ves_to_usd(usd_to_ves(saldo))` devuelve el saldo (RN-02, RN-06/FR-013, FR-021, FR-036, FR-040, SC-003)
+- [X] T007 [P] Crear `packages/shared/src/money.ts`, con `Decimal` de `decimal.js` configurado con `rounding: Decimal.ROUND_HALF_UP` y precisión suficiente:
   - `validateQuantity(text, unitDecimals, enteredUnit: "m" | "cm" | "unit")`, que convierte cm→m y devuelve la cantidad como cadena o el mismo mensaje de error en español que `domain/units.py`;
   - `computeSale(input)`, con la misma entrada y salida que `compute_sale` en cadenas;
   - `suggestedVes(balanceUsd, rate)`.
   Solo sintaxis de TypeScript borrable (sin `enum` ni `namespace`). Exportarlo desde `packages/shared/src/index.ts` (R1, R2)
-- [ ] T008 [P] Crear `packages/shared/src/money.test.ts` con `node:test` y `node:assert`: lee `../test-vectors/money.json` y recorre todos los casos contra `money.ts`. Comprobar que `pnpm test` pasa (FR-040, SC-003)
-- [ ] T009 [P] Crear `packages/shared/src/uuid.ts` con `uuidv7(): string` (RFC 9562: 48 bits de milisegundos, versión 7, variante 10 y el resto de `crypto.getRandomValues`) y un caso en `packages/shared/src/uuid.test.ts` que verifica el formato y el orden creciente de 1.000 ids; exportarlo desde `index.ts` (R4)
-- [ ] T010 [P] Crear `backend/app/domain/series.py` con `series_for(n: int) -> str` (1 → `A`, 26 → `Z`, 27 → `AA`, 702 → `ZZ`, 703 → `AAA`; más de 3 letras → `ValueError`). Crear también `backend/app/domain/customer_document.py` con `normalize_document(text) -> str`: con `V` o `E` sin guiones es siempre cédula `^[VE]-\d{6,8}$` (acepta `v12345678`, `V 12.345.678`); `V123456789` → `ValueError` "Para un RIF de persona natural escribe los guiones, por ejemplo V-12345678-9"; escrito con guiones y dígito verificador (`V-12345678-9`), o con `J`, `G`, `P` o `C`, es RIF con `normalize_rif`. Pruebas de ambos en `backend/tests/test_series_domain.py` y `backend/tests/test_customer_document.py` (R3, R11)
-- [ ] T011 Agregar a `backend/app/db/models.py` los modelos `Device`, `CashSession`, `Customer`, `PaymentMethod`, `Sale`, `SaleItem`, `Payment`, `SaleVoid`, `DiscountAuthorization` y `OutboxOperation`, exactamente como en data-model.md, con estas reglas literales:
+- [X] T008 [P] Crear `packages/shared/src/money.test.ts` con `node:test` y `node:assert`: lee `../test-vectors/money.json` y recorre todos los casos contra `money.ts`. Comprobar que `pnpm test` pasa (FR-040, SC-003)
+- [X] T009 [P] Crear `packages/shared/src/uuid.ts` con `uuidv7(): string` (RFC 9562: 48 bits de milisegundos, versión 7, variante 10 y el resto de `crypto.getRandomValues`) y un caso en `packages/shared/src/uuid.test.ts` que verifica el formato y el orden creciente de 1.000 ids; exportarlo desde `index.ts` (R4)
+- [X] T010 [P] Crear `backend/app/domain/series.py` con `series_for(n: int) -> str` (1 → `A`, 26 → `Z`, 27 → `AA`, 702 → `ZZ`, 703 → `AAA`; más de 3 letras → `ValueError`). Crear también `backend/app/domain/customer_document.py` con `normalize_document(text) -> str`: con `V` o `E` sin guiones es siempre cédula `^[VE]-\d{6,8}$` (acepta `v12345678`, `V 12.345.678`); `V123456789` → `ValueError` "Para un RIF de persona natural escribe los guiones, por ejemplo V-12345678-9"; escrito con guiones y dígito verificador (`V-12345678-9`), o con `J`, `G`, `P` o `C`, es RIF con `normalize_rif`. Pruebas de ambos en `backend/tests/test_series_domain.py` y `backend/tests/test_customer_document.py` (R3, R11)
+- [X] T011 Agregar a `backend/app/db/models.py` los modelos `Device`, `CashSession`, `Customer`, `PaymentMethod`, `Sale`, `SaleItem`, `Payment`, `SaleVoid`, `DiscountAuthorization` y `OutboxOperation`, exactamente como en data-model.md, con estas reglas literales:
   - **`device`**: `name` "1–60 caracteres"; `series` "`^[A-Z]{1,3}$`, única"; `last_sequence_number` "≥ 0"; `token_hash` único; `revoked_at`/`revoked_by` "Se fijan juntos".
   - **`cash_session`**: `opening_float_ves` y `opening_float_usd` "≥ 0"; `status` "`open`"; `outbox_operation_id` único.
   - **`customer`**: `name` "2–100 caracteres"; `document_id` "Cédula `^[VE]-\d{6,8}$` o RIF `^[JGVEPC]-\d{8}-\d$`; índice único"; `phone` "Hasta 30 caracteres".
@@ -119,7 +119,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - **`discount_authorization`**: `method` "`pin` o `request`"; `status` "`pending`, `approved` o `rejected`"; `decided_by`/`decided_at` juntos con `approved` o `rejected`; `discount_value` ≤ `requested_value`; `rejection_reason` "hasta 200 caracteres".
   - **`outbox_operation`**: `operation_type` "`cash_session.open`, `sale.create`"; `status` "`processed` o `rejected`"; `schema_version` 1.
   - **FK nuevas**: `UserSession.device_id`, `StockMovement.device_id` y `AuditLog.device_id` → `device.id`, y se quitan los comentarios "Sin FK hasta la etapa 1.3".
-- [ ] T012 Crear la migración `backend/migrations/versions/0006_ventas_y_caja.py` (revisión `0006`, anterior `0005`) con las diez tablas y los `CHECK` de T011. Incluye además:
+- [X] T012 Crear la migración `backend/migrations/versions/0006_ventas_y_caja.py` (revisión `0006`, anterior `0005`) con las diez tablas y los `CHECK` de T011. Incluye además:
   - **Índices**: único parcial `cash_session (device_id) WHERE status = 'open'`; `sale (business_date DESC)`, `sale (seller_id, business_date)`, `sale (customer_id)` y `sale_item (product_id)`; `discount_authorization (status, requested_at) WHERE status = 'pending'`.
   - **Datos iniciales**: los seis métodos de pago de data-model.md con su `sort_order`, e `INSERT INTO sequence_counter VALUES ('device_series', 1)`.
   - **Tipos de alerta**: amplía `ck_alert_type_valid` con `negative_stock`, `price_mismatch`, `total_mismatch`, `rate_mismatch`, `discount_review` e `inactive_user_sync`.
@@ -133,7 +133,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
     - `payment`: rechaza la fila si el método exige referencia y `reference` es nula.
   - **`downgrade`**: lo quita todo y restaura el `CHECK` de alertas.
   - Comprobar `alembic upgrade head`, `downgrade 0005` y `upgrade head` contra el Postgres local (FR-044, SC-010)
-- [ ] T013 Ampliar `backend/tests/conftest.py`:
+- [X] T013 Ampliar `backend/tests/conftest.py`:
   - Agregar a `TABLES` las tablas nuevas, en orden de dependencias: `payment`, `sale_void`, `sale_item`, `sale`, `discount_authorization`, `cash_session`, `customer`, `outbox_operation` y `device`.
   - Agregar `payment_method` y `sequence_counter` a `SEEDED_TABLES`, para que cada prueba empiece con los métodos y `device_series = 1`.
   - Fábricas:
@@ -142,24 +142,24 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
     - `open_cash_session(headers, token, float_ves="0.00", float_usd="0.00") -> dict`: por la API `POST /sync/operations`;
     - `make_sale(headers, token, cash_session_id, items=[(product, quantity, entered_unit)], payments=[(method, amount, reference)], change=[], discount=None, customer=None, sequence_number=None, seller_id=None, rate=None) -> dict`: arma un `SaleInput` válido con precios del producto y totales de `compute_sale`, y lo envía por `POST /sync/operations`.
   - Las fábricas por la API funcionan desde que existen los endpoints (T018, T031)
-- [ ] T014 Crear `backend/app/services/devices.py`:
+- [X] T014 Crear `backend/app/services/devices.py`:
   - `register_device(db, *, actor, name) -> tuple[Device, str]`: toma y avanza la fila `device_series` con `FOR UPDATE`, genera la serie con `series_for`, crea un token de 32 bytes con `secrets.token_urlsafe` y guarda `sha256` en hex; audita `device.registered`.
   - `revoke_device(db, *, actor, device_id)`: 409 `invalid_state` si ya estaba revocado; audita `device.revoked`.
   - `list_devices(db)`.
   - `device_from_token(db, token) -> Device`: 403 `device_required` si falta o no existe; devuelve el equipo aunque esté revocado.
   - `ensure_active(device, *, at: datetime | None = None)`: 403 `device_revoked` si está revocado y `at` es nulo o posterior a `revoked_at` (FR-002).
   - (R3, FR-001 a FR-004)
-- [ ] T015 Agregar a `backend/app/api/deps.py` la dependencia `CurrentDevice`, que lee `X-Device-Token`, llama a `device_from_token` y devuelve el `Device` (aunque esté revocado), y `ActiveDevice`, que además llama a `ensure_active(device)` para `/devices/current` y las autorizaciones de descuento. Se combina con `require_roles(...)` en los endpoints de mostrador; la prueba de declaraciones de rutas (`test_route_declarations.py`) debe seguir pasando (R3)
-- [ ] T016 Crear `backend/app/services/sync.py` con `process_operation(db, *, device, user, operation: OutboxOperationIn) -> tuple[int, dict]`:
+- [X] T015 Agregar a `backend/app/api/deps.py` la dependencia `CurrentDevice`, que lee `X-Device-Token`, llama a `device_from_token` y devuelve el `Device` (aunque esté revocado), y `ActiveDevice`, que además llama a `ensure_active(device)` para `/devices/current` y las autorizaciones de descuento. Se combina con `require_roles(...)` en los endpoints de mostrador; la prueba de declaraciones de rutas (`test_route_declarations.py`) debe seguir pasando (R3)
+- [X] T016 Crear `backend/app/services/sync.py` con `process_operation(db, *, device, user, operation: OutboxOperationIn) -> tuple[int, dict]`:
   1. Bloquea la clave con `pg_advisory_xact_lock(hashtext(id::text))`, así dos envíos simultáneos del mismo id se serializan.
   2. Busca la fila de `outbox_operation` con ese id; si existe, devuelve su `http_status` y su `result` o `error` sin volver a procesar.
   3. Si no existe, llama a `ensure_active(device, at=operation.created_at)`: una operación creada después de revocar el equipo es un rechazo 403 `device_revoked`, guardado como los demás rechazos; una anterior se procesa (FR-002). Luego despacha por `operation_type` a un registro de manejadores (`HANDLERS: dict[str, Callable]`, vacío en esta tarea). Tipo desconocido → 409 `operation_type_unknown`.
   4. Inserta la fila con su resultado: `processed`/200, o `rejected` con `http_status` y `error` para cualquier `ApiError` 403 `device_revoked`, 409 o 422 (los cambios del manejador se deshacen con un punto de guardado antes de guardar el rechazo). Los demás errores se propagan sin guardar nada (son transitorios).
   5. Todo ocurre en la transacción de la petición; la fila y lo que crea el manejador se confirman juntos (R4, FR-018).
   - (R4, FR-017)
-- [ ] T017 [P] Ampliar `backend/app/services/alerts.py`: actualizar el docstring con los tipos de R6 y agregar `create_sale_alert(db, *, type, sale, details)`, que fija `entity_type = 'sale'` e incluye `sale_number` en `details` (R6)
-- [ ] T018 Crear `backend/app/api/sync.py` con `POST /sync/operations` (`require_roles(ADMIN, SELLER)` + `CurrentDevice`). Entrada `OutboxOperationIn` con `extra="forbid"`: `id` UUID, `operation_type`, `schema_version == 1`, `created_at` con zona horaria y `payload` dict. Llama a `process_operation`, confirma la transacción y responde con el `http_status` y el cuerpo guardados (los rechazos con el formato de error común). Registrar el router en `backend/app/main.py` (R4)
-- [ ] T019 [P] Crear `backend/tests/test_sync_idempotency.py` (marca `db`) con un manejador de prueba registrado en `HANDLERS` mediante un fixture:
+- [X] T017 [P] Ampliar `backend/app/services/alerts.py`: actualizar el docstring con los tipos de R6 y agregar `create_sale_alert(db, *, type, sale, details)`, que fija `entity_type = 'sale'` e incluye `sale_number` en `details` (R6)
+- [X] T018 Crear `backend/app/api/sync.py` con `POST /sync/operations` (`require_roles(ADMIN, SELLER)` + `CurrentDevice`). Entrada `OutboxOperationIn` con `extra="forbid"`: `id` UUID, `operation_type`, `schema_version == 1`, `created_at` con zona horaria y `payload` dict. Llama a `process_operation`, confirma la transacción y responde con el `http_status` y el cuerpo guardados (los rechazos con el formato de error común). Registrar el router en `backend/app/main.py` (R4)
+- [X] T019 [P] Crear `backend/tests/test_sync_idempotency.py` (marca `db`) con un manejador de prueba registrado en `HANDLERS` mediante un fixture:
   - reenvío del mismo id → mismo código y cuerpo, y el manejador se ejecuta una sola vez;
   - 10 envíos simultáneos del mismo id con hilos y sesiones separadas → una sola ejecución (SC-004);
   - un rechazo 422 guardado se repite igual;
@@ -169,12 +169,12 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - equipo revocado: una operación con `created_at` anterior a la revocación se procesa, y una posterior → 403 `device_revoked`, guardado y repetido al reenviar (FR-002);
   - Almacén → 403.
   - (ADR-0003/FR-017, SC-004)
-- [ ] T020 [P] Crear `frontend/src/lib/device/device-store.ts` con Dexie (base `sht-mostrador`, versión 1, tablas `device` y `outbox`):
+- [X] T020 [P] Crear `frontend/src/lib/device/device-store.ts` con Dexie (base `sht-mostrador`, versión 1, tablas `device` y `outbox`):
   - `getDevice()`, `saveDevice({id, name, series, token, nextSequence})`, `clearDevice()`;
   - `takeSequenceNumber()`: lee y aumenta `nextSequence` en una transacción de Dexie;
   - `syncSequence(serverLast)`: fija `nextSequence = max(local, serverLast + 1)`;
   - llamar a `navigator.storage.persist()` la primera vez que se guarda el equipo (R3, R5, ADR-0003).
-- [ ] T021 Crear `frontend/src/lib/outbox/outbox.ts`:
+- [X] T021 Crear `frontend/src/lib/outbox/outbox.ts`:
   - `enqueue(type, payload) -> {id}`: id con `uuidv7()`, estado `pending` y hora del equipo; devuelve el id.
   - `flush()`: envía en orden por `createdAt`, de a una, a `POST /sync/operations` con el cliente de `lib/api/client.ts` y la cabecera `X-Device-Token`.
     - 200 → `sent`, con el resultado;
@@ -184,8 +184,8 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - `waitFor(id, timeoutMs)`: espera el resultado de una operación para la pantalla.
   - `usePendingCount()`: hook de React que cuenta `pending` y `rejected`.
   - (R4, FR-017)
-- [ ] T022 [P] Agregar a `packages/shared/src/audit-actions.ts` el grupo "Ventas y caja" con las acciones de research R15 y sus etiquetas: `device.registered` "Equipo registrado", `device.revoked` "Equipo revocado", `cash_session.opened` "Caja abierta", `sale.discounted` "Venta con descuento", `discount_authorization.requested` "Descuento solicitado", `discount_authorization.approved` "Descuento aprobado", `discount_authorization.rejected` "Descuento rechazado" y `sale.voided` "Venta anulada" (FR-050)
-- [ ] T023 [P] Agregar a `NAV_ITEMS` en `frontend/src/components/app-shell.tsx`: `Vender` (`/vender/`, ícono `ShoppingBag`, Admin y Vendedor), `Ventas` (`/ventas/`, ícono `ReceiptText`, Admin y Vendedor), `Caja` (`/caja/`, ícono `Wallet`, Admin y Vendedor) y, en Configuración, `Equipos` (`/configuracion/equipos/`, solo Admin). Agregar también:
+- [X] T022 [P] Agregar a `packages/shared/src/audit-actions.ts` el grupo "Ventas y caja" con las acciones de research R15 y sus etiquetas: `device.registered` "Equipo registrado", `device.revoked` "Equipo revocado", `cash_session.opened` "Caja abierta", `sale.discounted` "Venta con descuento", `discount_authorization.requested` "Descuento solicitado", `discount_authorization.approved` "Descuento aprobado", `discount_authorization.rejected` "Descuento rechazado" y `sale.voided` "Venta anulada" (FR-050)
+- [X] T023 [P] Agregar a `NAV_ITEMS` en `frontend/src/components/app-shell.tsx`: `Vender` (`/vender/`, ícono `ShoppingBag`, Admin y Vendedor), `Ventas` (`/ventas/`, ícono `ReceiptText`, Admin y Vendedor), `Caja` (`/caja/`, ícono `Wallet`, Admin y Vendedor) y, en Configuración, `Equipos` (`/configuracion/equipos/`, solo Admin). Agregar también:
   - en la barra, el indicador "Ventas pendientes de envío: N" con `usePendingCount()`, visible solo si N > 0, que enlaza a un panel con las operaciones pendientes y rechazadas y su motivo;
   - un aviso de confirmación al cerrar sesión con operaciones pendientes (R14, ADR-0003)
 

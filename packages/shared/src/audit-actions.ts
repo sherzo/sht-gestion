@@ -87,6 +87,19 @@ export const AUDIT_ACTION_GROUPS = [
     },
   },
   {
+    label: "Ventas y caja",
+    actions: {
+      "device.registered": "Equipo registrado",
+      "device.revoked": "Equipo revocado",
+      "cash_session.opened": "Caja abierta",
+      "sale.discounted": "Venta con descuento",
+      "discount_authorization.requested": "Descuento solicitado",
+      "discount_authorization.approved": "Descuento aprobado",
+      "discount_authorization.rejected": "Descuento rechazado",
+      "sale.voided": "Venta anulada",
+    },
+  },
+  {
     label: "Configuración",
     actions: {
       "category.created": "Categoría creada",

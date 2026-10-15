@@ -18,6 +18,7 @@ from app.api import (
     setup,
     stock_counts,
     suppliers,
+    sync,
     users,
 )
 from app.core.config import get_settings
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
     api_v1.include_router(exchange_rates.router)
     api_v1.include_router(charge_templates.router)
     api_v1.include_router(alerts.router)
+    api_v1.include_router(sync.router)
     app.include_router(api_v1)
 
     # Fotos en disco solo en desarrollo y pruebas; en producción las sirve Supabase (R9).

@@ -8,6 +8,9 @@
 - Proveedores, compras y tasa BCV (RF-13 a RF-17): specs/003-proveedores-compras/
   data-model.md y docs/modelo-de-datos.md §3.4 y §3.5; los crea la migración 0005. Las
   reglas (`CHECK` y triggers) viven en la migración.
+- Equipos, caja, ventas, pagos y descuentos (RF-18, RF-20 a RF-30):
+  specs/004-ventas-multimoneda/data-model.md y docs/modelo-de-datos.md §3.1 y §3.6 a
+  §3.8; los crea la migración 0006, con sus reglas.
 """
 
 import uuid
@@ -103,8 +106,7 @@ class UserSession(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"), index=True)
-    # Sin FK hasta que la etapa 1.3 cree la tabla `device`.
-    device_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    device_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("device.id"))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -134,7 +136,7 @@ class AuditLog(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
-    device_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    device_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("device.id"))
     action: Mapped[str] = mapped_column(Text)
     entity_type: Mapped[str | None] = mapped_column(Text)
     entity_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
@@ -342,8 +344,7 @@ class StockMovement(Base):
     reference_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
-    # Sin FK hasta que la etapa 1.3 cree la tabla `device`.
-    device_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    device_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("device.id"))
 
 
 class AdjustmentRequest(Base):
@@ -600,3 +601,233 @@ class SequenceCounter(Base):
 
     name: Mapped[str] = mapped_column(Text, primary_key=True)
     next_number: Mapped[int] = mapped_column(BigInteger)
+
+
+# --- Ventas, pagos, descuentos y apertura de caja (etapa 1.3) -------------------------
+# specs/004-ventas-multimoneda/data-model.md; migración 0006, que impone los CHECK, la
+# caja abierta única por equipo y la inmutabilidad de ventas, pagos y anulaciones
+# (RN-12, research R9). Las tablas con "id del equipo" reciben el UUIDv7 generado en el
+# navegador (ADR-0003).
+
+SALE_ALERT_TYPES = (
+    "negative_stock",
+    "price_mismatch",
+    "total_mismatch",
+    "rate_mismatch",
+    "discount_review",
+    "inactive_user_sync",
+)
+PAYMENT_KINDS = ("sale_payment", "change", "void_refund", "void_change")
+AUTHORIZATION_METHODS = ("pin", "request", "admin_self")
+OPERATION_TYPES = ("cash_session.open", "sale.create")
+
+
+class Device(Base):
+    """Equipo de mostrador con su serie de numeración (FR-001 a FR-004; RN-11, R3)."""
+
+    __tablename__ = "device"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    name: Mapped[str] = mapped_column(Text)
+    series: Mapped[str] = mapped_column(Text, unique=True)
+    last_sequence_number: Mapped[int] = mapped_column(Integer, default=0)
+    token_hash: Mapped[str] = mapped_column(Text, unique=True)
+    registered_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+
+
+class OutboxOperation(Base):
+    """Operación del mostrador recibida por la cola (ADR-0003, R4): su id es la clave de
+    idempotencia y la fila guarda la respuesta para repetirla en un reenvío."""
+
+    __tablename__ = "outbox_operation"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    device_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("device.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    operation_type: Mapped[str] = mapped_column(Text)
+    schema_version: Mapped[int] = mapped_column(SmallInteger)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at_device: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(Text)
+    http_status: Mapped[int] = mapped_column(SmallInteger)
+    # SQL NULL (no `null` de JSON) cuando no aplica: el CHECK de la migración lo exige.
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
+    error: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
+
+
+class CashSession(Base):
+    """Caja abierta en un equipo con su fondo inicial (RF-29, RF-30, RN-16; R7). El cierre
+    llega en la etapa 1.4."""
+
+    __tablename__ = "cash_session"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    device_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("device.id"))
+    business_date: Mapped[date] = mapped_column(Date)
+    opened_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    opening_float_ves: Mapped[Decimal] = mapped_column(VesAmount)
+    opening_float_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    status: Mapped[str] = mapped_column(Text, default="open")
+    outbox_operation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("outbox_operation.id"), unique=True
+    )
+
+
+class Customer(Base):
+    """Cliente opcional de una venta (RF-28/FR-019, R11); no se borra."""
+
+    __tablename__ = "customer"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+    document_id: Mapped[str | None] = mapped_column(Text, unique=True)
+    phone: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+
+
+class PaymentMethod(Base):
+    """Método de pago del catálogo fijo de RF-24; la clave es su código."""
+
+    __tablename__ = "payment_method"
+
+    code: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+    currency: Mapped[str] = mapped_column(Text)
+    requires_reference: Mapped[bool] = mapped_column(Boolean)
+    is_cash: Mapped[bool] = mapped_column(Boolean)
+    sort_order: Mapped[int] = mapped_column(SmallInteger)
+
+
+class DiscountAuthorization(Base):
+    """Autorización de un descuento del Vendedor por PIN o por solicitud (RN-07; R8)."""
+
+    __tablename__ = "discount_authorization"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    sale_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    sale_item_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    product_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("product.id"))
+    discount_type: Mapped[str] = mapped_column(Text)
+    requested_value: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    discount_value: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    base_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    discount_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    method: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    requested_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    device_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("device.id"))
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class Sale(Base):
+    """Venta del mostrador, de solo inserción (RF-26; RN-05, RN-11, RN-12)."""
+
+    __tablename__ = "sale"
+    __table_args__ = (UniqueConstraint("series", "sequence_number"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    device_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("device.id"))
+    series: Mapped[str] = mapped_column(Text)
+    sequence_number: Mapped[int] = mapped_column(Integer)
+    number: Mapped[str] = mapped_column(Text, unique=True)
+    cash_session_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("cash_session.id"))
+    seller_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("customer.id"))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    business_date: Mapped[date] = mapped_column(Date)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    exchange_rate: Mapped[Decimal] = mapped_column(Rate)
+    exchange_rate_date: Mapped[date] = mapped_column(Date)
+    subtotal_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    discount_type: Mapped[str | None] = mapped_column(Text)
+    discount_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    discount_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    discount_authorized_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("app_user.id")
+    )
+    discount_authorization_method: Mapped[str | None] = mapped_column(Text)
+    discount_authorization_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("discount_authorization.id"), unique=True
+    )
+    total_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    total_ves: Mapped[Decimal] = mapped_column(VesAmount)
+    paid_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    change_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    device_total_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False)
+    outbox_operation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("outbox_operation.id"), unique=True
+    )
+
+
+class SaleItem(Base):
+    """Línea de una venta: un producto individual con su precio y descuentos (RN-13)."""
+
+    __tablename__ = "sale_item"
+    __table_args__ = (UniqueConstraint("sale_id", "line_number"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    sale_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("sale.id"))
+    line_number: Mapped[int] = mapped_column(SmallInteger)
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("product.id"))
+    quantity: Mapped[Decimal] = mapped_column(Quantity)
+    entered_unit: Mapped[str] = mapped_column(Text)
+    unit_price_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    server_price_usd: Mapped[Decimal | None] = mapped_column(UsdAmount)
+    line_subtotal_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    item_discount_type: Mapped[str | None] = mapped_column(Text)
+    item_discount_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    item_discount_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    item_discount_authorized_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("app_user.id")
+    )
+    item_discount_authorization_method: Mapped[str | None] = mapped_column(Text)
+    item_discount_authorization_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("discount_authorization.id"), unique=True
+    )
+    allocated_sale_discount_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    line_total_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    unit_cost_usd: Mapped[Decimal | None] = mapped_column(UsdCost)
+
+
+class SaleVoid(Base):
+    """Anulación de una venta, de solo inserción (RF-27/FR-041; R10)."""
+
+    __tablename__ = "sale_void"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    sale_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("sale.id"), unique=True)
+    reason: Mapped[str] = mapped_column(Text)
+    voided_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    voided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Payment(Base):
+    """Dinero que entra o sale por una venta: pago, vuelto o su reverso al anular
+    (RF-23 a RF-25, RN-04 a RN-06; R10). De solo inserción."""
+
+    __tablename__ = "payment"
+    __table_args__ = (UniqueConstraint("sale_id", "kind", "line_number"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    sale_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("sale.id"))
+    line_number: Mapped[int] = mapped_column(SmallInteger)
+    cash_session_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("cash_session.id"))
+    kind: Mapped[str] = mapped_column(Text)
+    payment_method_code: Mapped[str] = mapped_column(Text, ForeignKey("payment_method.code"))
+    currency: Mapped[str] = mapped_column(Text)
+    amount: Mapped[Decimal] = mapped_column(Numeric(16, 2))
+    exchange_rate: Mapped[Decimal] = mapped_column(Rate)
+    amount_usd: Mapped[Decimal] = mapped_column(UsdAmount)
+    reference: Mapped[str | None] = mapped_column(Text)
+    sale_void_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("sale_void.id"))

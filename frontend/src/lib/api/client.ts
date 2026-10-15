@@ -45,6 +45,8 @@ type RequestOptions = {
   authenticated?: boolean;
   /** true para no abrir el reingreso si la sesión ya terminó (por ejemplo, al cerrar sesión). */
   skipReauth?: boolean;
+  /** Encabezados adicionales, como el token del equipo de mostrador (`X-Device-Token`). */
+  headers?: Record<string, string>;
 };
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
@@ -65,7 +67,7 @@ function requestBody(options: RequestOptions): BodyInit | undefined {
 }
 
 async function send(path: string, options: RequestOptions, token: string | null): Promise<Response> {
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const headers: Record<string, string> = { Accept: "application/json", ...options.headers };
   const isForm = options.body instanceof FormData;
   if (!isForm && (options.body !== undefined || options.method === "POST")) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;

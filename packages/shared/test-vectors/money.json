@@ -1,0 +1,324 @@
+{
+  "_description": "Casos compartidos de dinero y cantidades de la venta (ADR-0004, research R1 de specs/004-ventas-multimoneda). Los ejecutan backend/tests/test_sale_math.py y packages/shared/src/money.test.ts: si una de las dos implementaciones difiere, la CI falla. Decimales como cadenas; redondeo mitad hacia arriba.",
+  "quantities": [
+    {"name": "30 cm de manguera son 0,30 m (RF-21)", "input": "30", "entered_unit": "cm", "decimals": 2, "expected": "0.30"},
+    {"name": "100 cm son 1 m", "input": "100", "entered_unit": "cm", "decimals": 2, "expected": "1.00"},
+    {"name": "metros con 2 decimales", "input": "2.5", "entered_unit": "m", "decimals": 2, "expected": "2.50"},
+    {"name": "unidades enteras", "input": "2", "entered_unit": "unit", "decimals": 0, "expected": "2"},
+    {"name": "0,305 m tiene más precisión que el centímetro", "input": "0.305", "entered_unit": "m", "decimals": 2, "error": "Esta unidad admite como máximo 2 decimales"},
+    {"name": "30,5 cm tampoco se redondea", "input": "30.5", "entered_unit": "cm", "decimals": 2, "error": "Esta unidad admite como máximo 2 decimales"},
+    {"name": "1,5 en un producto por unidad", "input": "1.5", "entered_unit": "unit", "decimals": 0, "error": "Esta unidad solo admite cantidades enteras"},
+    {"name": "cantidad cero", "input": "0", "entered_unit": "unit", "decimals": 0, "error": "La cantidad no puede ser cero"},
+    {"name": "cantidad negativa", "input": "-1", "entered_unit": "m", "decimals": 2, "error": "La cantidad no puede ser negativa"}
+  ],
+  "suggested_ves": [
+    {"name": "saldo en Bs con tasa redonda", "balance_usd": "12.34", "rate": "36.50000000", "expected": "450.41"},
+    {"name": "saldo en Bs que redondea hacia arriba", "balance_usd": "12.34", "rate": "36.47290000", "expected": "450.08"},
+    {"name": "saldo cero", "balance_usd": "0.00", "rate": "36.50000000", "expected": "0.00"}
+  ],
+  "sales": [
+    {
+      "name": "venta de la US2: 2 conexiones y 30 cm de manguera, pago en efectivo USD (RN-02)",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [
+          {"id": "l1", "unit_price_usd": "3.25", "quantity": "2", "discount": null},
+          {"id": "l2", "unit_price_usd": "4.00", "quantity": "0.30", "discount": null}
+        ],
+        "discount": null,
+        "payments": [{"method": "cash_usd", "currency": "USD", "amount": "7.70"}],
+        "change": []
+      },
+      "expected": {
+        "lines": [
+          {"id": "l1", "line_subtotal_usd": "6.50", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "6.50"},
+          {"id": "l2", "line_subtotal_usd": "1.20", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "1.20"}
+        ],
+        "subtotal_usd": "7.70", "discount_usd": "0.00", "total_usd": "7.70", "total_ves": "281.05",
+        "payments_usd": ["7.70"], "paid_usd": "7.70", "balance_usd": "0.00", "balance_ves": "0.00",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "descuento del 10 % en una línea de 20,00 (RF-22)",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "20.00", "quantity": "1", "discount": {"type": "percent", "value": "10.00"}}],
+        "discount": null, "payments": [], "change": []
+      },
+      "expected": {
+        "lines": [{"id": "l1", "line_subtotal_usd": "20.00", "item_discount_usd": "2.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "18.00"}],
+        "subtotal_usd": "18.00", "discount_usd": "0.00", "total_usd": "18.00", "total_ves": "657.00",
+        "payments_usd": [], "paid_usd": "0.00", "balance_usd": "18.00", "balance_ves": "657.00",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "descuento de 5,00 sobre el total repartido con residuo en la primera línea de mayor neto (ADR-0004)",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [
+          {"id": "l1", "unit_price_usd": "10.00", "quantity": "1", "discount": null},
+          {"id": "l2", "unit_price_usd": "10.00", "quantity": "1", "discount": null},
+          {"id": "l3", "unit_price_usd": "10.00", "quantity": "1", "discount": null}
+        ],
+        "discount": {"type": "amount", "value": "5.00"}, "payments": [], "change": []
+      },
+      "expected": {
+        "lines": [
+          {"id": "l1", "line_subtotal_usd": "10.00", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "1.66", "line_total_usd": "8.34"},
+          {"id": "l2", "line_subtotal_usd": "10.00", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "1.67", "line_total_usd": "8.33"},
+          {"id": "l3", "line_subtotal_usd": "10.00", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "1.67", "line_total_usd": "8.33"}
+        ],
+        "subtotal_usd": "30.00", "discount_usd": "5.00", "total_usd": "25.00", "total_ves": "912.50",
+        "payments_usd": [], "paid_usd": "0.00", "balance_usd": "25.00", "balance_ves": "912.50",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "descuento sobre el total calculado sobre los netos tras el descuento de ítem, repartido al de mayor neto",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [
+          {"id": "l1", "unit_price_usd": "10.00", "quantity": "2", "discount": {"type": "amount", "value": "5.00"}},
+          {"id": "l2", "unit_price_usd": "5.00", "quantity": "1", "discount": null}
+        ],
+        "discount": {"type": "percent", "value": "10.00"}, "payments": [], "change": []
+      },
+      "expected": {
+        "lines": [
+          {"id": "l1", "line_subtotal_usd": "20.00", "item_discount_usd": "5.00", "allocated_sale_discount_usd": "1.50", "line_total_usd": "13.50"},
+          {"id": "l2", "line_subtotal_usd": "5.00", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.50", "line_total_usd": "4.50"}
+        ],
+        "subtotal_usd": "20.00", "discount_usd": "2.00", "total_usd": "18.00", "total_ves": "657.00",
+        "payments_usd": [], "paid_usd": "0.00", "balance_usd": "18.00", "balance_ves": "657.00",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "descuento del 100 % sobre el total deja la venta en cero",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [
+          {"id": "l1", "unit_price_usd": "10.00", "quantity": "1", "discount": null},
+          {"id": "l2", "unit_price_usd": "5.00", "quantity": "1", "discount": null}
+        ],
+        "discount": {"type": "percent", "value": "100.00"}, "payments": [], "change": []
+      },
+      "expected": {
+        "lines": [
+          {"id": "l1", "line_subtotal_usd": "10.00", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "10.00", "line_total_usd": "0.00"},
+          {"id": "l2", "line_subtotal_usd": "5.00", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "5.00", "line_total_usd": "0.00"}
+        ],
+        "subtotal_usd": "15.00", "discount_usd": "15.00", "total_usd": "0.00", "total_ves": "0.00",
+        "payments_usd": [], "paid_usd": "0.00", "balance_usd": "0.00", "balance_ves": "0.00",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "descuento del 100 % en una línea",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "12.50", "quantity": "1", "discount": {"type": "percent", "value": "100.00"}}],
+        "discount": null, "payments": [], "change": []
+      },
+      "expected": {
+        "lines": [{"id": "l1", "line_subtotal_usd": "12.50", "item_discount_usd": "12.50", "allocated_sale_discount_usd": "0.00", "line_total_usd": "0.00"}],
+        "subtotal_usd": "0.00", "discount_usd": "0.00", "total_usd": "0.00", "total_ves": "0.00",
+        "payments_usd": [], "paid_usd": "0.00", "balance_usd": "0.00", "balance_ves": "0.00",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "pago mixto de la US3: efectivo USD, pago móvil en Bs y Zelle (RN-04, RN-06)",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "50.00", "quantity": "1", "discount": null}],
+        "discount": null,
+        "payments": [
+          {"method": "cash_usd", "currency": "USD", "amount": "20.00"},
+          {"method": "mobile_payment", "currency": "VES", "amount": "730.00"},
+          {"method": "zelle", "currency": "USD", "amount": "10.00"}
+        ],
+        "change": []
+      },
+      "expected": {
+        "lines": [{"id": "l1", "line_subtotal_usd": "50.00", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "50.00"}],
+        "subtotal_usd": "50.00", "discount_usd": "0.00", "total_usd": "50.00", "total_ves": "1825.00",
+        "payments_usd": ["20.00", "20.00", "10.00"], "paid_usd": "50.00", "balance_usd": "0.00", "balance_ves": "0.00",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "USDT cubre 1:1 y un pago en Bs que redondea (RN-04, RN-06)",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "10.00", "quantity": "1", "discount": null}],
+        "discount": null,
+        "payments": [
+          {"method": "binance_usdt", "currency": "USDT", "amount": "5.00"},
+          {"method": "pos_card", "currency": "VES", "amount": "100.00"}
+        ],
+        "change": []
+      },
+      "expected": {
+        "lines": [{"id": "l1", "line_subtotal_usd": "10.00", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "10.00"}],
+        "subtotal_usd": "10.00", "discount_usd": "0.00", "total_usd": "10.00", "total_ves": "365.00",
+        "payments_usd": ["5.00", "2.74"], "paid_usd": "7.74", "balance_usd": "2.26", "balance_ves": "82.49",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "pagar en Bs el saldo sugerido lo deja exactamente en cero",
+      "input": {
+        "rate": "36.47290000",
+        "lines": [{"id": "l1", "unit_price_usd": "12.34", "quantity": "1", "discount": null}],
+        "discount": null,
+        "payments": [{"method": "mobile_payment", "currency": "VES", "amount": "450.08"}],
+        "change": []
+      },
+      "expected": {
+        "lines": [{"id": "l1", "line_subtotal_usd": "12.34", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "12.34"}],
+        "subtotal_usd": "12.34", "discount_usd": "0.00", "total_usd": "12.34", "total_ves": "450.08",
+        "payments_usd": ["12.34"], "paid_usd": "12.34", "balance_usd": "0.00", "balance_ves": "0.00",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "vuelto de 2,30 USD entregado en efectivo Bs (RF-25)",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "7.70", "quantity": "1", "discount": null}],
+        "discount": null,
+        "payments": [{"method": "cash_usd", "currency": "USD", "amount": "10.00"}],
+        "change": [{"method": "cash_ves", "currency": "VES", "amount": "83.95"}]
+      },
+      "expected": {
+        "lines": [{"id": "l1", "line_subtotal_usd": "7.70", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "7.70"}],
+        "subtotal_usd": "7.70", "discount_usd": "0.00", "total_usd": "7.70", "total_ves": "281.05",
+        "payments_usd": ["10.00"], "paid_usd": "10.00", "balance_usd": "0.00", "balance_ves": "0.00",
+        "excess_usd": "2.30", "change_usd": ["2.30"], "change_total_usd": "2.30", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "vuelto en dos métodos: 1,00 USD y 47,45 Bs",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "7.70", "quantity": "1", "discount": null}],
+        "discount": null,
+        "payments": [{"method": "cash_usd", "currency": "USD", "amount": "10.00"}],
+        "change": [
+          {"method": "cash_usd", "currency": "USD", "amount": "1.00"},
+          {"method": "cash_ves", "currency": "VES", "amount": "47.45"}
+        ]
+      },
+      "expected": {
+        "lines": [{"id": "l1", "line_subtotal_usd": "7.70", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "7.70"}],
+        "subtotal_usd": "7.70", "discount_usd": "0.00", "total_usd": "7.70", "total_ves": "281.05",
+        "payments_usd": ["10.00"], "paid_usd": "10.00", "balance_usd": "0.00", "balance_ves": "0.00",
+        "excess_usd": "2.30", "change_usd": ["1.00", "1.30"], "change_total_usd": "2.30", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "vuelto menor que el excedente: la diferencia queda como sobrepago",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "7.70", "quantity": "1", "discount": null}],
+        "discount": null,
+        "payments": [{"method": "cash_usd", "currency": "USD", "amount": "10.00"}],
+        "change": [{"method": "cash_usd", "currency": "USD", "amount": "2.00"}]
+      },
+      "expected": {
+        "lines": [{"id": "l1", "line_subtotal_usd": "7.70", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "7.70"}],
+        "subtotal_usd": "7.70", "discount_usd": "0.00", "total_usd": "7.70", "total_ves": "281.05",
+        "payments_usd": ["10.00"], "paid_usd": "10.00", "balance_usd": "0.00", "balance_ves": "0.00",
+        "excess_usd": "2.30", "change_usd": ["2.00"], "change_total_usd": "2.00", "overpaid_usd": "0.30"
+      }
+    },
+    {
+      "name": "bordes de mitad hacia arriba: subtotal 0,045, porcentaje 0,045 y Bs 36,865",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [
+          {"id": "l1", "unit_price_usd": "0.15", "quantity": "0.30", "discount": null},
+          {"id": "l2", "unit_price_usd": "0.50", "quantity": "1", "discount": {"type": "percent", "value": "9.00"}},
+          {"id": "l3", "unit_price_usd": "0.51", "quantity": "1", "discount": null}
+        ],
+        "discount": null, "payments": [], "change": []
+      },
+      "expected": {
+        "lines": [
+          {"id": "l1", "line_subtotal_usd": "0.05", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "0.05"},
+          {"id": "l2", "line_subtotal_usd": "0.50", "item_discount_usd": "0.05", "allocated_sale_discount_usd": "0.00", "line_total_usd": "0.45"},
+          {"id": "l3", "line_subtotal_usd": "0.51", "item_discount_usd": "0.00", "allocated_sale_discount_usd": "0.00", "line_total_usd": "0.51"}
+        ],
+        "subtotal_usd": "1.01", "discount_usd": "0.00", "total_usd": "1.01", "total_ves": "36.87",
+        "payments_usd": [], "paid_usd": "0.00", "balance_usd": "1.01", "balance_ves": "36.87",
+        "excess_usd": "0.00", "change_usd": [], "change_total_usd": "0.00", "overpaid_usd": "0.00"
+      }
+    },
+    {
+      "name": "vuelto mayor que el excedente",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "7.70", "quantity": "1", "discount": null}],
+        "discount": null,
+        "payments": [{"method": "cash_usd", "currency": "USD", "amount": "10.00"}],
+        "change": [{"method": "cash_usd", "currency": "USD", "amount": "3.00"}]
+      },
+      "error": "El vuelto no puede ser mayor que el excedente"
+    },
+    {
+      "name": "descuento en monto mayor que la línea",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "20.00", "quantity": "1", "discount": {"type": "amount", "value": "25.00"}}],
+        "discount": null, "payments": [], "change": []
+      },
+      "error": "El descuento no puede ser mayor que el monto al que se aplica"
+    },
+    {
+      "name": "descuento sobre el total mayor que la venta",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "4.00", "quantity": "1", "discount": null}],
+        "discount": {"type": "amount", "value": "4.01"}, "payments": [], "change": []
+      },
+      "error": "El descuento no puede ser mayor que el monto al que se aplica"
+    },
+    {
+      "name": "porcentaje mayor que 100",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "20.00", "quantity": "1", "discount": {"type": "percent", "value": "100.01"}}],
+        "discount": null, "payments": [], "change": []
+      },
+      "error": "El porcentaje no puede ser mayor que 100"
+    },
+    {
+      "name": "descuento cero",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "20.00", "quantity": "1", "discount": {"type": "amount", "value": "0.00"}}],
+        "discount": null, "payments": [], "change": []
+      },
+      "error": "El descuento debe ser mayor que cero"
+    },
+    {
+      "name": "pago en cero",
+      "input": {
+        "rate": "36.50000000",
+        "lines": [{"id": "l1", "unit_price_usd": "20.00", "quantity": "1", "discount": null}],
+        "discount": null,
+        "payments": [{"method": "cash_usd", "currency": "USD", "amount": "0.00"}],
+        "change": []
+      },
+      "error": "El monto debe ser mayor que cero"
+    },
+    {
+      "name": "venta sin productos",
+      "input": {"rate": "36.50000000", "lines": [], "discount": null, "payments": [], "change": []},
+      "error": "La venta no tiene productos"
+    }
+  ]
+}

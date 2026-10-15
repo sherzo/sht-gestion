@@ -55,12 +55,14 @@ def record_audit(
     after: dict[str, Any] | None = None,
     reason: str | None = None,
     details: dict[str, Any] | None = None,
+    device_id: uuid.UUID | None = None,
 ) -> AuditLog:
     for data in (before, after, details):
         _assert_no_secrets(data)
     entry = AuditLog(
         occurred_at=utcnow(),
         user_id=user_id,
+        device_id=device_id,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,

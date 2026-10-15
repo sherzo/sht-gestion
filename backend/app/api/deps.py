@@ -20,9 +20,10 @@ from sqlalchemy.orm import Session
 from app.core.clock import utcnow
 from app.core.errors import ApiError
 from app.core.security import decode_access_token
-from app.db.models import AppUser, UserSession
+from app.db.models import AppUser, Device, UserSession
 from app.db.session import get_db
 from app.domain.roles import Role
+from app.services.devices import device_from_token, ensure_active
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -120,3 +121,25 @@ def require_roles(*roles: Role) -> Callable[..., Any]:
         return current
 
     return _mark(dependency, "roles")
+
+
+# --- Equipo de mostrador (etapa 1.3, research R3) -------------------------------------
+# No declaran acceso: van junto con `require_roles(...)`, que sí lo declara.
+
+DEVICE_HEADER = "X-Device-Token"
+
+
+def _current_device(request: Request, db: DbSession) -> Device:
+    return device_from_token(db, request.headers.get(DEVICE_HEADER))
+
+
+def _active_device(request: Request, db: DbSession) -> Device:
+    device = device_from_token(db, request.headers.get(DEVICE_HEADER))
+    ensure_active(device)
+    return device
+
+
+# Equipo del token aunque esté revocado: la cola decide con la hora de la operación (FR-002).
+CurrentDevice = Annotated[Device, Depends(_current_device)]
+# Equipo vigente: `/devices/current` y las autorizaciones de descuento.
+ActiveDevice = Annotated[Device, Depends(_active_device)]

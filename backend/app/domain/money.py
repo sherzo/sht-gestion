@@ -3,7 +3,8 @@ hasta 6, montos en Bs con 2 y tasas con hasta 8.
 
 Las entradas con más decimales de los permitidos se rechazan, no se redondean. Los
 cálculos redondean solo con los helpers de este módulo, siempre mitad hacia arriba
-(`ROUND_HALF_UP`, ADR-0004); el costo de compras los usa desde `domain/costing.py`.
+(`ROUND_HALF_UP`, ADR-0004); el costo de compras los usa desde `domain/costing.py` y la
+venta desde `domain/sale_math.py`.
 """
 
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
@@ -105,3 +106,13 @@ def round_cost(value: Decimal) -> Decimal:
 def ves_to_usd_cost(amount_ves: Decimal, rate: Decimal) -> Decimal:
     """Costo en Bs convertido a USD con la tasa de la compra (RF-15): 6 decimales."""
     return round_cost(amount_ves / rate)
+
+
+def ves_to_usd(amount_ves: Decimal, rate: Decimal) -> Decimal:
+    """USD que cubre un pago en Bs con la tasa de la venta (RN-06): 2 decimales."""
+    return round_usd(amount_ves / rate)
+
+
+def usd_to_ves(amount_usd: Decimal, rate: Decimal) -> Decimal:
+    """Monto en Bs de un monto en USD (RN-02): 2 decimales, sobre el total y no por línea."""
+    return round_usd(amount_usd * rate)
