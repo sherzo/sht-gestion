@@ -165,7 +165,7 @@ R14, y las de la 1.3 (equipos, caja, descuentos y anulaciones) en
 jsonb, `created_at`, `resolved_at`, `resolved_by` (juntos). Solo se marca como revisada.
 Tipos: `purchase_void_cost` (1.2) y, de la venta (1.3, una por tipo y venta, con
 `entity_type = 'sale'`): `negative_stock`, `price_mismatch`, `total_mismatch`,
-`rate_mismatch`, `discount_review` e `inactive_user_sync`. Revisar una venta marcada para
+`rate_mismatch`, `discount_review`, `inactive_user_sync` y `revoked_device_sync`. Revisar una venta marcada para
 revisión es resolver su alerta `discount_review`: la venta no cambia.
 
 **`sequence_counter`** (FR-008 de la etapa 1.2): `name` (PK; `purchase` y

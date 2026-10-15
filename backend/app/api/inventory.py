@@ -249,7 +249,7 @@ def summary(current: AdminOrWarehouse, db: DbSession) -> AdminSummary | Warehous
             counts_ready_for_review=counts.counts_ready_for_review,
             open_alerts=alerts_service.open_alerts_count(db),
             draft_purchases=purchases_service.draft_count(db),
-            pending_discount_requests=len(discounts_service.list_pending(db)),
+            pending_discount_requests=discounts_service.pending_count(db),
         )
     return WarehouseSummary(
         low_stock=counts.low_stock,

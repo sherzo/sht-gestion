@@ -210,7 +210,7 @@ transacción que procesa la operación (R4).
 ## Cambios en tablas existentes
 
 - `alert.type`: suma `negative_stock`, `price_mismatch`, `total_mismatch`,
-  `rate_mismatch`, `discount_review` e `inactive_user_sync` (R6). `entity_type = 'sale'`.
+  `rate_mismatch`, `discount_review`, `inactive_user_sync` y `revoked_device_sync` (R6). `entity_type = 'sale'`.
 - `stock_movement`: las ventas usan `type = 'sale'` (negativo) y las anulaciones
   `type = 'sale_void'` (positivo), con `reference_type = 'sale_item'` y `device_id`.
   Las salidas por venta usan `allow_negative = True` (RN-10).

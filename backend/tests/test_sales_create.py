@@ -278,3 +278,98 @@ def test_admin_recibe_costo_y_margen(
 
 
 _ = TestClient
+
+
+def test_reenvio_con_otro_rol_no_muestra_costos(
+    make_user, auth_headers, make_device, make_rate, open_cash_session, products, make_sale
+) -> None:
+    """Hallazgo del code review: una venta del Admin reenviada con la sesión de un Vendedor
+    se responde con el esquema del Vendedor (principio IV)."""
+    make_rate(business_date(clock.utcnow()), "36.50")
+    admin_headers = auth_headers(make_user(Role.ADMIN))
+    seller_headers = auth_headers(make_user(Role.SELLER))
+    _, token = make_device()
+    session = open_cash_session(admin_headers, token)
+    op_id, sale_id = str(uuid.uuid7()), str(uuid.uuid7())
+    first = make_sale(
+        admin_headers, token, session["id"], [(products[0], "1")], op_id=op_id, sale_id=sale_id
+    )
+    assert "margin_usd" in first
+    again = make_sale(
+        seller_headers,
+        token,
+        session["id"],
+        [(products[0], "1")],
+        op_id=op_id,
+        sale_id=sale_id,
+        seller_id=first["seller"]["id"],
+        sequence_number=1,
+    )
+    assert again["number"] == first["number"]
+    assert "cost" not in str(again) and "margin" not in str(again)
+
+
+def test_unidad_escrita_debe_corresponder_al_producto(counter, products, make_sale) -> None:
+    """Hallazgo del code review: `cm` en un producto por unidad, o `unit` en uno por metro,
+    se rechaza (RF-21)."""
+    fitting, hose = products
+    body = sale_of(counter, make_sale, [(fitting, "1", "cm")], expect=422)
+    assert "payload.items.0.entered_unit" in body["detail"]["fields"]
+    body = sale_of(counter, make_sale, [(hose, "1", "unit")], expect=422)
+    assert "payload.items.0.entered_unit" in body["detail"]["fields"]
+
+
+def test_monto_que_desborda_es_un_rechazo(counter, make_product, make_sale) -> None:
+    """Hallazgo del code review: una cantidad absurda no produce un 500 que trabe la cola."""
+    product = make_product("CON", sale_price="200.00")
+    body = sale_of(
+        counter,
+        make_sale,
+        [(product, "10000000000")],
+        payments=[("cash_usd", "1.00", None)],
+        device_total_usd="1.00",
+        expect=422,
+    )
+    assert body["detail"]["code"] == "validation_error"
+
+
+def test_equipo_revocado(client, counter, products, make_sale, make_user, db) -> None:
+    """Hallazgo del code review: un equipo revocado no abre caja aunque la operación diga
+    ser anterior; sus ventas de una caja abierta antes de revocarlo se aceptan con alerta,
+    y las posteriores a la revocación se rechazan."""
+    from datetime import timedelta
+
+    from app.db.models import Alert
+    from app.services.devices import revoke_device
+    from tests.conftest import device_headers, operation
+
+    admin = make_user(Role.ADMIN)
+    revoke_device(db, actor=admin, device_id=counter.device.id)
+    db.commit()
+    revoked_at = db.get(Device, counter.device.id).revoked_at
+
+    early = operation(
+        "cash_session.open",
+        {"id": str(uuid.uuid7()), "opening_float_ves": "0", "opening_float_usd": "0"},
+    )
+    early["created_at"] = (revoked_at - timedelta(hours=1)).isoformat()
+    response = client.post(
+        "/api/v1/sync/operations",
+        json=early,
+        headers=device_headers(counter.headers, counter.token),
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "device_revoked"
+
+    # make_sale fecha la operación con la hora actual (posterior a la revocación): rechazo.
+    body = sale_of(counter, make_sale, [(products[0], "1")], expect=403)
+    assert body["detail"]["code"] == "device_revoked"
+
+    # Una venta hecha antes de revocar (caja abierta antes) se acepta con alerta.
+    from app.core import clock as app_clock
+
+    app_clock.advance(-(app_clock.utcnow() - revoked_at) - timedelta(minutes=1))
+    sale = sale_of(counter, make_sale, [(products[0], "1")])
+    assert "revoked_device_sync" in sale["alerts_created"]
+    db.expire_all()
+    assert db.scalars(select(Alert).where(Alert.type == "revoked_device_sync")).one()

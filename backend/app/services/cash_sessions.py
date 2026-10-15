@@ -16,6 +16,7 @@ from app.core.errors import ApiError
 from app.db.models import AppUser, CashSession, Device
 from app.domain.business_time import business_date
 from app.services.audit import record_audit
+from app.services.devices import device_revoked
 from app.services.devices import open_cash_session as current_open_session
 from app.services.exchange_rates import applicable_rate, exchange_rate_missing
 
@@ -33,6 +34,10 @@ def open_cash_session(
 ) -> CashSession:
     """Abre la caja del equipo. 409 `cash_session_open` si ya hay una abierta y 409
     `exchange_rate_missing` si no hay ninguna tasa BCV cargada (RF-18)."""
+    # Un equipo revocado no abre caja, aunque la operación diga ser anterior a la revocación:
+    # la hora la escribe el equipo (hallazgo del code review).
+    if device.revoked_at is not None:
+        raise device_revoked()
     # El bloqueo del equipo serializa dos aperturas simultáneas en el mismo equipo.
     db.execute(select(Device.id).where(Device.id == device.id).with_for_update())
     existing = current_open_session(db, device.id)

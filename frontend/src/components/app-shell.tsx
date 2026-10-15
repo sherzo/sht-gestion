@@ -35,7 +35,7 @@ import type { ReactNode } from "react";
 
 import { Dialog } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth/use-auth";
-import { dismissRejected, hasPending, startOutbox, useOutboxAttention } from "@/lib/outbox/outbox";
+import { dismissRejected, hasPending, startOutbox, useOutboxAttention, waitsForOwner } from "@/lib/outbox/outbox";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; roles: Role[] };
 
@@ -101,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // La cola de salida se reintenta mientras la app esté abierta (ADR-0003).
   useEffect(() => {
-    if (user && user.role !== "warehouse") startOutbox();
+    if (user && user.role !== "warehouse") startOutbox(user.id);
   }, [user]);
 
   if (!user) return null;
@@ -198,7 +198,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <p className="text-sm text-ink-muted">
                   {new Date(record.createdAt).toLocaleString("es-VE", { timeZone: "America/Caracas" })}
                 </p>
-                {record.status === "pending" ? (
+                {record.status === "pending" && waitsForOwner(record) ? (
+                  <p className="text-sm">Se enviará cuando el vendedor que la hizo vuelva a ingresar en este equipo.</p>
+                ) : record.status === "pending" ? (
                   <p className="text-sm">Se enviará al haber conexión ({record.attempts} intentos).</p>
                 ) : (
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-2">

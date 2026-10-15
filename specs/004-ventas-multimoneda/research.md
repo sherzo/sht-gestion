@@ -167,6 +167,7 @@ distintas.
 | `total_mismatch` | El total del equipo difiere del recalculado, o los pagos no cubren el total recalculado | venta (detalle: ambos totales y el saldo) |
 | `rate_mismatch` | La tasa de la venta no coincide con la tasa BCV cargada para `exchange_rate_date`, o no hay tasa para esa fecha (error, manipulación o corrección posterior, RN-15) | venta (detalle: tasa enviada, tasa cargada y fecha) |
 | `discount_review` | Descuento de un Vendedor sin autorización válida | venta |
+| `revoked_device_sync` | Venta de un equipo revocado, aceptada porque es de una caja abierta antes de la revocación (hallazgo del code review: un equipo revocado nunca abre caja y sus ventas de cajas posteriores se rechazan) | venta |
 | `inactive_user_sync` | El vendedor de la venta está desactivado al registrarla (en la 1.3 no ocurre por R17; queda para la 1.5) | venta |
 
 El precio se compara con el vigente al registrar la venta: en esta etapa, con conexión,

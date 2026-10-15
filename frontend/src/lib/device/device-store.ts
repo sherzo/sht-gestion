@@ -27,6 +27,8 @@ export type OutboxRecord = {
   result: unknown;
   error: { code: string; message: string } | null;
   attempts: number;
+  /** Usuario que la creó; una venta solo se envía con su sesión (R17). */
+  userId: string | null;
 };
 
 class MostradorDb extends Dexie {

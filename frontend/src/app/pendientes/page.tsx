@@ -244,6 +244,7 @@ const SALE_ALERT_TITLES: Record<string, string> = {
   rate_mismatch: "Tasa distinta a la cargada",
   discount_review: "Descuento para revisar",
   inactive_user_sync: "Vendedor desactivado",
+  revoked_device_sync: "Venta de un equipo revocado",
 };
 
 function saleAlertDetail(alert: AlertItem): string {
@@ -260,6 +261,8 @@ function saleAlertDetail(alert: AlertItem): string {
       return `El equipo calculó ${formatUsd(String(details.device_total_usd))} USD y el servidor ${formatUsd(String(details.server_total_usd))} USD. Saldo sin cubrir: ${formatUsd(String(details.balance_usd))} USD.`;
     case "rate_mismatch":
       return `La venta usó ${formatRate(String(details.sale_rate))}; la tasa cargada del ${formatDate(String(details.rate_date))} es ${details.loaded_rate ? formatRate(String(details.loaded_rate)) : "ninguna"}.`;
+    case "revoked_device_sync":
+      return `El equipo ${String(details.device)} (serie ${String(details.series)}) fue revocado, pero la venta se hizo antes en una caja abierta antes de revocarlo. Revisa que sea legítima.`;
     case "discount_review":
       return `${String(details.seller)} aplicó un descuento sin autorización válida (por ejemplo, sin conexión). La venta no cambia; para corregirla se anula.`;
     default:

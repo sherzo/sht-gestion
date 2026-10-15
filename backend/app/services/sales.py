@@ -38,7 +38,14 @@ from app.db.models import (
     Unit,
 )
 from app.domain.business_time import business_date
-from app.domain.money import round_usd, validate_price, validate_rate, validate_usd_amount
+from app.domain.money import (
+    MAX_PRICE,
+    MAX_VES,
+    round_usd,
+    validate_price,
+    validate_rate,
+    validate_usd_amount,
+)
 from app.domain.roles import Role
 from app.domain.sale_math import (
     DiscountInput,
@@ -53,6 +60,7 @@ from app.domain.units import validate_quantity
 from app.services.alerts import create_sale_alert
 from app.services.audit import record_audit
 from app.services.customers import CustomerData, resolve_customer
+from app.services.devices import device_revoked
 from app.services.exchange_rates import BCV
 from app.services.inventory import post_movement
 
@@ -175,6 +183,12 @@ def _validated_items(
     result = []
     for index, item in enumerate(items):
         _, unit = products[item.product_id]
+        allowed = ("m", "cm") if unit.decimals > 0 else ("unit",)
+        if item.entered_unit not in allowed:
+            raise _field_error(
+                f"items.{index}.entered_unit",
+                "La unidad escrita no corresponde a la unidad del producto",
+            )
         try:
             quantity = validate_quantity(
                 item.quantity, unit.decimals, allow_zero=False, allow_negative=False
@@ -255,6 +269,9 @@ def _compute(
         result = compute_sale(base)
     except ValueError as exc:
         raise _field_error("items", str(exc)) from exc
+    too_large = [line.line_subtotal_usd for line in result.lines] + [result.total_usd]
+    if any(value >= MAX_PRICE for value in too_large) or result.total_ves >= MAX_VES:
+        raise _field_error("items", "El monto de la venta es demasiado grande")
     change_inputs = _money_inputs(change)
     change_usd = [amount_usd(entry, data.exchange_rate) for entry in change_inputs]
     mismatch = result.total_usd != data.device_total_usd
@@ -332,6 +349,8 @@ def create_sale(
     if not data.items:
         raise _field_error("items", "La venta no tiene productos")
     session = _cash_session(db, device, data.cash_session_id)
+    if device.revoked_at is not None and session.opened_at >= device.revoked_at:
+        raise device_revoked()
     _check_sequence(db, device, data.sequence_number)
     products = _products(db, data.items)
     items = _validated_items(data.items, products)
@@ -520,6 +539,12 @@ def create_sale(
         outcome_alerts["discount_review"] = {"seller": seller.full_name}
     if not seller.is_active:
         outcome_alerts["inactive_user_sync"] = {"seller": seller.full_name}
+    if device.revoked_at is not None:
+        outcome_alerts["revoked_device_sync"] = {
+            "device": device.name,
+            "series": device.series,
+            "revoked_at": device.revoked_at.isoformat(),
+        }
     for alert_type, details in outcome_alerts.items():
         create_sale_alert(db, type=alert_type, sale=sale, details=details)
 

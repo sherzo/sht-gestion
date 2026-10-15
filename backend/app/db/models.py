@@ -616,6 +616,7 @@ SALE_ALERT_TYPES = (
     "rate_mismatch",
     "discount_review",
     "inactive_user_sync",
+    "revoked_device_sync",
 )
 PAYMENT_KINDS = ("sale_payment", "change", "void_refund", "void_change")
 AUTHORIZATION_METHODS = ("pin", "request", "admin_self")

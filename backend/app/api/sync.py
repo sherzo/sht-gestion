@@ -23,7 +23,7 @@ from app.api.sale_schemas import (
     sales_for_role,
 )
 from app.core.errors import validation_error, validation_fields
-from app.db.models import AppUser, Device
+from app.db.models import AppUser, Device, Sale
 from app.domain import sale_math
 from app.domain.money import MAX_PRICE, MAX_VES, PRICE_DECIMALS, VES_DECIMALS, validate_usd
 from app.domain.roles import Role
@@ -207,9 +207,22 @@ def handle_sale_create(
     }
 
 
+def replay_sale(db: Session, user: AppUser, stored: dict[str, Any]) -> dict[str, Any]:
+    """Respuesta de una venta ya registrada con el esquema del rol de quien la reenvía: un
+    Vendedor nunca recibe la versión con costos guardada para el Admin (principio IV)."""
+    sale = db.get(Sale, uuid.UUID(stored["id"]))
+    [current] = sales_for_role(db, [sale], Role(user.role))
+    return {
+        **current.model_dump(mode="json"),
+        "alerts_created": stored.get("alerts_created", []),
+        "warnings": stored.get("warnings", []),
+    }
+
+
 sync_service.HANDLERS.update(
     {"cash_session.open": handle_cash_session_open, "sale.create": handle_sale_create}
 )
+sync_service.REPLAYS.update({"sale.create": replay_sale})
 
 
 class OutboxOperationIn(BaseModel):

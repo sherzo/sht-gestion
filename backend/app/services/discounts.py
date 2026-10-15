@@ -17,7 +17,7 @@ import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
@@ -137,6 +137,14 @@ def list_pending(db: Session) -> list[DiscountAuthorization]:
             .where(DiscountAuthorization.status == "pending")
             .order_by(DiscountAuthorization.requested_at)
         )
+    )
+
+
+def pending_count(db: Session) -> int:
+    return db.scalar(
+        select(func.count())
+        .select_from(DiscountAuthorization)
+        .where(DiscountAuthorization.status == "pending")
     )
 
 

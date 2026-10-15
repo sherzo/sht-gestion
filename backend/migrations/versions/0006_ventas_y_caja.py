@@ -299,7 +299,7 @@ ALTER TABLE audit_log ADD CONSTRAINT fk_audit_log_device
 ALTER TABLE alert DROP CONSTRAINT ck_alert_type_valid;
 ALTER TABLE alert ADD CONSTRAINT ck_alert_type_valid CHECK (type IN (
     'purchase_void_cost', 'negative_stock', 'price_mismatch', 'total_mismatch',
-    'rate_mismatch', 'discount_review', 'inactive_user_sync'));
+    'rate_mismatch', 'discount_review', 'inactive_user_sync', 'revoked_device_sync'));
 CREATE INDEX ix_alert_entity ON alert (entity_type, entity_id);
 """
 

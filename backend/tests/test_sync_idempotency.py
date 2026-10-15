@@ -173,3 +173,22 @@ def test_id_invalido_o_version_desconocida(client: TestClient, seller_headers) -
     body = operation("test.ok", {}, op_id="no-es-un-uuid")
     assert client.post(URL, json=body, headers=seller_headers).status_code == 422
     assert uuid.UUID(operation("test.ok", {})["id"]).version == 7
+
+
+def test_error_de_datos_se_guarda_como_rechazo(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, seller_headers: dict[str, str]
+) -> None:
+    """Hallazgo del code review: un desborde numérico no traba la cola con un 500 eterno;
+    se guarda como rechazo 422 y se repite igual."""
+    from sqlalchemy import text as sql
+
+    def overflow(db, device, user, op) -> dict:
+        db.execute(sql("SELECT CAST(1e20 AS numeric(14, 2))"))
+        return {}
+
+    monkeypatch.setitem(sync_service.HANDLERS, "test.overflow", overflow)
+    body = operation("test.overflow", {})
+    first = client.post(URL, json=body, headers=seller_headers)
+    assert first.status_code == 422
+    assert first.json()["detail"]["code"] == "validation_error"
+    assert client.post(URL, json=body, headers=seller_headers).json() == first.json()

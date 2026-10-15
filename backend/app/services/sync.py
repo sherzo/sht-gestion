@@ -20,7 +20,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from psycopg import errors
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
@@ -39,10 +41,19 @@ class Operation:
 
 
 Handler = Callable[[Session, Device, AppUser, Operation], dict[str, Any]]
+Replay = Callable[[Session, AppUser, dict[str, Any]], dict[str, Any]]
 
 # Manejadores por tipo de operación. Los registra la capa de la API (`app/api/sync.py`):
 # validan el contenido, llaman al servicio y devuelven la respuesta en JSON.
 HANDLERS: dict[str, Handler] = {}
+# Cómo rearmar la respuesta de una operación ya procesada para quien la reenvía: la
+# respuesta guardada puede tener datos que su rol no debe ver (costos de una venta
+# confirmada por el Admin y reenviada con la sesión de un Vendedor, principio IV).
+REPLAYS: dict[str, Replay] = {}
+
+# Errores de la base que no cambian al reintentar: un monto que desborda su columna o una
+# regla CHECK. Se guardan como rechazo para que la cola del equipo no se trabe en ellos.
+PERMANENT_DB_ERRORS = (errors.NumericValueOutOfRange, errors.CheckViolation)
 
 
 def _is_permanent(error: ApiError) -> bool:
@@ -61,7 +72,10 @@ def process_operation(
     db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": str(operation.id)})
     stored = db.get(OutboxOperation, operation.id, populate_existing=True)
     if stored is not None:
-        return stored.http_status, stored.result if stored.result is not None else stored.error
+        if stored.result is None:
+            return stored.http_status, stored.error
+        replay = REPLAYS.get(stored.operation_type)
+        return stored.http_status, replay(db, user, stored.result) if replay else stored.result
 
     received_at = utcnow()
     savepoint = db.begin_nested()
@@ -83,6 +97,16 @@ def process_operation(
         if not _is_permanent(exc):
             raise
         status, http_status, result, error = "rejected", exc.status_code, None, _error_body(exc)
+    except DBAPIError as exc:
+        savepoint.rollback()
+        if not isinstance(exc.orig, PERMANENT_DB_ERRORS):
+            raise
+        status, http_status, result = "rejected", 422, None
+        error = {
+            "code": "validation_error",
+            "message": "La operación tiene datos fuera de los límites permitidos",
+            "fields": {"payload": "Algún monto o cantidad es demasiado grande o no es válido"},
+        }
 
     db.add(
         OutboxOperation(

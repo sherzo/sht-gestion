@@ -15,10 +15,12 @@ const MAX_DELAY_MS = 5 * 60_000;
 // Las operaciones enviadas se conservan unos días como historial local y luego se borran.
 const KEEP_SENT_MS = 7 * 24 * 60 * 60_000;
 
-let flushing: Promise<void> | null = null;
+let flushing: Promise<boolean> | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let failures = 0;
 let started = false;
+// Usuario con sesión en este equipo: solo se envían sus ventas (R17 de la etapa 1.3).
+let currentUserId: string | null = null;
 
 /** Rechazo permanente: el servidor lo guardó y lo repetirá igual (research R4). */
 function isPermanent(error: ApiError): boolean {
@@ -37,6 +39,7 @@ export async function enqueue(type: string, payload: Record<string, unknown>): P
     result: null,
     error: null,
     attempts: 0,
+    userId: currentUserId,
   });
   void flush();
   return id;
@@ -73,26 +76,40 @@ async function sendOne(record: OutboxRecord, token: string): Promise<"done" | "s
   }
 }
 
-async function runFlush(): Promise<void> {
-  const device = await getDevice();
-  if (!device) return;
-  const pending = await localDb().outbox.where("status").equals("pending").sortBy("createdAt");
-  for (const record of pending) {
-    if ((await sendOne(record, device.token)) === "stop") {
-      scheduleRetry(true);
-      return;
-    }
-  }
-  failures = 0;
-  const cutoff = new Date(Date.now() - KEEP_SENT_MS).toISOString();
-  await localDb().outbox.where("createdAt").below(cutoff).and((record) => record.status === "sent").delete();
+/**
+ * Una venta queda a nombre del usuario que la envía (R17): la de otro vendedor espera a
+ * que su dueño vuelva a ingresar, en lugar de rechazarse y perderse. La apertura de caja
+ * se envía con cualquier sesión, porque las ventas de esa caja dependen de ella.
+ */
+export function waitsForOwner(record: OutboxRecord): boolean {
+  return record.type === "sale.create" && record.userId !== currentUserId;
 }
 
-/** Envía en orden las operaciones pendientes; una sola ejecución a la vez. */
-export function flush(): Promise<void> {
-  flushing ??= runFlush().finally(() => {
-    flushing = null;
-  });
+/** Envía en orden las operaciones pendientes; devuelve false si hay que reintentar. */
+async function runFlush(): Promise<boolean> {
+  const device = await getDevice();
+  if (!device || !currentUserId) return true;
+  const pending = await localDb().outbox.where("status").equals("pending").sortBy("createdAt");
+  for (const record of pending) {
+    if (waitsForOwner(record)) continue;
+    if ((await sendOne(record, device.token)) === "stop") return false;
+  }
+  const cutoff = new Date(Date.now() - KEEP_SENT_MS).toISOString();
+  await localDb().outbox.where("createdAt").below(cutoff).and((record) => record.status === "sent").delete();
+  return true;
+}
+
+/** Una sola ejecución a la vez; al terminar programa el próximo intento, con espera
+ * creciente mientras siga fallando. */
+export function flush(): Promise<boolean> {
+  flushing ??= runFlush()
+    .then((ok) => {
+      scheduleRetry(!ok);
+      return ok;
+    })
+    .finally(() => {
+      flushing = null;
+    });
   return flushing;
 }
 
@@ -100,18 +117,18 @@ function scheduleRetry(failed: boolean): void {
   if (retryTimer) clearTimeout(retryTimer);
   failures = failed ? failures + 1 : 0;
   const delay = Math.min(BASE_DELAY_MS * 2 ** Math.max(failures - 1, 0), MAX_DELAY_MS);
-  retryTimer = setTimeout(() => {
-    void flush().finally(() => scheduleRetry(false));
-  }, delay);
+  retryTimer = setTimeout(() => void flush(), delay);
 }
 
 /** Arranca los reintentos: al volver la conexión y periódicamente (sin Background Sync). */
-export function startOutbox(): void {
-  if (started || typeof window === "undefined") return;
-  started = true;
-  window.addEventListener("online", () => void flush());
+export function startOutbox(userId: string): void {
+  currentUserId = userId;
+  if (typeof window === "undefined") return;
+  if (!started) {
+    started = true;
+    window.addEventListener("online", () => void flush());
+  }
   void flush();
-  scheduleRetry(false);
 }
 
 /** Espera el resultado de una operación de la cola; null si sigue pendiente al vencer el plazo. */

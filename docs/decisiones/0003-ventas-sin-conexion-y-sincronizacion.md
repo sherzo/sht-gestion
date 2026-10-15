@@ -96,10 +96,13 @@ navegador no borre los datos locales por falta de espacio.
 - **Implementación** (specs/004-ventas-multimoneda, research R3 a R5): el equipo se
   identifica con un token propio en `X-Device-Token`; la cola usa Dexie y envía una
   operación por petición a `POST /sync/operations`; el servidor bloquea el id de la
-  operación y guarda su respuesta, también la de un rechazo estructural, para repetirla
-  en un reenvío. Un equipo revocado puede enviar las operaciones creadas antes de la
-  revocación. En la 1.3 la venta queda a nombre del usuario de la sesión que la envía; la
-  1.5 define el caso de ventas sin conexión enviadas después por otro usuario.
+  operación y guarda su respuesta, también la de un rechazo estructural o de datos fuera
+  de límites, para repetirla en un reenvío (rearmada con el esquema del rol de quien la
+  reenvía). Un equipo revocado nunca abre caja; sus ventas creadas antes de la revocación
+  en una caja abierta antes de ella se aceptan con una alerta `revoked_device_sync`. En la
+  1.3 la venta queda a nombre del usuario de la sesión que la envía; la cola del equipo
+  solo envía las ventas del usuario con sesión y deja las demás esperando a su vendedor.
+  La 1.5 define el caso de ventas sin conexión de un vendedor que no vuelve a ingresar.
 
 ### Pendiente de definir (pregunta abierta en PRD §10)
 

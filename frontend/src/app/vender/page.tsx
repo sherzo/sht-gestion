@@ -92,15 +92,17 @@ function SellContent() {
   }, [startSale]);
 
   // La tasa se vuelve a consultar cada 5 minutos mientras hay una venta abierta (FR-014).
+  // El temporizador depende solo de la tasa de la venta, no de cada cambio en sus líneas.
+  const saleRate = draft?.rate ?? null;
   useEffect(() => {
-    if (!draft) return;
+    if (!saleRate) return;
     const timer = setInterval(() => {
       fetchRate()
-        .then((rate) => setNewerRate(rate && !sameRate(rate, draft.rate) ? rate : null))
+        .then((rate) => setNewerRate(rate && !sameRate(rate, saleRate) ? rate : null))
         .catch(() => undefined);
     }, RATE_CHECK_MS);
     return () => clearInterval(timer);
-  }, [draft]);
+  }, [saleRate]);
 
   const calc = useMemo(() => (draft ? calculate(draft) : null), [draft]);
   const results = useMemo(() => new Map((calc?.result?.lines ?? []).map((line) => [line.id, line])), [calc]);
@@ -209,7 +211,9 @@ function SellContent() {
             <SaleProductSearch
               inputRef={searchRef}
               rate={draft.rate.rate}
-              onSelect={(product: SellableProduct) => update((current) => ({ ...current, lines: [...current.lines, newLine(product)] }))}
+              onSelect={(product: SellableProduct) =>
+                update((current) => ({ ...current, lines: [...current.lines, newLine(product)], discount: withoutAuthorization(current.discount) }))
+              }
             />
             <SaleLines
               draft={draft}
