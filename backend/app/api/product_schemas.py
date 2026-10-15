@@ -159,6 +159,13 @@ class MovementPurchaseRef(BaseModel):
     number: str | None
 
 
+class MovementSaleRef(BaseModel):
+    """Venta de la que viene una salida o su reverso por anulación (FR-048 de la 1.3)."""
+
+    id: uuid.UUID
+    number: str
+
+
 class StockMovementWarehouse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -175,6 +182,7 @@ class StockMovementWarehouse(BaseModel):
     # Quién pidió la salida, si el movimiento viene de una solicitud aprobada (RN-19).
     requested_by: UserRef | None
     purchase: MovementPurchaseRef | None = None
+    sale: MovementSaleRef | None = None
 
 
 class StockMovementAdmin(StockMovementWarehouse):
@@ -197,6 +205,7 @@ def movement_for_role(
     users: dict[uuid.UUID, AppUser],
     requested_by: uuid.UUID | None = None,
     purchase: tuple[uuid.UUID, str | None] | None = None,
+    sale: tuple[uuid.UUID, str] | None = None,
 ) -> StockMovementOut:
     common = {
         "id": movement.id,
@@ -211,6 +220,7 @@ def movement_for_role(
         "created_by": user_ref(users.get(movement.created_by)) if movement.created_by else None,
         "requested_by": user_ref(users.get(requested_by)) if requested_by else None,
         "purchase": MovementPurchaseRef(id=purchase[0], number=purchase[1]) if purchase else None,
+        "sale": MovementSaleRef(id=sale[0], number=sale[1]) if sale else None,
     }
     if role == Role.ADMIN:
         return StockMovementAdmin(

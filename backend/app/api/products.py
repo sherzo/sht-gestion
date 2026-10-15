@@ -32,6 +32,7 @@ from app.services import inventory as inventory_service
 from app.services import photos as photos_service
 from app.services import products as products_service
 from app.services import purchases as purchases_service
+from app.services import sales as sales_service
 from app.services.users import users_by_id
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -247,6 +248,7 @@ def list_movements(
     unit = db.get(Unit, product.unit_id)
     requesters = inventory_service.requesters_of(db, rows)
     purchases = purchases_service.purchases_of_movements(db, rows)
+    sales = sales_service.sales_of_movements(db, rows)
     users = users_by_id(db, {movement.created_by for movement in rows} | set(requesters.values()))
     items = [
         movement_for_role(
@@ -256,6 +258,7 @@ def list_movements(
             users=users,
             requested_by=requesters.get(movement.id),
             purchase=purchases.get(movement.id),
+            sale=sales.get(movement.id),
         )
         for movement in rows
     ]

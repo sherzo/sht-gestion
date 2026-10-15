@@ -1190,6 +1190,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sales
+         * @description Más recientes primero. El Vendedor siempre recibe solo sus ventas de hoy: los
+         *     filtros de fecha y vendedor se ignoran (FR-046).
+         */
+        get: operations["list_sales_api_v1_sales_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/{sale_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sale */
+        get: operations["get_sale_api_v1_sales__sale_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/{sale_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void Sale */
+        post: operations["void_sale_api_v1_sales__sale_id__void_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/operations": {
         parameters: {
             query?: never;
@@ -1988,6 +2043,19 @@ export interface components {
             id: string;
             /** Number */
             number: string | null;
+        };
+        /**
+         * MovementSaleRef
+         * @description Venta de la que viene una salida o su reverso por anulación (FR-048 de la 1.3).
+         */
+        MovementSaleRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
         };
         /** NegativeProduct */
         NegativeProduct: {
@@ -2829,6 +2897,17 @@ export interface components {
             /** Line Total Usd */
             line_total_usd: string;
         };
+        /** SalePage */
+        SalePage: {
+            /** Items */
+            items: components["schemas"]["SaleSummary"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
         /** SaleRef */
         SaleRef: {
             /**
@@ -2904,6 +2983,39 @@ export interface components {
             /** Payments */
             payments: components["schemas"]["PaymentOut"][];
             void: components["schemas"]["SaleVoidOut"] | null;
+        };
+        /** SaleSummary */
+        SaleSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+            /** Needs Review */
+            needs_review: boolean;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            seller: components["schemas"]["UserRef"];
+            /** Customer Name */
+            customer_name: string | null;
+            /** Device Name */
+            device_name: string;
+            /** Total Usd */
+            total_usd: string;
+            /** Total Ves */
+            total_ves: string;
         };
         /** SaleVoidOut */
         SaleVoidOut: {
@@ -3159,6 +3271,7 @@ export interface components {
             created_by: components["schemas"]["UserRef"] | null;
             requested_by: components["schemas"]["UserRef"] | null;
             purchase?: components["schemas"]["MovementPurchaseRef"] | null;
+            sale?: components["schemas"]["MovementSaleRef"] | null;
             /** Cost Before Usd */
             cost_before_usd: string | null;
             /** Cost After Usd */
@@ -3193,6 +3306,7 @@ export interface components {
             created_by: components["schemas"]["UserRef"] | null;
             requested_by: components["schemas"]["UserRef"] | null;
             purchase?: components["schemas"]["MovementPurchaseRef"] | null;
+            sale?: components["schemas"]["MovementSaleRef"] | null;
         };
         /** SupplierCreate */
         SupplierCreate: {
@@ -3456,6 +3570,11 @@ export interface components {
         /** VerifyPinResponse */
         VerifyPinResponse: {
             authorized_by: components["schemas"]["Authorizer"];
+        };
+        /** VoidIn */
+        VoidIn: {
+            /** Reason */
+            reason: string;
         };
         /** VoidInput */
         VoidInput: {
@@ -6123,6 +6242,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountAuthorizationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sales_api_v1_sales_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                q?: string | null;
+                seller_id?: string | null;
+                customer_id?: string | null;
+                device_id?: string | null;
+                status?: ("registered" | "voided" | "needs_review") | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sale_api_v1_sales__sale_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sale_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaleAdmin"] | components["schemas"]["SaleSeller"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    void_sale_api_v1_sales__sale_id__void_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sale_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoidIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaleAdmin"];
                 };
             };
             /** @description Validation Error */

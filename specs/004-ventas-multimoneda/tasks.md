@@ -440,25 +440,25 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Tests for User Story 6 ⚠️
 
-- [ ] T060 [P] [US6] Pruebas en `backend/tests/test_sale_void.py` (marca `db`):
+- [X] T060 [P] [US6] Pruebas en `backend/tests/test_sale_void.py` (marca `db`):
   - **Anulación**: `POST /sales/{id}/void` con motivo → `sale_void` y un movimiento `sale_void` positivo por línea enlazado a la venta; el stock vuelve exactamente al previo (SC-008).
   - **Espejo de pagos**: por cada `sale_payment`, un `void_refund` igual, y por cada `change`, un `void_change` igual, en la caja de la venta con `sale_void_id`. La suma neta de la anulación es la negativa exacta de la venta.
   - **Validaciones**: motivo corto (< 5) o largo (> 500) → 422; anular dos veces → 409 `invalid_state`; Vendedor y Almacén → 403.
   - **Auditoría y estado**: `sale.voided` con el motivo; venta con stock negativo anulada → el stock vuelve a lo previo; `GET /sales/{id}` muestra `void` y los pagos de la anulación.
   - **Inmutabilidad**: `UPDATE` y `DELETE` por SQL directo sobre `sale_void` y sobre los pagos `void_refund` y `void_change` fallan (RN-12/FR-044, SC-010).
   - (RF-27/FR-041 a FR-043, SC-008)
-- [ ] T061 [US6] Agregar a `MATRIX` la fila de `POST /sales/{id}/void` (solo Admin)
+- [X] T061 [US6] Agregar a `MATRIX` la fila de `POST /sales/{id}/void` (solo Admin)
 
 ### Implementation for User Story 6
 
-- [ ] T062 [US6] Agregar a `backend/app/services/sales.py` `void_sale(db, *, actor, sale_id, reason)`, que en una transacción:
+- [X] T062 [US6] Agregar a `backend/app/services/sales.py` `void_sale(db, *, actor, sale_id, reason)`, que en una transacción:
   1. Bloquea la venta y rechaza con 409 `invalid_state` si ya existe `sale_void`.
   2. Crea `sale_void`.
   3. Por cada línea registra `post_movement(type='sale_void', quantity_delta=+cantidad, reference_type='sale_item')`, con los productos en orden de id.
   4. Inserta el espejo de cada pago (`void_refund` y `void_change`) en la caja de la venta.
   5. Audita `sale.voided`.
   Agregar también `POST /sales/{id}/void` en `backend/app/api/sales.py` (`require_roles(ADMIN)`, motivo de 5 a 500 caracteres) (R10, FR-041 a FR-043)
-- [ ] T063 [US6] Crear `frontend/src/components/sales/void-sale-dialog.tsx` con el motivo obligatorio, el resumen de lo que vuelve (productos y cantidades, y devoluciones por método) y la confirmación (FR-041)
+- [X] T063 [US6] Crear `frontend/src/components/sales/void-sale-dialog.tsx` con el motivo obligatorio, el resumen de lo que vuelve (productos y cantidades, y devoluciones por método) y la confirmación (FR-041)
 
 **Checkpoint**: US6 funciona: anulación completa con reversos y espejo de pagos.
 
@@ -472,27 +472,27 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Tests for User Story 7 ⚠️
 
-- [ ] T064 [P] [US7] Pruebas en `backend/tests/test_sales_list.py` (marca `db`):
+- [X] T064 [P] [US7] Pruebas en `backend/tests/test_sales_list.py` (marca `db`):
   - **Admin**: filtra por `from`/`to` (fecha de negocio de Caracas), `q` (número), `seller_id`, `customer_id`, `device_id` y `status` (`registered`, `voided`, `needs_review`); orden más reciente primero; paginación.
   - **Vendedor**: solo recibe sus ventas cuya fecha de negocio es hoy, aunque pida otras fechas o vendedores; venta a las 23:30 de Caracas del día anterior → no aparece; `GET /sales/{id}` de una venta ajena o de ayer → 404.
   - **Almacén**: 403.
   - **Costos**: `SaleAdmin` trae `unit_cost_usd` y `margin_usd`, y sin costo del producto, `margin_usd` nulo.
   - **Kardex**: las salidas `sale` y los reversos `sale_void` traen `sale: {id, number}`.
   - (FR-045 a FR-049)
-- [ ] T065 [US7] Agregar a `MATRIX` las filas de `GET /sales` y `GET /sales/{id}`, y a `LEAK_CASES` `GET /sales`, `GET /sales/{id}` y `GET /products/{id}/movements` con ventas para el Vendedor (principio IV/SC-006, SC-007)
+- [X] T065 [US7] Agregar a `MATRIX` las filas de `GET /sales` y `GET /sales/{id}`, y a `LEAK_CASES` `GET /sales`, `GET /sales/{id}` y `GET /products/{id}/movements` con ventas para el Vendedor (principio IV/SC-006, SC-007)
 
 ### Implementation for User Story 7
 
-- [ ] T066 [US7] Agregar a `backend/app/services/sales.py` `list_sales(db, *, actor, filters, page, page_size)` y `get_sale(db, *, actor, sale_id)`, con la restricción del Vendedor impuesta en la consulta (`seller_id = actor.id AND business_date = hoy`). Crear `GET /sales` y `GET /sales/{id}` en `backend/app/api/sales.py` (`require_roles(ADMIN, SELLER)`) con `sale_for_role` y registrar el router en `main.py` (R12, FR-045, FR-046, FR-049)
-- [ ] T067 [US7] Ampliar `backend/app/api/product_schemas.py` y `GET /products/{id}/movements` con `MovementSaleRef` (`{id, number}`) para `reference_type = 'sale_item'`. En `frontend/src/components/products/kardex-table.tsx`, enlazar el número con `/ventas/detalle?id=` para el Admin y mostrar solo el número para el Almacén (FR-048)
-- [ ] T068 [US7] Crear `frontend/src/app/ventas/page.tsx`:
+- [X] T066 [US7] Agregar a `backend/app/services/sales.py` `list_sales(db, *, actor, filters, page, page_size)` y `get_sale(db, *, actor, sale_id)`, con la restricción del Vendedor impuesta en la consulta (`seller_id = actor.id AND business_date = hoy`). Crear `GET /sales` y `GET /sales/{id}` en `backend/app/api/sales.py` (`require_roles(ADMIN, SELLER)`) con `sale_for_role` y registrar el router en `main.py` (R12, FR-045, FR-046, FR-049)
+- [X] T067 [US7] Ampliar `backend/app/api/product_schemas.py` y `GET /products/{id}/movements` con `MovementSaleRef` (`{id, number}`) para `reference_type = 'sale_item'`. En `frontend/src/components/products/kardex-table.tsx`, enlazar el número con `/ventas/detalle?id=` para el Admin y mostrar solo el número para el Almacén (FR-048)
+- [X] T068 [US7] Crear `frontend/src/app/ventas/page.tsx`:
   - **Admin**: filtros de fechas, número, vendedor, equipo y estado, y la tabla con número, fecha y hora, vendedor, cliente, total USD y Bs, y chips de estado ("Anulada", "Para revisar").
   - **Vendedor**: "Mis ventas de hoy", sin filtros de fecha ni vendedor.
   Crear `frontend/src/app/ventas/detalle/page.tsx` (`?id=`):
   - ítems con cantidad, precio, descuentos y autorizante; totales; tasa y su fecha; pagos, vueltos y sobrepago; cliente; anulación;
   - para el Admin, además, costo y margen por línea y total, y el botón "Anular" con `void-sale-dialog`.
   - (FR-045 a FR-049, FR-051)
-- [ ] T069 [US7] Ejecutar `pnpm api:types` y tipar las llamadas de ventas, alertas y autorizaciones
+- [X] T069 [US7] Ejecutar `pnpm api:types` y tipar las llamadas de ventas, alertas y autorizaciones
 
 **Checkpoint**: todas las historias funcionan por separado y juntas.
 

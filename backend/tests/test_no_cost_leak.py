@@ -105,6 +105,9 @@ LEAK_CASES: list[LeakCase] = [
     # Venta por la cola de salida (etapa 1.3, US2): el Vendedor no recibe costo ni margen.
     LeakCase("POST", "/api/v1/sync/operations", (SELLER,), counter_body="sale_operation"),
     LeakCase("GET", "/api/v1/customers?q=taller", (SELLER,)),
+    # Consulta de ventas (US7)
+    LeakCase("GET", "/api/v1/sales", (SELLER,)),
+    LeakCase("GET", "/api/v1/sales/{sale_id}", (SELLER,)),
     # Conteos físicos (US5): el Almacén tampoco recibe el stock esperado ni la diferencia
     LeakCase("GET", "/api/v1/stock-counts", (WAREHOUSE,)),
     LeakCase("GET", "/api/v1/stock-counts/{count_id}", (WAREHOUSE,)),
@@ -254,10 +257,12 @@ def leak_context(
     session = open_cash_session(headers[SELLER], token)
     seller_id = client.get("/api/v1/auth/me", headers=headers[SELLER]).json()["user"]["id"]
 
+    sequence = iter(range(1, 100))
+
     def sale_operation() -> dict[str, Any]:
         payload = {
             "id": str(uuid.uuid7()),
-            "sequence_number": 1,
+            "sequence_number": next(sequence),
             "cash_session_id": session["id"],
             "seller_id": seller_id,
             "occurred_at": utcnow().isoformat(),
@@ -279,7 +284,15 @@ def leak_context(
         }
         return operation("sale.create", payload)
 
+    # Una venta ya registrada del Vendedor, para su consulta y el kardex del Almacén.
+    sold = client.post(
+        "/api/v1/sync/operations",
+        json=sale_operation(),
+        headers={**headers[SELLER], "X-Device-Token": token},
+    ).json()
+
     return {
+        "sale_id": sold["id"],
         "supplier_id": str(supplier.id),
         "today": today.isoformat(),
         "purchase_id": purchase["id"],

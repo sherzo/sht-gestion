@@ -270,6 +270,10 @@ MATRIX: list[Row] = [
     Row("GET", "/api/v1/discount-authorizations?status=pending", ADMIN_ONLY),
     Row("POST", "/api/v1/discount-authorizations/{authorization_id}/approve", ADMIN_ONLY, {}),
     Row("POST", "/api/v1/discount-authorizations/{authorization_id}/reject", ADMIN_ONLY, {}),
+    # Ventas: consulta (US7) y anulación (US6)
+    Row("GET", "/api/v1/sales", ADMIN_SELLER),
+    Row("GET", "/api/v1/sales/{sale_id}", ADMIN_SELLER),
+    Row("POST", "/api/v1/sales/{sale_id}/void", ADMIN_ONLY, {"reason": "Prueba de la matriz"}),
 ]
 
 
@@ -287,6 +291,8 @@ def actor_headers(
     make_charge_template,
     make_purchase,
     make_device,
+    open_cash_session,
+    make_sale,
 ):
     """Crea los usuarios de cada actor y los datos de las rutas, y devuelve el encabezado
     del pedido."""
@@ -375,7 +381,13 @@ def actor_headers(
     )
     db.add(authorization)
     db.commit()
+    seller_headers = auth_headers(users[SELLER], DEFAULT_PASSWORD)
+    session = open_cash_session(seller_headers, device_token)
+    other.sale_price_usd = Decimal("1.00")
+    db.commit()
+    sale = make_sale(seller_headers, device_token, session["id"], [(other, "1")])
     sale_ids = {
+        "sale_id": sale["id"],
         "authorization_id": str(authorization.id),
         "device_id": str(device.id),
         "device_token": device_token,

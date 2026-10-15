@@ -16,7 +16,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
@@ -33,6 +33,8 @@ from app.db.models import (
     Product,
     Sale,
     SaleItem,
+    SaleVoid,
+    StockMovement,
     Unit,
 )
 from app.domain.business_time import business_date
@@ -545,6 +547,176 @@ def create_sale(
             },
         )
     return SaleOutcome(sale=sale, alerts=list(outcome_alerts), warnings=warnings)
+
+
+# --- Consulta (FR-045, FR-046; research R12) -------------------------------------------
+
+
+@dataclass(frozen=True)
+class SaleFilters:
+    date_from: date | None = None
+    date_to: date | None = None
+    number: str | None = None
+    seller_id: uuid.UUID | None = None
+    customer_id: uuid.UUID | None = None
+    device_id: uuid.UUID | None = None
+    status: str | None = None  # "registered" | "voided" | "needs_review"
+
+
+def _visible_to(actor: AppUser):
+    """El Vendedor solo ve sus ventas cuya fecha de negocio es hoy en Caracas (matriz de
+    permisos, FR-046); el servidor lo impone en la consulta."""
+    if actor.role == Role.ADMIN.value:
+        return []
+    return [Sale.seller_id == actor.id, Sale.business_date == business_date(utcnow())]
+
+
+def list_sales(
+    db: Session, *, actor: AppUser, filters: SaleFilters, page: int, page_size: int
+) -> tuple[list[Sale], int]:
+    conditions = list(_visible_to(actor))
+    if actor.role == Role.ADMIN.value:
+        if filters.date_from:
+            conditions.append(Sale.business_date >= filters.date_from)
+        if filters.date_to:
+            conditions.append(Sale.business_date <= filters.date_to)
+        if filters.seller_id:
+            conditions.append(Sale.seller_id == filters.seller_id)
+    if filters.number:
+        conditions.append(Sale.number.ilike(f"%{filters.number.strip()}%"))
+    if filters.customer_id:
+        conditions.append(Sale.customer_id == filters.customer_id)
+    if filters.device_id:
+        conditions.append(Sale.device_id == filters.device_id)
+    voided = select(SaleVoid.id).where(SaleVoid.sale_id == Sale.id).exists()
+    if filters.status == "voided":
+        conditions.append(voided)
+    elif filters.status == "registered":
+        conditions.append(~voided)
+    elif filters.status == "needs_review":
+        conditions.append(Sale.needs_review)
+    query = select(Sale).where(*conditions)
+    total = db.scalar(select(func.count()).select_from(query.subquery()))
+    rows = db.scalars(
+        query.order_by(Sale.occurred_at.desc(), Sale.number.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return list(rows), total
+
+
+def visible_sale(db: Session, *, actor: AppUser, sale_id: uuid.UUID) -> Sale:
+    """Detalle de una venta; para el Vendedor, una ajena o de otro día es 404."""
+    sale = db.scalar(select(Sale).where(Sale.id == sale_id, *_visible_to(actor)))
+    if sale is None:
+        raise ApiError(404, "not_found", "La venta no existe")
+    return sale
+
+
+def voided_ids(db: Session, sale_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    if not sale_ids:
+        return set()
+    return set(db.scalars(select(SaleVoid.sale_id).where(SaleVoid.sale_id.in_(sale_ids))))
+
+
+def sales_of_movements(
+    db: Session, movements: list[StockMovement]
+) -> dict[uuid.UUID, tuple[uuid.UUID, str]]:
+    """Venta de cada salida por venta o reverso por anulación, en una consulta (FR-048)."""
+    item_ids = {m.reference_id for m in movements if m.reference_type == "sale_item"}
+    if not item_ids:
+        return {}
+    rows = db.execute(
+        select(SaleItem.id, Sale.id, Sale.number)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .where(SaleItem.id.in_(item_ids))
+    ).all()
+    by_item = {item_id: (sale_id, number) for item_id, sale_id, number in rows}
+    return {
+        m.id: by_item[m.reference_id]
+        for m in movements
+        if m.reference_type == "sale_item" and m.reference_id in by_item
+    }
+
+
+# --- Anulación (RF-27; FR-041 a FR-043; research R10) ----------------------------------
+
+# Espejo de cada movimiento de dinero: lo que entró sale y lo que salió vuelve.
+VOID_KIND = {"sale_payment": "void_refund", "change": "void_change"}
+
+
+def get_sale(db: Session, sale_id: uuid.UUID, *, for_update: bool = False) -> Sale:
+    sale = db.get(Sale, sale_id, with_for_update=for_update)
+    if sale is None:
+        raise ApiError(404, "not_found", "La venta no existe")
+    return sale
+
+
+def void_sale(db: Session, *, actor: AppUser, sale_id: uuid.UUID, reason: str) -> Sale:
+    """Anula la venta completa en una transacción: reverso de kardex por línea y espejo de
+    cada pago y vuelto en la caja de la venta. Una venta se anula una sola vez.
+
+    La caja que recibe la devolución si la de la venta ya estuviera cerrada se decide en
+    la etapa 1.4 (PRD §10); en esta etapa las cajas no se cierran."""
+    sale = get_sale(db, sale_id, for_update=True)
+    if db.scalar(select(SaleVoid.id).where(SaleVoid.sale_id == sale.id)) is not None:
+        raise ApiError(409, "invalid_state", "La venta ya estaba anulada")
+    sale_void = SaleVoid(
+        id=uuid.uuid7(), sale_id=sale.id, reason=reason, voided_by=actor.id, voided_at=utcnow()
+    )
+    db.add(sale_void)
+    db.flush()
+
+    items = db.scalars(
+        select(SaleItem).where(SaleItem.sale_id == sale.id).order_by(SaleItem.product_id)
+    ).all()
+    for item in items:
+        post_movement(
+            db,
+            product_id=item.product_id,
+            type="sale_void",
+            quantity_delta=item.quantity,
+            created_by=actor.id,
+            reference_type="sale_item",
+            reference_id=item.id,
+            device_id=sale.device_id,
+        )
+
+    payments = db.scalars(
+        select(Payment)
+        .where(Payment.sale_id == sale.id, Payment.kind.in_(VOID_KIND))
+        .order_by(Payment.kind, Payment.line_number)
+    ).all()
+    for payment in payments:
+        db.add(
+            Payment(
+                id=uuid.uuid7(),
+                sale_id=sale.id,
+                line_number=payment.line_number,
+                cash_session_id=sale.cash_session_id,
+                kind=VOID_KIND[payment.kind],
+                payment_method_code=payment.payment_method_code,
+                currency=payment.currency,
+                amount=payment.amount,
+                exchange_rate=payment.exchange_rate,
+                amount_usd=payment.amount_usd,
+                reference=payment.reference,
+                sale_void_id=sale_void.id,
+            )
+        )
+    db.flush()
+    record_audit(
+        db,
+        action="sale.voided",
+        user_id=actor.id,
+        device_id=sale.device_id,
+        entity_type="sale",
+        entity_id=sale.id,
+        before={"number": sale.number, "total_usd": str(sale.total_usd), "status": "registered"},
+        after={"status": "voided"},
+        reason=reason,
+    )
+    return sale
 
 
 def _payment(
