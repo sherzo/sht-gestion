@@ -84,7 +84,7 @@ La etapa 1.1 completa se publicó como versión `0.2.0`.
 | **Requisitos** | RF-13 a RF-17, RN-03, RN-05, RN-09, RN-14, RN-15, RN-20 |
 | **Entregables** | Proveedores; compras en USD o Bs en borrador y confirmadas; gastos de la compra (porcentaje o monto fijo) con costo final por unidad y gastos frecuentes; costo promedio ponderado; anulación de compras por el admin; carga, corrección auditada e histórico de la tasa BCV (adelantados de la 1.3 para las compras en Bs) |
 | **Terminada cuando** | Las pruebas del costo promedio (incluida la anulación) pasan con los casos compartidos; una compra confirmada no puede modificarse ni en la base de datos |
-| **Estado** | En curso (`specs/003-proveedores-compras/`): implementada en la rama `003-proveedores-compras` con sus pruebas automatizadas; faltan el recorrido de los escenarios del quickstart, la revisión de seguridad y de código, la integración a `main` y la validación en producción |
+| **Estado** | Integrada a `main` y desplegada (`specs/003-proveedores-compras/`): pruebas automatizadas, recorrido del quickstart y revisión de seguridad y de código hechos; falta la validación en producción (compra real y restauración del respaldo) para cerrarla como versión `0.3.0` |
 
 ### 1.3 — Ventas multimoneda, pagos mixtos y descuentos
 

@@ -40,7 +40,8 @@ quién tiene la clave de Storage y cómo se respaldan:
    borra el objeto de Storage. Máximo 5 fotos activas por producto.
 6. **Respaldo con rclone.** `backup.yml` copia cada noche las fotos nuevas (protocolo S3
    de Supabase Storage) a `gs://sht-gestion-respaldos/fotos/`. Como una foto nunca cambia,
-   `rclone copy --immutable` solo sube las nuevas y falla si alguna cambiara. La regla de
+   `rclone copy --immutable --checksum` solo sube las nuevas y falla si alguna cambiara
+   (compara tamaño y MD5, no la fecha, que cada servicio guarda con distinta precisión). La regla de
    borrado a los 30 días del bucket se limita a los volcados (`matchesPrefix: ["sht-"]`):
    las fotos se conservan, aun las que se quitaron del producto.
 

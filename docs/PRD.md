@@ -5,7 +5,7 @@
 |---|---|
 | Versión | 0.9 |
 | Fecha | 2026-10-13 |
-| Estado | En revisión por el dueño |
+| Estado | Aprobado por el dueño |
 | Documentos relacionados | `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`, `CLAUDE.md` |
 
 > Este documento define **qué** se construye y **por qué**. El **cómo** (stack, base de datos, despliegue) va en `docs/arquitectura.md`. Cualquier cambio de alcance o de regla de negocio debe reflejarse aquí y registrarse en `CHANGELOG.md`.

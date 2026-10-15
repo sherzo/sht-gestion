@@ -55,7 +55,9 @@ jobs:
       # Fotos de productos (research R9, ADR-0009): copia de las fotos nuevas del bucket de
       # Supabase Storage (protocolo S3) a `fotos/`. Las fotos no cambian nunca (ruta con
       # UUIDv7): `--immutable` falla si alguna cambiara en lugar de sobrescribirla, y las que
-      # se quitan del producto se conservan en el respaldo.
+      # se quitan del producto se conservan en el respaldo. `--checksum` compara tamaño y MD5
+      # (ETag de Supabase), no la fecha: Supabase y Cloud Storage la guardan con distinta
+      # precisión y `--immutable` tomaba como modificada una foto ya copiada.
       - name: Copiar las fotos de productos
         if: vars.SUPABASE_S3_ENDPOINT != ''
         env:
@@ -72,4 +74,4 @@ jobs:
         run: |
           sudo apt-get install -y rclone > /dev/null 2>&1
           rclone copy supabase:product-photos "gcs:$BACKUP_BUCKET/fotos" \
-            --immutable --gcs-no-check-bucket --stats-one-line --stats-log-level NOTICE
+            --immutable --checksum --gcs-no-check-bucket --stats-one-line --stats-log-level NOTICE
