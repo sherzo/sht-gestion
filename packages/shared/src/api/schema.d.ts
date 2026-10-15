@@ -1253,6 +1253,7 @@ export interface components {
             /** Resolved At */
             resolved_at: string | null;
             resolved_by: components["schemas"]["UserRef"] | null;
+            sale?: components["schemas"]["SaleRef"] | null;
         };
         /** AlertPage */
         AlertPage: {
@@ -2649,6 +2650,16 @@ export interface components {
             allocated_sale_discount_usd: string;
             /** Line Total Usd */
             line_total_usd: string;
+        };
+        /** SaleRef */
+        SaleRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
         };
         /** SaleSeller */
         SaleSeller: {

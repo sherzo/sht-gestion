@@ -3,7 +3,7 @@
 // Pendientes del Admin (RN-19/FR-019b): salidas del Almacén por aprobar, conteos listos
 // para revisión y alertas (RN-14: anulaciones de compras que conservaron el costo). Aprobar genera el movimiento con el stock de ese momento; rechazar exige
 // un motivo que el Almacén verá.
-import { formatCost, formatDateTime, formatQuantity } from "@sht/shared";
+import { formatCost, formatDate, formatDateTime, formatQuantity, formatRate, formatUsd } from "@sht/shared";
 import { Check, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -233,6 +233,68 @@ function CountsReady() {
 
 type AlertItem = Schemas["AlertOut"];
 
+type SaleProduct = { sku: string; name: string; quantity?: string; stock_after?: string; sale_price_usd?: string; server_price_usd?: string | null };
+
+// Textos de las alertas de venta (research R6 de la etapa 1.3): la venta se registró igual.
+const SALE_ALERT_TITLES: Record<string, string> = {
+  negative_stock: "Stock negativo por venta",
+  price_mismatch: "Precio distinto al vigente",
+  total_mismatch: "Total distinto",
+  rate_mismatch: "Tasa distinta a la cargada",
+  discount_review: "Descuento para revisar",
+  inactive_user_sync: "Vendedor desactivado",
+};
+
+function saleAlertDetail(alert: AlertItem): string {
+  const details = alert.details as Record<string, unknown>;
+  const products = (details.products as SaleProduct[] | undefined) ?? [];
+  switch (alert.type) {
+    case "negative_stock":
+      return products.map((item) => `${item.sku} ${item.name}: quedó en ${item.stock_after}`).join("; ") + ". Revisa el inventario con un conteo o una compra.";
+    case "price_mismatch":
+      return products
+        .map((item) => `${item.sku}: vendido a ${formatUsd(item.sale_price_usd ?? "0")} USD; vigente ${item.server_price_usd ? `${formatUsd(item.server_price_usd)} USD` : "sin precio"}`)
+        .join("; ");
+    case "total_mismatch":
+      return `El equipo calculó ${formatUsd(String(details.device_total_usd))} USD y el servidor ${formatUsd(String(details.server_total_usd))} USD. Saldo sin cubrir: ${formatUsd(String(details.balance_usd))} USD.`;
+    case "rate_mismatch":
+      return `La venta usó ${formatRate(String(details.sale_rate))}; la tasa cargada del ${formatDate(String(details.rate_date))} es ${details.loaded_rate ? formatRate(String(details.loaded_rate)) : "ninguna"}.`;
+    case "discount_review":
+      return `${String(details.seller)} aplicó un descuento sin autorización válida (por ejemplo, sin conexión). La venta no cambia; para corregirla se anula.`;
+    default:
+      return `${String(details.seller ?? "")}`;
+  }
+}
+
+function AlertDescription({ alert }: { alert: AlertItem }) {
+  if (alert.entity_type === "sale") {
+    return (
+      <>
+        <span className="block font-medium">
+          {SALE_ALERT_TITLES[alert.type] ?? alert.type} en la venta {alert.sale?.number}
+        </span>
+        <span className="block text-sm text-ink-muted">{saleAlertDetail(alert)}</span>
+        <Link href={`/ventas/detalle/?id=${alert.entity_id}`} className="text-sm text-primary underline-offset-2 hover:underline">
+          Ver la venta
+        </Link>
+      </>
+    );
+  }
+  const details = alert.details as Record<string, string | null>;
+  return (
+    <>
+      <span className="block font-medium">Anulación de la compra {details.purchase_number}: se conservó el costo de {details.sku}</span>
+      <span className="block text-sm text-ink-muted">
+        Stock {details.stock_before} → {details.stock_after}. Costo conservado: {details.cost_kept ? formatCost(details.cost_kept) : "—"} USD.
+        Revisa el costo del producto con un conteo o la próxima compra.
+      </span>
+      <Link href={`/compras/detalle/?id=${alert.entity_id}`} className="text-sm text-primary underline-offset-2 hover:underline">
+        Ver la compra
+      </Link>
+    </>
+  );
+}
+
 function Alerts() {
   const [alerts, setAlerts] = useState<AlertItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -258,21 +320,7 @@ function Alerts() {
     {
       key: "what",
       header: "Alerta",
-      render: (alert) => {
-        const details = alert.details as Record<string, string | null>;
-        return (
-          <>
-            <span className="block font-medium">Anulación de la compra {details.purchase_number}: se conservó el costo de {details.sku}</span>
-            <span className="block text-sm text-ink-muted">
-              Stock {details.stock_before} → {details.stock_after}. Costo conservado: {details.cost_kept ? formatCost(details.cost_kept) : "—"} USD.
-              Revisa el costo del producto con un conteo o la próxima compra.
-            </span>
-            <Link href={`/compras/detalle/?id=${alert.entity_id}`} className="text-sm text-primary underline-offset-2 hover:underline">
-              Ver la compra
-            </Link>
-          </>
-        );
-      },
+      render: (alert) => <AlertDescription alert={alert} />,
     },
     { key: "when", header: "Fecha", render: (alert) => formatDateTime(alert.created_at) },
     {

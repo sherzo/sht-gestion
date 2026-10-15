@@ -1,6 +1,7 @@
-"""Endpoints de alertas para el Admin (RN-14/FR-018, research R8).
+"""Endpoints de alertas para el Admin (RN-10, RN-14; research R8 de la 1.2 y R6 de la 1.3).
 
-Contrato: specs/003-proveedores-compras/contracts/api.md.
+Contratos: specs/003-proveedores-compras/contracts/api.md y
+specs/004-ventas-multimoneda/contracts/api.md (alertas de venta con su número).
 """
 
 import uuid
@@ -9,10 +10,11 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession, require_roles
 from app.api.product_schemas import UserRef, user_ref
-from app.db.models import Alert
+from app.db.models import Alert, Sale
 from app.domain.roles import Role
 from app.services import alerts as alerts_service
 from app.services.users import users_by_id
@@ -20,6 +22,11 @@ from app.services.users import users_by_id
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 Admin = Annotated[CurrentUser, Depends(require_roles(Role.ADMIN))]
+
+
+class SaleRef(BaseModel):
+    id: uuid.UUID
+    number: str
 
 
 class AlertOut(BaseModel):
@@ -31,6 +38,7 @@ class AlertOut(BaseModel):
     created_at: datetime
     resolved_at: datetime | None
     resolved_by: UserRef | None
+    sale: SaleRef | None = None
 
 
 class AlertPage(BaseModel):
@@ -42,6 +50,11 @@ class AlertPage(BaseModel):
 
 def alerts_out(db: DbSession, rows: list[Alert]) -> list[AlertOut]:
     users = users_by_id(db, {row.resolved_by for row in rows})
+    sale_ids = {row.entity_id for row in rows if row.entity_type == "sale"}
+    numbers = {
+        sale_id: number
+        for sale_id, number in db.execute(select(Sale.id, Sale.number).where(Sale.id.in_(sale_ids)))
+    }
     return [
         AlertOut(
             id=row.id,
@@ -52,6 +65,9 @@ def alerts_out(db: DbSession, rows: list[Alert]) -> list[AlertOut]:
             created_at=row.created_at,
             resolved_at=row.resolved_at,
             resolved_by=user_ref(users.get(row.resolved_by)) if row.resolved_by else None,
+            sale=SaleRef(id=row.entity_id, number=numbers[row.entity_id])
+            if row.entity_id in numbers
+            else None,
         )
         for row in rows
     ]

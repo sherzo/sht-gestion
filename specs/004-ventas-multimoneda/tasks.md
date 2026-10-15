@@ -323,7 +323,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T046 [P] [US3] Pruebas en `backend/tests/test_sales_payments.py` (marca `db`):
+- [X] T046 [P] [US3] Pruebas en `backend/tests/test_sales_payments.py` (marca `db`):
   - **Pago mixto**: el de la User Story 3 registra tres pagos con su `amount_usd` (`730.00` Bs → `20.00`, RN-06), la tasa de la venta y `paid_usd` `50.00`; Zelle y USDT 1:1 (RN-04).
   - **Referencias**: pago móvil, punto de venta, Zelle o USDT sin referencia → 422 con `fields`; efectivo sin referencia → permitido; referencia de más de 60 caracteres → 422.
   - **Vuelto**: `83.95` en `cash_ves` para un excedente de `2.30`; vuelto en dos métodos (`1.00` USD + `47.45` Bs) → `change_usd` `2.30`; vuelto mayor que el excedente → 422; vuelto menor → `overpaid_usd` `0.30`.
@@ -334,8 +334,8 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Implementation for User Story 3
 
-- [ ] T047 [US3] Completar `create_sale` en `backend/app/services/sales.py` con la validación de pagos y vueltos: método existente; `currency` del método; referencia obligatoria según `payment_method.requires_reference` (422 con `fields` antes de llegar al trigger); `amount` > 0 con 2 decimales; cobertura de lo pagado sobre el total recalculado (422 si no cubre, salvo lo que define US5 para totales distintos); vuelto ≤ excedente; `paid_usd`, `change_usd` y `overpaid_usd` en la respuesta (FR-033 a FR-039)
-- [ ] T048 [US3] Crear `frontend/src/components/sales/payments-panel.tsx`:
+- [X] T047 [US3] Completar `create_sale` en `backend/app/services/sales.py` con la validación de pagos y vueltos: método existente; `currency` del método; referencia obligatoria según `payment_method.requires_reference` (422 con `fields` antes de llegar al trigger); `amount` > 0 con 2 decimales; cobertura de lo pagado sobre el total recalculado (422 si no cubre, salvo lo que define US5 para totales distintos); vuelto ≤ excedente; `paid_usd`, `change_usd` y `overpaid_usd` en la respuesta (FR-033 a FR-039)
+- [X] T048 [US3] Crear `frontend/src/components/sales/payments-panel.tsx`:
   - lista de pagos con método (los seis, en el orden de `sort_order`), monto en la moneda del método y referencia cuando el método la exige;
   - saldo pendiente en USD y Bs tras cada pago;
   - botón "Completar en Bs" con el monto de `suggestedVes`;
@@ -354,7 +354,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T049 [P] [US5] Pruebas en `backend/tests/test_sales_alerts.py` (marca `db`):
+- [X] T049 [P] [US5] Pruebas en `backend/tests/test_sales_alerts.py` (marca `db`):
   - **Stock negativo**: con stock `2` vender `3` → venta registrada, stock `-1`, una alerta `negative_stock` con producto, cantidad y stock resultante, y `warnings` en la respuesta.
   - **Una alerta por tipo**: dos productos negativos en la misma venta → una sola alerta con ambos.
   - **Precio distinto**: precio enviado distinto del vigente → venta registrada con el precio enviado, `server_price_usd` y una alerta `price_mismatch`.
@@ -366,9 +366,9 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Implementation for User Story 5
 
-- [ ] T050 [US5] Agregar a `create_sale` en `backend/app/services/sales.py` la detección de R6, con `create_sale_alert` y una alerta por tipo y venta: stock negativo tras los movimientos; precio de cada línea comparado con el precio vigente del producto; total del equipo comparado con el del servidor; tasa enviada comparada con `exchange_rate` de `exchange_rate_date` (`rate_mismatch` si difiere o no existe); vendedor inactivo. Con un total distinto que deja los pagos sin cubrir, la venta se registra con alerta en lugar de 422 (FR-032). Ajustar el 422 de cobertura de T047: aplica solo cuando el total del equipo coincide con el del servidor (R4, R6)
-- [ ] T051 [US5] Ampliar `backend/app/api/alerts.py` y su esquema para incluir `sale: {id, number}` en las alertas de venta, y `frontend/src/app/pendientes/page.tsx` para mostrar los tipos nuevos con su texto en español ("Stock negativo por venta", "Precio distinto al vigente", "Total distinto", "Tasa distinta a la cargada", "Descuento para revisar", "Vendedor desactivado") y un enlace a `/ventas/detalle?id=`
-- [ ] T052 [US5] En `frontend/src/components/sales/sale-lines.tsx`, si la cantidad de una línea (sumando otras líneas del mismo producto) supera el stock de la búsqueda, mostrar la advertencia "Stock disponible: N; la venta quedará con stock negativo" sin bloquear (FR-030)
+- [X] T050 [US5] Agregar a `create_sale` en `backend/app/services/sales.py` la detección de R6, con `create_sale_alert` y una alerta por tipo y venta: stock negativo tras los movimientos; precio de cada línea comparado con el precio vigente del producto; total del equipo comparado con el del servidor; tasa enviada comparada con `exchange_rate` de `exchange_rate_date` (`rate_mismatch` si difiere o no existe); vendedor inactivo. Con un total distinto que deja los pagos sin cubrir, la venta se registra con alerta en lugar de 422 (FR-032). Ajustar el 422 de cobertura de T047: aplica solo cuando el total del equipo coincide con el del servidor (R4, R6)
+- [X] T051 [US5] Ampliar `backend/app/api/alerts.py` y su esquema para incluir `sale: {id, number}` en las alertas de venta, y `frontend/src/app/pendientes/page.tsx` para mostrar los tipos nuevos con su texto en español ("Stock negativo por venta", "Precio distinto al vigente", "Total distinto", "Tasa distinta a la cargada", "Descuento para revisar", "Vendedor desactivado") y un enlace a `/ventas/detalle?id=`
+- [X] T052 [US5] En `frontend/src/components/sales/sale-lines.tsx`, si la cantidad de una línea (sumando otras líneas del mismo producto) supera el stock de la búsqueda, mostrar la advertencia "Stock disponible: N; la venta quedará con stock negativo" sin bloquear (FR-030)
 
 **Checkpoint**: US5 funciona: venta sin stock con aviso y alertas.
 
