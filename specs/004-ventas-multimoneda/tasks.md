@@ -7,7 +7,7 @@ description: "Tareas de la etapa 1.3: ventas multimoneda, pagos mixtos, descuent
 
 **Input**: documentos de diseño en `specs/004-ventas-multimoneda/`
 
-**Prerequisites**: plan.md, spec.md, research.md (R1–R16), data-model.md, contracts/api.md, quickstart.md
+**Prerequisites**: plan.md, spec.md, research.md (R1–R17), data-model.md, contracts/api.md, quickstart.md
 
 **Tests**: se incluyen, porque los exigen tanto la constitución como la especificación:
 
@@ -96,7 +96,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   Solo sintaxis de TypeScript borrable (sin `enum` ni `namespace`). Exportarlo desde `packages/shared/src/index.ts` (R1, R2)
 - [ ] T008 [P] Crear `packages/shared/src/money.test.ts` con `node:test` y `node:assert`: lee `../test-vectors/money.json` y recorre todos los casos contra `money.ts`. Comprobar que `pnpm test` pasa (FR-040, SC-003)
 - [ ] T009 [P] Crear `packages/shared/src/uuid.ts` con `uuidv7(): string` (RFC 9562: 48 bits de milisegundos, versión 7, variante 10 y el resto de `crypto.getRandomValues`) y un caso en `packages/shared/src/uuid.test.ts` que verifica el formato y el orden creciente de 1.000 ids; exportarlo desde `index.ts` (R4)
-- [ ] T010 [P] Crear `backend/app/domain/series.py` con `series_for(n: int) -> str` (1 → `A`, 26 → `Z`, 27 → `AA`, 702 → `ZZ`, 703 → `AAA`; más de 3 letras → `ValueError`). Crear también `backend/app/domain/customer_document.py` con `normalize_document(text) -> str`: cédula `^[VE]-\d{6,8}$` (acepta `v12345678`, `V 12.345.678`) o RIF con `normalize_rif`. Pruebas de ambos en `backend/tests/test_series_domain.py` y `backend/tests/test_customer_document.py` (R3, R11)
+- [ ] T010 [P] Crear `backend/app/domain/series.py` con `series_for(n: int) -> str` (1 → `A`, 26 → `Z`, 27 → `AA`, 702 → `ZZ`, 703 → `AAA`; más de 3 letras → `ValueError`). Crear también `backend/app/domain/customer_document.py` con `normalize_document(text) -> str`: con `V` o `E` sin guiones es siempre cédula `^[VE]-\d{6,8}$` (acepta `v12345678`, `V 12.345.678`); `V123456789` → `ValueError` "Para un RIF de persona natural escribe los guiones, por ejemplo V-12345678-9"; escrito con guiones y dígito verificador (`V-12345678-9`), o con `J`, `G`, `P` o `C`, es RIF con `normalize_rif`. Pruebas de ambos en `backend/tests/test_series_domain.py` y `backend/tests/test_customer_document.py` (R3, R11)
 - [ ] T011 Agregar a `backend/app/db/models.py` los modelos `Device`, `CashSession`, `Customer`, `PaymentMethod`, `Sale`, `SaleItem`, `Payment`, `SaleVoid`, `DiscountAuthorization` y `OutboxOperation`, exactamente como en data-model.md, con estas reglas literales:
   - **`device`**: `name` "1–60 caracteres"; `series` "`^[A-Z]{1,3}$`, única"; `last_sequence_number` "≥ 0"; `token_hash` único; `revoked_at`/`revoked_by` "Se fijan juntos".
   - **`cash_session`**: `opening_float_ves` y `opening_float_usd` "≥ 0"; `status` "`open`"; `outbox_operation_id` único.
@@ -122,14 +122,14 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 - [ ] T012 Crear la migración `backend/migrations/versions/0006_ventas_y_caja.py` (revisión `0006`, anterior `0005`) con las diez tablas y los `CHECK` de T011. Incluye además:
   - **Índices**: único parcial `cash_session (device_id) WHERE status = 'open'`; `sale (business_date DESC)`, `sale (seller_id, business_date)`, `sale (customer_id)` y `sale_item (product_id)`; `discount_authorization (status, requested_at) WHERE status = 'pending'`.
   - **Datos iniciales**: los seis métodos de pago de data-model.md con su `sort_order`, e `INSERT INTO sequence_counter VALUES ('device_series', 1)`.
-  - **Tipos de alerta**: amplía `ck_alert_type_valid` con `negative_stock`, `price_mismatch`, `total_mismatch`, `discount_review` e `inactive_user_sync`.
+  - **Tipos de alerta**: amplía `ck_alert_type_valid` con `negative_stock`, `price_mismatch`, `total_mismatch`, `rate_mismatch`, `discount_review` e `inactive_user_sync`.
   - **FK de `device_id`**: en `user_session`, `stock_movement` y `audit_log`.
   - **Triggers de research R9**:
     - solo inserción (`reject_change()` de `0004`) en `sale`, `sale_item`, `payment`, `sale_void` y `outbox_operation`;
     - `DELETE` rechazado en `device`, `cash_session`, `customer`, `discount_authorization` y `payment_method`;
     - `device`: solo fijar `revoked_at`/`revoked_by` una vez y aumentar `last_sequence_number`;
     - `cash_session`: solo `status` puede cambiar;
-    - `discount_authorization`: solo `pending` → `approved` (con `decided_by`/`decided_at` y `discount_value` ≤ el actual, recalculando `discount_usd`) o `rejected`;
+    - `discount_authorization`: solo `pending` → `approved` (con `decided_by`/`decided_at`; `discount_value` y `discount_usd` pueden bajar, nunca subir; el trigger solo lo admite, el cálculo lo hace el servicio) o `rejected`;
     - `payment`: rechaza la fila si el método exige referencia y `reference` es nula.
   - **`downgrade`**: lo quita todo y restaura el `CHECK` de alertas.
   - Comprobar `alembic upgrade head`, `downgrade 0005` y `upgrade head` contra el Postgres local (FR-044, SC-010)
@@ -146,14 +146,15 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - `register_device(db, *, actor, name) -> tuple[Device, str]`: toma y avanza la fila `device_series` con `FOR UPDATE`, genera la serie con `series_for`, crea un token de 32 bytes con `secrets.token_urlsafe` y guarda `sha256` en hex; audita `device.registered`.
   - `revoke_device(db, *, actor, device_id)`: 409 `invalid_state` si ya estaba revocado; audita `device.revoked`.
   - `list_devices(db)`.
-  - `device_from_token(db, token, *, at: datetime | None = None) -> Device`: 403 `device_required` si falta o no existe; 403 `device_revoked` si está revocado y `at` es posterior a `revoked_at`.
+  - `device_from_token(db, token) -> Device`: 403 `device_required` si falta o no existe; devuelve el equipo aunque esté revocado.
+  - `ensure_active(device, *, at: datetime | None = None)`: 403 `device_revoked` si está revocado y `at` es nulo o posterior a `revoked_at` (FR-002).
   - (R3, FR-001 a FR-004)
-- [ ] T015 Agregar a `backend/app/api/deps.py` la dependencia `CurrentDevice`, que lee `X-Device-Token`, llama a `device_from_token` y devuelve el `Device`. Se combina con `require_roles(...)` en los endpoints de mostrador; la prueba de declaraciones de rutas (`test_route_declarations.py`) debe seguir pasando (R3)
+- [ ] T015 Agregar a `backend/app/api/deps.py` la dependencia `CurrentDevice`, que lee `X-Device-Token`, llama a `device_from_token` y devuelve el `Device` (aunque esté revocado), y `ActiveDevice`, que además llama a `ensure_active(device)` para `/devices/current` y las autorizaciones de descuento. Se combina con `require_roles(...)` en los endpoints de mostrador; la prueba de declaraciones de rutas (`test_route_declarations.py`) debe seguir pasando (R3)
 - [ ] T016 Crear `backend/app/services/sync.py` con `process_operation(db, *, device, user, operation: OutboxOperationIn) -> tuple[int, dict]`:
   1. Bloquea la clave con `pg_advisory_xact_lock(hashtext(id::text))`, así dos envíos simultáneos del mismo id se serializan.
   2. Busca la fila de `outbox_operation` con ese id; si existe, devuelve su `http_status` y su `result` o `error` sin volver a procesar.
-  3. Si no existe, despacha por `operation_type` a un registro de manejadores (`HANDLERS: dict[str, Callable]`, vacío en esta tarea). Tipo desconocido → 409 `operation_type_unknown`.
-  4. Inserta la fila con su resultado: `processed`/200, o `rejected` con `http_status` y `error` para cualquier `ApiError` 409 o 422 (los cambios del manejador se deshacen con un punto de guardado antes de guardar el rechazo). Los demás errores se propagan sin guardar nada (son transitorios).
+  3. Si no existe, llama a `ensure_active(device, at=operation.created_at)`: una operación creada después de revocar el equipo es un rechazo 403 `device_revoked`, guardado como los demás rechazos; una anterior se procesa (FR-002). Luego despacha por `operation_type` a un registro de manejadores (`HANDLERS: dict[str, Callable]`, vacío en esta tarea). Tipo desconocido → 409 `operation_type_unknown`.
+  4. Inserta la fila con su resultado: `processed`/200, o `rejected` con `http_status` y `error` para cualquier `ApiError` 403 `device_revoked`, 409 o 422 (los cambios del manejador se deshacen con un punto de guardado antes de guardar el rechazo). Los demás errores se propagan sin guardar nada (son transitorios).
   5. Todo ocurre en la transacción de la petición; la fila y lo que crea el manejador se confirman juntos (R4, FR-018).
   - (R4, FR-017)
 - [ ] T017 [P] Ampliar `backend/app/services/alerts.py`: actualizar el docstring con los tipos de R6 y agregar `create_sale_alert(db, *, type, sale, details)`, que fija `entity_type = 'sale'` e incluye `sale_number` en `details` (R6)
@@ -164,7 +165,8 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - un rechazo 422 guardado se repite igual;
   - un error inesperado no guarda la fila y el reintento vuelve a ejecutar;
   - tipo desconocido → 409 `operation_type_unknown`;
-  - sin `X-Device-Token` → 403 `device_required`; equipo revocado → 403 `device_revoked`;
+  - sin `X-Device-Token` → 403 `device_required`;
+  - equipo revocado: una operación con `created_at` anterior a la revocación se procesa, y una posterior → 403 `device_revoked`, guardado y repetido al reenviar (FR-002);
   - Almacén → 403.
   - (ADR-0003/FR-017, SC-004)
 - [ ] T020 [P] Crear `frontend/src/lib/device/device-store.ts` con Dexie (base `sht-mostrador`, versión 1, tablas `device` y `outbox`):
@@ -206,7 +208,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - el segundo equipo recibe `B`; tras revocar `B`, el siguiente recibe `C`;
   - revocar dos veces → 409 `invalid_state`;
   - `GET /devices/current` con el token → equipo, caja abierta (o nula) y `last_sequence_number`;
-  - token inválido → 403;
+  - token inválido → 403 `device_required`; equipo revocado → 403 `device_revoked`;
   - auditoría `device.registered` y `device.revoked`;
   - nombre vacío o de más de 60 caracteres → 422.
   - (RN-11/FR-001 a FR-004)
@@ -224,7 +226,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Implementation for User Story 1
 
-- [ ] T027 [US1] Crear `backend/app/api/devices.py` con `POST /devices`, `GET /devices` y `POST /devices/{id}/revoke` (`require_roles(ADMIN)`), y `GET /devices/current` (`require_roles(ADMIN, SELLER)` + `CurrentDevice`). Esquema `Device` del contrato en `backend/app/api/sale_schemas.py`. Registrar el router en `backend/app/main.py`
+- [ ] T027 [US1] Crear `backend/app/api/devices.py` con `POST /devices`, `GET /devices` y `POST /devices/{id}/revoke` (`require_roles(ADMIN)`), y `GET /devices/current` (`require_roles(ADMIN, SELLER)` + `ActiveDevice`). Esquema `Device` del contrato en `backend/app/api/sale_schemas.py`. Registrar el router en `backend/app/main.py`
 - [ ] T028 [US1] Crear `backend/app/services/cash_sessions.py` con el manejador `open_cash_session(db, *, device, user, operation)`:
   - valida el fondo con `validate_usd` (≥ 0, 2 decimales);
   - exige `applicable_rate(db, hoy)` (409 `exchange_rate_missing` si es nula);
@@ -258,7 +260,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - **Registro**: la venta de la User Story 2 registrada con `make_sale` → `number` `A-000001`, `subtotal_usd`, `total_usd` `7.70` y `total_ves` `281.05`; `exchange_rate` y su fecha iguales a las enviadas aunque exista una tasa más reciente (RN-05); el vendedor, la caja y el equipo.
   - **Kardex**: dos movimientos `sale` con `quantity_delta` `-2` y `-0.30`, `reference_type = 'sale_item'`, `device_id` y el stock descontado.
   - **Costo**: `unit_cost_usd` igual al costo promedio del producto.
-  - **Validaciones**: `1.5` en una unidad → 422; `0.305` m → 422; cantidad 0 → 422; venta sin líneas → 422; producto inexistente → 422; caja de otro equipo → 409 `cash_session_unavailable`.
+  - **Validaciones**: `1.5` en una unidad → 422; `0.305` m → 422; cantidad 0 → 422; venta sin líneas → 422; producto inexistente → 422; caja de otro equipo → 409 `cash_session_unavailable`; `seller_id` distinto del usuario de la sesión → 422 en `seller_id` (R17).
   - **Numeración**: el mismo `sequence_number` con otro id de operación → 409 `sequence_conflict`; `device.last_sequence_number` avanza.
   - **Cliente**: nuevo con documento `j-40123456-7` → creado normalizado; otra venta con el mismo documento y otro id → se liga al existente sin duplicar; `customer_id` existente → se usa; venta sin cliente → permitida.
   - **Pago**: uno solo que cubre → `paid_usd` correcto; pago que no cubre → 422 (FR-037).
@@ -266,7 +268,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - (RF-20, RF-21, RF-26, RF-28, RN-02, RN-05, RN-11/FR-010 a FR-019, FR-033, FR-037)
 - [ ] T034 [P] [US2] Pruebas en `backend/tests/test_sales_numbering.py` (marca `db`): dos equipos que envían 50 ventas cada uno desde hilos paralelos, con correlativos propios, no repiten ningún número ni dejan una venta sin registrar (RN-11/SC-005)
 - [ ] T035 [P] [US2] Pruebas en `backend/tests/test_sale_immutability.py` (marca `db`): `UPDATE` y `DELETE` por SQL directo sobre `sale`, `sale_item`, `payment` y `outbox_operation` fallan; `DELETE` en `customer` y `device` falla; un pago con método que exige referencia y `reference` nula insertado por SQL falla (RN-12/FR-044, SC-010)
-- [ ] T036 [P] [US2] Prueba en `backend/tests/test_sales_performance.py` (marca `db`): una venta de 20 líneas con 3 pagos se registra en menos de 1 s, medido alrededor de `POST /sync/operations` (R16, SC-002)
+- [ ] T036 [P] [US2] Prueba en `backend/tests/test_sales_performance.py` (marca `db`): una venta de 20 líneas con 3 pagos se registra en menos de 1 s, medido alrededor de `POST /sync/operations` (R16). SC-002 (búsqueda en < 1 s) ya lo cubre `test_search_performance.py` de la 1.1b, porque la venta reutiliza `GET /products`
 - [ ] T037 [US2] Agregar a `LEAK_CASES` de `backend/tests/test_no_cost_leak.py` la respuesta de `POST /sync/operations` (`sale.create`) para el Vendedor y a `MATRIX` las filas de `GET /customers`. El Vendedor no recibe ninguna clave con `cost` ni `margin` (principio IV/SC-006)
 
 ### Implementation for User Story 2
@@ -277,7 +279,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 - [ ] T039 [US2] Crear `backend/app/services/customers.py` con `search_customers(db, q, limit=20)` (documento exacto normalizado o nombre que contiene, sin acentos) y `resolve_customer(db, *, actor, customer_input | customer_id)`, con la regla de R11: id existente → ese; documento ya registrado → ese; si no, crea. Crear también `GET /customers` en `backend/app/api/customers.py` (`require_roles(ADMIN, SELLER)`) y registrarlo en `main.py` (RF-28/FR-019)
 - [ ] T040 [US2] Crear `backend/app/services/sales.py` con el manejador `create_sale(db, *, device, user, operation)`. Lo registra en `HANDLERS["sale.create"]`, y en una sola transacción:
   1. Valida el contenido y bloquea la caja (`FOR UPDATE`): debe existir, ser del equipo y estar abierta (si no, 409 `cash_session_unavailable`).
-  2. Valida el `seller_id`, que debe ser Admin o Vendedor.
+  2. Valida que `seller_id` sea el usuario de la sesión que envía (422 en `seller_id` si no, R17).
   3. Bloquea los productos en orden de id (R16) y valida cada cantidad con `validate_quantity` y los decimales de su unidad (cm ya convertido en el equipo; `entered_unit` informativo).
   4. Calcula todo con `compute_sale` usando los precios enviados y la tasa enviada.
   5. Inserta la venta con `number = f"{series}-{n:06d}"`, capturando la violación de `(series, sequence_number)` como 409 `sequence_conflict`.
@@ -357,14 +359,15 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - **Una alerta por tipo**: dos productos negativos en la misma venta → una sola alerta con ambos.
   - **Precio distinto**: precio enviado distinto del vigente → venta registrada con el precio enviado, `server_price_usd` y una alerta `price_mismatch`.
   - **Total distinto**: `device_total_usd` distinto del recalculado → alerta `total_mismatch` con ambos totales; si además los pagos no cubren el total recalculado, la venta se registra igual con esa alerta y el saldo.
-  - **Vendedor desactivado** → alerta `inactive_user_sync`.
+  - **Tasa distinta**: `exchange_rate` distinta de la tasa cargada para `exchange_rate_date` (por ejemplo, la tasa se corrigió después) → venta registrada con la tasa enviada y una alerta `rate_mismatch` con ambas tasas; fecha sin tasa cargada → la misma alerta; tasa igual → sin alerta.
+  - **Vendedor desactivado**: `inactive_user_sync` no ocurre en la 1.3 (R17); se prueba solo la función de detección con un usuario inactivo insertado en el fixture, para que quede lista para la 1.5.
   - **Pendientes**: `GET /alerts` las lista con `sale: {id, number}`.
   - (RN-10/FR-030 a FR-032, SC-009)
 
 ### Implementation for User Story 5
 
-- [ ] T050 [US5] Agregar a `create_sale` en `backend/app/services/sales.py` la detección de R6, con `create_sale_alert` y una alerta por tipo y venta: stock negativo tras los movimientos; precio de cada línea comparado con el precio vigente del producto; total del equipo comparado con el del servidor; vendedor inactivo. Con un total distinto que deja los pagos sin cubrir, la venta se registra con alerta en lugar de 422 (FR-032). Ajustar el 422 de cobertura de T047: aplica solo cuando el total del equipo coincide con el del servidor (R4, R6)
-- [ ] T051 [US5] Ampliar `backend/app/api/alerts.py` y su esquema para incluir `sale: {id, number}` en las alertas de venta, y `frontend/src/app/pendientes/page.tsx` para mostrar los tipos nuevos con su texto en español ("Stock negativo por venta", "Precio distinto al vigente", "Total distinto", "Descuento para revisar", "Vendedor desactivado") y un enlace a `/ventas/detalle?id=`
+- [ ] T050 [US5] Agregar a `create_sale` en `backend/app/services/sales.py` la detección de R6, con `create_sale_alert` y una alerta por tipo y venta: stock negativo tras los movimientos; precio de cada línea comparado con el precio vigente del producto; total del equipo comparado con el del servidor; tasa enviada comparada con `exchange_rate` de `exchange_rate_date` (`rate_mismatch` si difiere o no existe); vendedor inactivo. Con un total distinto que deja los pagos sin cubrir, la venta se registra con alerta en lugar de 422 (FR-032). Ajustar el 422 de cobertura de T047: aplica solo cuando el total del equipo coincide con el del servidor (R4, R6)
+- [ ] T051 [US5] Ampliar `backend/app/api/alerts.py` y su esquema para incluir `sale: {id, number}` en las alertas de venta, y `frontend/src/app/pendientes/page.tsx` para mostrar los tipos nuevos con su texto en español ("Stock negativo por venta", "Precio distinto al vigente", "Total distinto", "Tasa distinta a la cargada", "Descuento para revisar", "Vendedor desactivado") y un enlace a `/ventas/detalle?id=`
 - [ ] T052 [US5] En `frontend/src/components/sales/sale-lines.tsx`, si la cantidad de una línea (sumando otras líneas del mismo producto) supera el stock de la búsqueda, mostrar la advertencia "Stock disponible: N; la venta quedará con stock negativo" sin bloquear (FR-030)
 
 **Checkpoint**: US5 funciona: venta sin stock con aviso y alertas.
@@ -408,7 +411,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - `reject(db, *, actor, id, reason=None)`: audita.
   - `match_authorization(db, *, sale_id, sale_item_id, discount_type, discount_value, base_usd) -> DiscountAuthorization | None`: solo `approved` sin usar.
   - (R8, FR-023 a FR-027)
-- [ ] T056 [US4] Crear `backend/app/api/discount_authorizations.py` con los cinco endpoints del contrato y registrarlo en `main.py`; sumar `pending_discount_requests` a `GET /inventory/summary` para el Admin en `backend/app/services/inventory.py`
+- [ ] T056 [US4] Crear `backend/app/api/discount_authorizations.py` con los cinco endpoints del contrato (`POST` con `ActiveDevice`: un equipo revocado → 403 `device_revoked`) y registrarlo en `main.py`; sumar `pending_discount_requests` a `GET /inventory/summary` para el Admin en `backend/app/services/inventory.py`
 - [ ] T057 [US4] Completar `create_sale` en `backend/app/services/sales.py` con los descuentos:
   - pasa los descuentos de ítem y total a `compute_sale`;
   - si el vendedor es Admin, aplica `admin_self`;
@@ -442,6 +445,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - **Espejo de pagos**: por cada `sale_payment`, un `void_refund` igual, y por cada `change`, un `void_change` igual, en la caja de la venta con `sale_void_id`. La suma neta de la anulación es la negativa exacta de la venta.
   - **Validaciones**: motivo corto (< 5) o largo (> 500) → 422; anular dos veces → 409 `invalid_state`; Vendedor y Almacén → 403.
   - **Auditoría y estado**: `sale.voided` con el motivo; venta con stock negativo anulada → el stock vuelve a lo previo; `GET /sales/{id}` muestra `void` y los pagos de la anulación.
+  - **Inmutabilidad**: `UPDATE` y `DELETE` por SQL directo sobre `sale_void` y sobre los pagos `void_refund` y `void_change` fallan (RN-12/FR-044, SC-010).
   - (RF-27/FR-041 a FR-043, SC-008)
 - [ ] T061 [US6] Agregar a `MATRIX` la fila de `POST /sales/{id}/void` (solo Admin)
 
@@ -622,6 +626,6 @@ Task: "Rendimiento en backend/tests/test_sales_performance.py"
   - solo `post_movement` cambia el stock;
   - solo `domain/money.py`, `domain/sale_math.py` y `money.ts` redondean montos de la venta;
   - solo `services/sync.py` decide la idempotencia.
-- El servidor nunca rechaza una venta por razones de negocio (stock, precio, total, descuento o vendedor desactivado): la registra y alerta (R4, R6).
+- El servidor nunca rechaza una venta por razones de negocio (stock, precio, total, tasa, descuento o vendedor desactivado): la registra y alerta (R4, R6). Solo rechaza lo estructural que el equipo nunca envía si funciona bien, incluidos los pagos que no cubren y el vuelto mayor que el excedente cuando el total del equipo coincide con el del servidor, y un vendedor distinto del usuario de la sesión (R4, R17).
 - Los esquemas de respuesta por rol se eligen con el rol leído de la base, nunca con el del token (ADR-0008).
 - El PIN del Admin nunca se guarda en IndexedDB, en la cola ni en la venta (R8).

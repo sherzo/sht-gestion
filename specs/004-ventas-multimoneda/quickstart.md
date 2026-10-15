@@ -47,7 +47,7 @@ Pruebas clave de la etapa (todas referencian su FR o RN):
 | `test_cash_sessions.py` | Apertura por la cola, una abierta por equipo, sin tasa, fondo ≥ 0, Almacén rechazado (FR-005 a FR-008) |
 | `test_sync_idempotency.py` | Reenvío devuelve lo mismo; 10 envíos simultáneos dejan una venta; rechazos guardados y repetidos; tipo desconocido (FR-017, SC-004) |
 | `test_sales_create.py` | Venta completa en una transacción: líneas, pagos, kardex, tasa copiada, número, cliente nuevo o existente o por documento repetido, validaciones estructurales, `sequence_conflict` (FR-010 a FR-019, FR-033 a FR-039) |
-| `test_sales_alerts.py` | Stock negativo, precio distinto, total distinto, vendedor inactivo: venta registrada con su alerta (FR-030 a FR-032, SC-009) |
+| `test_sales_alerts.py` | Stock negativo, precio distinto, total distinto y tasa distinta de la cargada: venta registrada con su alerta (FR-030 a FR-032, SC-009) |
 | `test_discounts.py` | Autorización por PIN y por solicitud, bloqueo del PIN, vínculo por línea, tipo, valor y base, uso único, Admin sin autorización, venta sin autorización marcada para revisión (FR-020 a FR-029) |
 | `test_sales_numbering.py` | Dos equipos con 50 ventas cada uno en paralelo, sin números repetidos (SC-005) |
 | `test_sale_void.py` | Reversos de kardex, espejo de pagos y vueltos, una sola vez, motivo, solo Admin (FR-041 a FR-043, SC-008) |
@@ -75,6 +75,9 @@ Pruebas clave de la etapa (todas referencian su FR o RN):
    - Probar `1,5` en una conexión y `30,5 cm` en la manguera: se rechazan.
    - Cobrar 7,70 en Efectivo USD y confirmar: número `A-000001`, dos salidas en el
      kardex y 0,30 m descontados.
+   - Empezar otra venta y, como Admin desde otro navegador, corregir la tasa de hoy.
+     Sin pagos, la pantalla avisa y pide actualizarla antes del primer pago; con un
+     pago registrado, la venta conserva su tasa (FR-014).
 3. **Reintento (FR-017)**: con las herramientas del navegador sin red, confirmar una
    venta. Queda "Ventas pendientes de envío: 1". Al volver la red se envía sola y
    aparece una sola vez en Ventas.

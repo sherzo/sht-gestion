@@ -71,7 +71,7 @@ cambiar cualquier columna salvo `status` (que en esta etapa no tiene a qué camb
 | Columna | Tipo | Reglas |
 |---|---|---|
 | `name` | text | 2–100 caracteres |
-| `document_id` | text, nulo | Cédula `^[VE]-\d{6,8}$` o RIF `^[JGVEPC]-\d{8}-\d$`; índice único |
+| `document_id` | text, nulo | Cédula `^[VE]-\d{6,8}$` o RIF `^[JGVEPC]-\d{8}-\d$`; índice único. `V` o `E` sin guiones es siempre cédula (R11) |
 | `phone` | text, nulo | Hasta 30 caracteres |
 | `created_at`, `created_by` | | |
 
@@ -103,7 +103,7 @@ administrarlos.
 | `series`, `sequence_number` | text, int | Único `(series, sequence_number)`; `sequence_number` ≥ 1 |
 | `number` | text | `{series}-{sequence_number con 6 dígitos}`, único |
 | `cash_session_id` | uuid → `cash_session` | Del mismo equipo (lo valida el servicio) |
-| `seller_id` | uuid → `app_user` | Quien vendió (contenido de la operación) |
+| `seller_id` | uuid → `app_user` | Quien vendió; en la 1.3, igual al usuario de la sesión que la envía (R17) |
 | `customer_id` | uuid → `customer`, nulo | |
 | `occurred_at` | timestamptz | Hora del equipo |
 | `business_date` | date | Fecha de negocio (Caracas) de `occurred_at` |
@@ -182,8 +182,9 @@ autorización solo puede existir si hay descuento.
 | `decided_by`, `decided_at` | nulos | Admin; juntos con `approved` o `rejected` |
 | `rejection_reason` | text, nulo | Opcional, hasta 200 caracteres |
 
-El trigger permite solo `pending` → `approved` (que puede bajar `discount_value` y
-recalcular `discount_usd`) o `rejected`, y rechaza `DELETE`. Que se
+El trigger permite solo `pending` → `approved` (en la que `discount_value` y
+`discount_usd` pueden bajar; el cálculo lo hace el servicio con `sale_math`, el trigger
+solo lo admite) o `rejected`, y rechaza `DELETE`. Que se
 use una sola vez lo garantizan los índices únicos de `sale` y `sale_item`.
 
 ### `outbox_operation` (FR-017; ADR-0003; R4)
@@ -209,7 +210,7 @@ transacción que procesa la operación (R4).
 ## Cambios en tablas existentes
 
 - `alert.type`: suma `negative_stock`, `price_mismatch`, `total_mismatch`,
-  `discount_review` e `inactive_user_sync` (R6). `entity_type = 'sale'`.
+  `rate_mismatch`, `discount_review` e `inactive_user_sync` (R6). `entity_type = 'sale'`.
 - `stock_movement`: las ventas usan `type = 'sale'` (negativo) y las anulaciones
   `type = 'sale_void'` (positivo), con `reference_type = 'sale_item'` y `device_id`.
   Las salidas por venta usan `allow_negative = True` (RN-10).

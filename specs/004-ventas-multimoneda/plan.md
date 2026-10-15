@@ -83,8 +83,8 @@ Decisiones en [research.md](research.md).
 |---|---|---|---|
 | 1 | Decimales exactos y tasa de la operación (I) | Dominios de ADR-0004 en todas las columnas; `Decimal` y `decimal.js` con mitad hacia arriba en un único módulo por lado, con los mismos casos (R1). La venta y cada pago copian la tasa y su fecha, enviadas por el equipo (RN-05). cm→m antes de precio y stock | ✅ |
 | 2 | Kardex e inmutabilidad (II) | Salidas y reversos solo por `post_movement` (`allow_negative` para ventas, RN-10); triggers sobre `sale`, `sale_item`, `payment` y `sale_void` (R9); anulación solo con movimientos y pagos nuevos (R10); descuentos con su autorizante (R8) y auditoría en la misma transacción (R15) | ✅ |
-| 3 | Ventas sin conexión sin duplicar (III) | Toda venta y apertura pasa por la cola de salida con UUIDv7 del equipo; idempotencia por clave primaria con resultado guardado (R4); numeración por serie única por equipo (R5); el servidor nunca rechaza por negocio, registra y alerta (R6). La copia local y la sesión sin conexión quedan para la 1.5, como fija el plan de fases | ✅ |
-| 4 | Permisos en el servidor, sin costos filtrados (IV) | Matriz por endpoint (contrato) y token de equipo; `SaleSeller` sin costos ni márgenes; Vendedor limitado a sus ventas de hoy en el servidor (R12); Almacén sin acceso a ventas ni caja; PIN validado en el servidor y nunca en la cola (R8); `test_no_cost_leak.py` ampliado | ✅ |
+| 3 | Ventas sin conexión sin duplicar (III) | Toda venta y apertura pasa por la cola de salida con UUIDv7 del equipo; idempotencia por clave primaria con resultado guardado (R4); numeración por serie única por equipo (R5); el servidor nunca rechaza por negocio, registra y alerta (R6). La copia local y la sesión sin conexión quedan para la 1.5, como fija el plan de fases: la 1.3 no se usa para ventas reales (plan de fases §3) y el modo sin conexión completo es requisito de la 1.5 antes de vender en el mostrador | ✅ |
+| 4 | Permisos en el servidor, sin costos filtrados (IV) | Matriz por endpoint (contrato) y token de equipo; el vendedor de la venta es el usuario de la sesión (R17); tasa distinta de la cargada con alerta (R6); `SaleSeller` sin costos ni márgenes; Vendedor limitado a sus ventas de hoy en el servidor (R12); Almacén sin acceso a ventas ni caja; PIN validado en el servidor y nunca en la cola (R8); `test_no_cost_leak.py` ampliado | ✅ |
 | 5 | Alcance de la fase y respaldo del PRD (V) | RF-18, RF-20 a RF-30, RN-07 y RN-10 en el PRD v0.10. La apertura de caja adelantada está en el plan de fases. Fuera: cierre, egresos y cuadre (1.4), modo sin conexión (1.5), crédito y nota de entrega (Fase 2), IVA e IGTF (Fase 3; el modelo los permite) | ✅ |
 | 6 | Presupuesto y simplicidad (VI) | Sin servicios nuevos. Dos dependencias pequeñas ya previstas en ADR. Consulta periódica en lugar de WebSockets; una tabla para PIN y solicitudes (R8); espejo de pagos para la anulación (R10); `node --test` en lugar de un framework de pruebas (R2) | ✅ |
 | 7 | Pruebas de las reglas críticas (VII) | Conversión y redondeo USD↔Bs, pagos mixtos, vuelto y cm→m con casos compartidos en las dos suites; kardex y reversos; idempotencia y numeración concurrentes; permisos y fuga de costos (quickstart, tabla de pruebas) | ✅ |
@@ -109,7 +109,7 @@ Ninguna puerta requiere justificación en "Complexity Tracking".
 ```text
 specs/004-ventas-multimoneda/
 ├── plan.md              # Este archivo
-├── research.md          # Fase 0: decisiones R1–R16
+├── research.md          # Fase 0: decisiones R1–R17
 ├── data-model.md        # Fase 1: tablas, reglas y triggers
 ├── quickstart.md        # Fase 1: guía de validación
 ├── contracts/

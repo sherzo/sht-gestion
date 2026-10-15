@@ -39,6 +39,18 @@
   hacer, ¿desde cuándo se usa? → A: Cada venta toma la tasa vigente al empezar; si
   cambia mientras se arma, se avisa para actualizarla antes de registrar pagos; con un
   pago registrado, la tasa de esa venta queda fija (FR-014).
+- Q: Si una venta llega con una tasa que no coincide con la tasa BCV cargada para su
+  fecha, ¿qué hace el servidor? → A: La registra con la tasa del equipo y crea una
+  alerta "Tasa distinta" para el Admin (FR-032).
+- Q: ¿A nombre de quién queda una venta enviada desde el mostrador? → A: Del usuario
+  de la sesión que la envía; otro vendedor en la venta se rechaza. La regla para
+  ventas sin conexión enviadas después por otro usuario se define en la 1.5 (FR-015).
+- Q: Si se revoca un equipo con ventas sin enviar, ¿qué pasa con ellas? → A: Se
+  aceptan las operaciones creadas antes de la revocación; las posteriores se rechazan
+  (FR-002).
+- Q: ¿Cómo se interpreta un documento escrito sin guiones, como `V123456789`? → A: Con
+  `V` o `E` siempre es cédula (6 a 8 dígitos); el RIF de una persona natural se escribe
+  con guiones (`V-12345678-9`). Con `J`, `G`, `P` o `C` es RIF (FR-019).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -323,11 +335,15 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
 - **Pagos que cubren exactamente con redondeo en Bs**: el saldo se considera cubierto
   cuando el monto en Bs pagado iguala el saldo mostrado en Bs (User Story 3, escenario
   6).
-- **Usuario desactivado o sesión vencida con una venta en la cola**: la venta enviada
-  se registra con su vendedor original; si el usuario fue desactivado, se registra y se
-  alerta al Admin (ADR-0003).
+- **Usuario desactivado o sesión vencida con una venta en la cola**: en esta etapa la
+  venta la envía el mismo vendedor con su sesión, así que se reenvía al volver a
+  ingresar. El caso de ventas sin conexión enviadas por otro usuario, con la alerta de
+  vendedor desactivado, se define en la 1.5 (ADR-0003).
 - **Equipo revocado**: no puede abrir caja ni vender; las ventas que tenía en la cola se
-  aceptan si se hicieron antes de la revocación.
+  aceptan si se hicieron antes de la revocación (FR-002).
+- **Tasa de la venta distinta de la cargada** (error, manipulación o tasa corregida
+  después de vender): la venta se registra con la tasa del equipo y se alerta al Admin
+  (FR-032).
 - **Anular una venta cuya caja ya está cerrada**: en esta etapa no hay cierre de caja;
   la devolución va a la caja de la venta. Qué caja recibe la devolución cuando esa caja
   ya está cerrada se decide antes de la etapa 1.4 (PRD §10).
@@ -351,7 +367,9 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
   (`A`, `B`, …, y luego combinaciones de letras) que nunca se reutiliza (RN-11,
   ADR-0003).
 - **FR-002**: El Admin MUST poder ver los equipos registrados y revocar uno; un equipo
-  revocado no puede abrir caja ni vender, y su serie no vuelve a asignarse.
+  revocado no puede abrir caja ni vender, y su serie no vuelve a asignarse. Las
+  operaciones que el equipo creó antes de la revocación y aún no había enviado se
+  aceptan; las creadas después se rechazan.
 - **FR-003**: Solo se MUST poder vender desde un equipo registrado y vigente.
 - **FR-004**: Si el equipo pierde sus datos locales, MUST registrarse de nuevo y recibir
   una serie nueva.
@@ -394,7 +412,9 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
 - **FR-015**: Cada venta MUST guardar: número, fecha y hora, fecha de negocio (Caracas),
   vendedor, equipo, caja, cliente (opcional), ítems con cantidad y precio unitario en
   USD, descuentos con quién los autorizó, tasa y su fecha, totales en USD y Bs, pagos y
-  vuelto (RF-26).
+  vuelto (RF-26). El vendedor de la venta MUST ser el usuario de la sesión que la envía;
+  si la venta indica otro, se rechaza (en la 1.5 se define el caso de ventas sin
+  conexión enviadas después por otro usuario).
 - **FR-016**: El número de venta MUST ser `{serie}-{correlativo de 6 dígitos}` (ej.
   `A-000123`), asignado por el equipo con su propio contador, único en la base de datos
   (RN-11).
@@ -407,7 +427,9 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
   ADR-0003). Ninguna parte queda aplicada a medias.
 - **FR-019**: El cliente MUST ser opcional: nombre, cédula o RIF y teléfono; se puede
   elegir uno ya registrado (buscando por documento o nombre) o crearlo en la venta. La
-  cédula o RIF no se repite entre clientes (RF-28).
+  cédula o RIF no se repite entre clientes (RF-28). Con `V` o `E` el documento es una
+  cédula (6 a 8 dígitos, por ejemplo `V-12345678`); el RIF de una persona natural se
+  escribe con guiones (`V-12345678-9`); con `J`, `G`, `P` o `C` es un RIF.
 
 **Descuentos**
 
@@ -447,9 +469,10 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
 - **FR-031**: Una venta MUST registrarse aunque deje stock negativo; en ese caso MUST
   crearse una alerta para el Admin con producto, venta y stock resultante (RN-10).
 - **FR-032**: Si el precio de una línea no coincide con el precio vigente en el
-  servidor, o el total calculado en el equipo difiere del recalculado, la venta MUST
-  registrarse (prevalece el cálculo del servidor, se conserva el del equipo) y MUST
-  crearse una alerta (ADR-0003).
+  servidor, el total calculado en el equipo difiere del recalculado, o la tasa de la
+  venta no coincide con la tasa BCV cargada para su fecha (o no hay tasa cargada para
+  esa fecha), la venta MUST registrarse (prevalece el cálculo del servidor, se conserva
+  el del equipo y la tasa enviada) y MUST crearse una alerta (ADR-0003).
 
 **Pagos y vuelto**
 
@@ -534,15 +557,16 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
 - **Método de pago**: los seis del PRD con su moneda, si exige referencia y si es
   efectivo.
 - **Autorización de descuento**: descuento al que aplica, Admin que autorizó, forma
-  (PIN, solicitud, Admin vende) y fecha.
+  (PIN, solicitud, Admin vende) y fecha. En el modelo de datos, autorizaciones y
+  solicitudes son una sola tabla (research R8).
 - **Solicitud de descuento**: quién la pide, desde qué equipo, detalle, valor pedido y
   aprobado, estado (pendiente, aprobada, rechazada), quién decidió, cuándo y motivo del
   rechazo.
 - **Anulación de venta**: venta, motivo, quién y cuándo.
 - **Operación de la cola de salida**: identificador único del equipo, tipo, contenido,
   resultado; garantiza que un reenvío no duplique.
-- **Alerta**: se amplía con stock negativo, precio distinto, total distinto, descuento
-  para revisión y usuario inactivo.
+- **Alerta**: se amplía con stock negativo, precio distinto, total distinto, tasa
+  distinta, descuento para revisión y usuario inactivo.
 
 ## Success Criteria *(mandatory)*
 
@@ -565,7 +589,7 @@ ve y filtra todas y que cada Vendedor solo ve sus ventas de hoy, sin costos.
 - **SC-008**: Tras anular una venta, el stock de cada producto vuelve exactamente al
   valor previo a la venta y las devoluciones suman lo cobrado neto del vuelto.
 - **SC-009**: Toda venta con stock negativo, descuento sin autorización válida, precio
-  distinto o total distinto genera su alerta (0 casos sin alerta en las pruebas).
+  distinto, total distinto o tasa distinta genera su alerta (0 casos sin alerta en las pruebas).
 - **SC-010**: Ninguna venta, línea, pago ni anulación puede modificarse ni borrarse,
   verificado con cambios directos en la base de datos.
 - **SC-011**: Un descuento autorizado por PIN se aplica en menos de 15 segundos desde

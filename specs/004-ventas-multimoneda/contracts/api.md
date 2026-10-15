@@ -10,8 +10,10 @@ paginación son las de los contratos de la 1.1a y la 1.1b
 
 **Cabecera del equipo**: las operaciones de mostrador (`/sync/operations`,
 `/devices/current` y `POST /discount-authorizations`) exigen `X-Device-Token`. Sin
-ella, o con un token desconocido o de un equipo revocado, responden 403
-`device_required` o `device_revoked`.
+ella, o con un token desconocido, responden 403 `device_required`. Con un equipo
+revocado, `/devices/current` y las autorizaciones responden 403 `device_revoked`, y
+`/sync/operations` acepta las operaciones creadas antes de la revocación y rechaza las
+posteriores con `device_revoked` (FR-002).
 
 ## Errores de la etapa
 
@@ -27,7 +29,7 @@ ella, o con un token desconocido o de un equipo revocado, responden 403
 | 409 | `sequence_conflict` | Correlativo de la serie ya usado por otra operación (R5) |
 | 409 | `invalid_state` | Anular una venta ya anulada; decidir una autorización que no está pendiente |
 | 409 | `operation_type_unknown` | Tipo de operación de cola no admitido |
-| 422 | `validation_error` | Datos inválidos; `fields` indica cuáles: cantidades por unidad, descuentos fuera de rango, referencia faltante, pagos que no cubren, vuelto mayor que el excedente, límites de R16, documento del cliente |
+| 422 | `validation_error` | Datos inválidos; `fields` indica cuáles: cantidades por unidad, descuentos fuera de rango, referencia faltante, pagos que no cubren o vuelto mayor que el excedente (con el total del equipo igual al del servidor), vendedor distinto del usuario de la sesión, límites de R16, documento del cliente |
 
 Una operación de cola rechazada guarda su respuesta: reenviarla devuelve el mismo
 código y cuerpo (R4).
@@ -103,8 +105,10 @@ según el rol de quien envía, más `alerts_created: [type]` y `warnings` (por e
   El servidor no las reemplaza por la tasa vigente.
 - `authorization_id` es opcional. Si el vendedor es Vendedor y falta o no coincide, la
   venta se registra igual con `needs_review` (R8).
-- `seller_id` debe ser un usuario Admin o Vendedor. Si está desactivado, la venta se
-  registra con la alerta `inactive_user_sync`.
+- `seller_id` debe ser el usuario de la sesión que envía la operación (R17); si no,
+  422 `validation_error` en `seller_id`.
+- Si `exchange_rate` no coincide con la tasa BCV cargada para `exchange_rate_date`, o no
+  hay tasa para esa fecha, la venta se registra y se crea la alerta `rate_mismatch`.
 
 ### Venta (`SaleSeller`; `SaleAdmin` agrega los costos)
 
@@ -200,7 +204,7 @@ según el rol de quien envía, más `alerts_created: [type]` y `warnings` (por e
 
 ### Cambios en endpoints existentes
 
-- `GET /alerts`: tipos nuevos (R6). Las alertas de venta traen
+- `GET /alerts`: tipos nuevos (R6), incluido `rate_mismatch`. Las alertas de venta traen
   `sale: {id, number}` para enlazar.
 - `GET /inventory/summary` (Admin) suma `pending_discount_requests`.
 - `GET /products/{id}/movements`: las salidas `sale` y los reversos `sale_void` traen

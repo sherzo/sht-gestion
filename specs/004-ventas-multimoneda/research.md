@@ -78,7 +78,10 @@ transformar (sin `enum` ni `namespace`).
   `X-Device-Token`. El servidor exige un equipo vigente cuyo token coincida.
 - Revocar (`POST /devices/{id}/revoke`, Admin) fija `revoked_at`. Las operaciones de un
   equipo revocado se rechazan si se crearon después de la revocación; las anteriores
-  se aceptan (caso borde de la spec).
+  se aceptan (FR-002). Por eso la dependencia `CurrentDevice` identifica el equipo
+  aunque esté revocado, y la decisión la toma `sync` con la hora de la operación; los
+  demás endpoints de mostrador (`/devices/current`, autorizaciones) rechazan un equipo
+  revocado.
 - `GET /devices/current` (con la cabecera) devuelve el equipo, su caja abierta y el
   último correlativo registrado en el servidor.
 - `user_session.device_id` sigue nulo en esta etapa: el equipo se identifica en cada
@@ -118,10 +121,17 @@ sesión y no distingue equipos); huella del navegador (frágil).
   - Errores de red, 5xx o 401: transitorios. La operación queda `pending` y se
     reintenta.
 - **El servidor no rechaza una venta por razones de negocio**: stock insuficiente,
-  precio distinto, total distinto, descuento sin autorización o vendedor desactivado
-  se registran con alerta (R6). Solo rechaza lo estructural: contenido inválido,
-  producto o caja inexistente, caja de otro equipo o cerrada, equipo revocado antes de
-  la operación, cantidad con decimales de más o correlativo ocupado por otra operación.
+  precio distinto, total distinto, tasa distinta de la cargada, descuento sin
+  autorización o vendedor desactivado se registran con alerta (R6). Solo rechaza lo
+  estructural, que el equipo nunca envía si funciona bien:
+  - contenido inválido, producto o caja inexistente, caja de otro equipo o cerrada;
+  - operación creada después de revocar el equipo;
+  - cantidad con decimales de más;
+  - pagos que no cubren el total, o vuelto mayor que el excedente, cuando el total del
+    equipo coincide con el del servidor (si no coincide, es un total distinto y se
+    registra con alerta);
+  - vendedor distinto del usuario de la sesión (R17);
+  - correlativo ocupado por otra operación.
 - Un rechazo permanente de una venta deja un hueco en la serie del equipo. El número es
   interno y sin valor fiscal (ADR-0003); el hueco queda explicado por la operación
   rechazada.
@@ -155,8 +165,14 @@ distintas.
 | `negative_stock` | Una salida por venta deja el stock de un producto en negativo | venta (detalle: producto, cantidad, stock resultante) |
 | `price_mismatch` | El precio unitario de una línea no es el vigente en el servidor | venta (detalle: producto, precio del equipo y del servidor) |
 | `total_mismatch` | El total del equipo difiere del recalculado, o los pagos no cubren el total recalculado | venta (detalle: ambos totales y el saldo) |
+| `rate_mismatch` | La tasa de la venta no coincide con la tasa BCV cargada para `exchange_rate_date`, o no hay tasa para esa fecha (error, manipulación o corrección posterior, RN-15) | venta (detalle: tasa enviada, tasa cargada y fecha) |
 | `discount_review` | Descuento de un Vendedor sin autorización válida | venta |
-| `inactive_user_sync` | El vendedor de la venta está desactivado al registrarla | venta |
+| `inactive_user_sync` | El vendedor de la venta está desactivado al registrarla (en la 1.3 no ocurre por R17; queda para la 1.5) | venta |
+
+El precio se compara con el vigente al registrar la venta: en esta etapa, con conexión,
+un cambio de precio mientras una venta está en pantalla genera una alerta
+`price_mismatch` aunque el vendedor haya usado el precio que veía. Es aceptable y
+avisa al Admin del cambio.
 
 Una venta genera una alerta por tipo (con el detalle de todas las líneas afectadas),
 no una por línea. **Marcar como revisada una venta para revisión (FR-029) es resolver
@@ -276,8 +292,11 @@ negativa exacta de la venta) y no inventa reglas de reparto.
 **Decisión**: tabla `customer` con nombre (2–100 caracteres), documento opcional
 normalizado y teléfono opcional.
 
-- **Documento**: cédula `V-12345678` o `E-12345678`, o RIF normalizado con
-  `domain/rif.py`. Es único entre los clientes que lo tienen.
+- **Documento**: con `V` o `E` sin guiones es siempre una cédula de 6 a 8 dígitos
+  (`v12345678`, `V 12.345.678` → `V-12345678`); con más dígitos se rechaza con el
+  mensaje "Para un RIF de persona natural escribe los guiones, por ejemplo
+  V-12345678-9". Escrito con guiones y dígito verificador, o con `J`, `G`, `P` o `C`, es
+  un RIF normalizado con `domain/rif.py`. Es único entre los clientes que lo tienen.
 - **Búsqueda**: `GET /customers?q=` (Admin y Vendedor) busca por documento o nombre.
 - **En la venta**: va el `customer_id` de uno existente o un `customer` nuevo con id
   del equipo. Al registrar, si el id ya existe se usa ese cliente. Si no, y el
@@ -363,3 +382,17 @@ suma el grupo "Ventas y caja".
   repetidos (SC-005).
 - **Bloqueos**: los productos de una venta se bloquean en orden de id para evitar
   bloqueos cruzados entre ventas simultáneas (como R3 de la 1.2).
+
+## R17. Vendedor de la venta (FR-015; RN-16)
+
+**Decisión**: en esta etapa, `seller_id` de una venta MUST ser el usuario de la sesión
+que envía la operación; si no coincide, rechazo permanente 422 (`validation_error` en
+`seller_id`). La caja la abre quien envía la apertura. En la 1.5, cuando una venta
+hecha sin conexión pueda enviarla después otro usuario del mismo equipo, se revisa la
+regla (por ejemplo, firmando la operación con la sesión sin conexión de quien vendió).
+
+**Razón**: impide que un vendedor atribuya ventas a otro y altere "sus ventas del día"
+o la responsabilidad por la caja (RN-16).
+
+**Alternativas**: aceptar cualquier vendedor activo indicado en la venta y auditar quién
+la envió (flexible, pero permite atribuir ventas a otro).
