@@ -599,7 +599,10 @@ def make_sale(client: TestClient, db: Session) -> Callable[..., dict]:
             ],
             discount=discount_input(discount),
         )
-        total = compute_sale(calc_input).total_usd
+        try:
+            total = compute_sale(calc_input).total_usd
+        except ValueError:
+            total = Decimal("0.00")  # venta inválida a propósito: la rechaza el servidor
         if payments is None:
             payments = [("cash_usd", str(total), None)] if total > 0 else []
         payload = {

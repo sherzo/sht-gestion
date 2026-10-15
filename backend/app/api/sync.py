@@ -5,7 +5,7 @@ idempotente por su `id`: reenviarla devuelve la misma respuesta, también si se 
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
@@ -15,13 +15,22 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentDevice, CurrentUser, DbSession, require_roles
-from app.api.sale_schemas import cash_session_out
+from app.api.sale_schemas import (
+    CashSessionOut,
+    SaleAdmin,
+    SaleSeller,
+    cash_session_out,
+    sales_for_role,
+)
 from app.core.errors import validation_error, validation_fields
 from app.db.models import AppUser, Device
+from app.domain import sale_math
 from app.domain.money import MAX_PRICE, MAX_VES, PRICE_DECIMALS, VES_DECIMALS, validate_usd
 from app.domain.roles import Role
 from app.services import cash_sessions as cash_sessions_service
+from app.services import sales as sales_service
 from app.services import sync as sync_service
+from app.services.customers import CustomerData
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
@@ -76,7 +85,131 @@ def handle_cash_session_open(
     return cash_session_out(db, session).model_dump(mode="json")
 
 
-sync_service.HANDLERS.update({"cash_session.open": handle_cash_session_open})
+class DiscountIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["amount", "percent"]
+    value: Decimal
+    authorization_id: uuid.UUID | None = None
+
+
+class SaleItemIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    product_id: uuid.UUID
+    quantity: Decimal
+    entered_unit: Literal["m", "cm", "unit"]
+    unit_price_usd: Decimal
+    discount: DiscountIn | None = None
+
+
+class MoneyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    method: str = Field(min_length=1, max_length=30)
+    amount: Decimal
+    reference: str | None = Field(default=None, max_length=60)
+
+
+class CustomerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    id: uuid.UUID
+    name: str = Field(min_length=2, max_length=100)
+    document_id: str | None = Field(default=None, max_length=20)
+    phone: str | None = Field(default=None, max_length=30)
+
+
+class SaleIn(BaseModel):
+    """Contenido de `sale.create` (contrato, `SaleInput`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    sequence_number: int = Field(ge=1)
+    cash_session_id: uuid.UUID
+    seller_id: uuid.UUID
+    occurred_at: AwareDatetime
+    exchange_rate: Decimal
+    exchange_rate_date: date
+    customer: CustomerIn | None = None
+    customer_id: uuid.UUID | None = None
+    items: list[SaleItemIn] = Field(max_length=sale_math.MAX_LINES)
+    discount: DiscountIn | None = None
+    payments: list[MoneyIn] = Field(max_length=sale_math.MAX_PAYMENTS)
+    change: list[MoneyIn] = Field(max_length=sale_math.MAX_CHANGE)
+    device_total_usd: Decimal
+
+
+def _discount_data(discount: DiscountIn | None) -> sales_service.DiscountData | None:
+    if discount is None:
+        return None
+    return sales_service.DiscountData(discount.type, discount.value, discount.authorization_id)
+
+
+def _money_data(entries: list[MoneyIn]) -> list[sales_service.MoneyData]:
+    return [
+        sales_service.MoneyData(entry.method, entry.amount, entry.reference) for entry in entries
+    ]
+
+
+def handle_sale_create(
+    db: Session, device: Device, user: AppUser, operation: sync_service.Operation
+) -> dict[str, Any]:
+    data = parse_payload(SaleIn, operation)
+    if data.customer is not None and data.customer_id is not None:
+        raise validation_error(
+            {"payload.customer_id": "Envía el cliente nuevo o uno existente, no ambos"}
+        )
+    outcome = sales_service.create_sale(
+        db,
+        device=device,
+        user=user,
+        operation_id=operation.id,
+        data=sales_service.SaleData(
+            id=data.id,
+            sequence_number=data.sequence_number,
+            cash_session_id=data.cash_session_id,
+            seller_id=data.seller_id,
+            occurred_at=data.occurred_at,
+            exchange_rate=data.exchange_rate,
+            exchange_rate_date=data.exchange_rate_date,
+            items=[
+                sales_service.ItemData(
+                    item.id,
+                    item.product_id,
+                    item.quantity,
+                    item.entered_unit,
+                    item.unit_price_usd,
+                    _discount_data(item.discount),
+                )
+                for item in data.items
+            ],
+            payments=_money_data(data.payments),
+            change=_money_data(data.change),
+            device_total_usd=data.device_total_usd,
+            discount=_discount_data(data.discount),
+            customer=None
+            if data.customer is None
+            else CustomerData(
+                data.customer.id, data.customer.name, data.customer.document_id, data.customer.phone
+            ),
+            customer_id=data.customer_id,
+        ),
+    )
+    db.flush()
+    [sale] = sales_for_role(db, [outcome.sale], Role(user.role))
+    return {
+        **sale.model_dump(mode="json"),
+        "alerts_created": outcome.alerts,
+        "warnings": outcome.warnings,
+    }
+
+
+sync_service.HANDLERS.update(
+    {"cash_session.open": handle_cash_session_open, "sale.create": handle_sale_create}
+)
 
 
 class OutboxOperationIn(BaseModel):
@@ -89,7 +222,12 @@ class OutboxOperationIn(BaseModel):
     payload: dict[str, Any]
 
 
-@router.post("/operations", response_model=None)
+@router.post(
+    "/operations",
+    response_model=None,
+    # Documenta en el OpenAPI las respuestas posibles, para los tipos del frontend.
+    responses={200: {"model": SaleAdmin | SaleSeller | CashSessionOut}},
+)
 def post_operation(
     body: OutboxOperationIn, current: AdminOrSeller, device: CurrentDevice, db: DbSession
 ) -> JSONResponse:

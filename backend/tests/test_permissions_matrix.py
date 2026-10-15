@@ -249,6 +249,8 @@ MATRIX: list[Row] = [
         },
         device=True,
     ),
+    # Clientes (US2)
+    Row("GET", "/api/v1/customers?q=taller", ADMIN_SELLER),
 ]
 
 

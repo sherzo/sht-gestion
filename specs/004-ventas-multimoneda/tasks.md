@@ -256,7 +256,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T033 [P] [US2] Pruebas en `backend/tests/test_sales_create.py` (marca `db`):
+- [X] T033 [P] [US2] Pruebas en `backend/tests/test_sales_create.py` (marca `db`):
   - **Registro**: la venta de la User Story 2 registrada con `make_sale` → `number` `A-000001`, `subtotal_usd`, `total_usd` `7.70` y `total_ves` `281.05`; `exchange_rate` y su fecha iguales a las enviadas aunque exista una tasa más reciente (RN-05); el vendedor, la caja y el equipo.
   - **Kardex**: dos movimientos `sale` con `quantity_delta` `-2` y `-0.30`, `reference_type = 'sale_item'`, `device_id` y el stock descontado.
   - **Costo**: `unit_cost_usd` igual al costo promedio del producto.
@@ -266,18 +266,18 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - **Pago**: uno solo que cubre → `paid_usd` correcto; pago que no cubre → 422 (FR-037).
   - **Atomicidad**: un fallo a mitad de la transacción (forzado con un `monkeypatch` que hace fallar el último movimiento) no deja venta, pagos, movimientos ni fila en `outbox_operation`.
   - (RF-20, RF-21, RF-26, RF-28, RN-02, RN-05, RN-11/FR-010 a FR-019, FR-033, FR-037)
-- [ ] T034 [P] [US2] Pruebas en `backend/tests/test_sales_numbering.py` (marca `db`): dos equipos que envían 50 ventas cada uno desde hilos paralelos, con correlativos propios, no repiten ningún número ni dejan una venta sin registrar (RN-11/SC-005)
-- [ ] T035 [P] [US2] Pruebas en `backend/tests/test_sale_immutability.py` (marca `db`): `UPDATE` y `DELETE` por SQL directo sobre `sale`, `sale_item`, `payment` y `outbox_operation` fallan; `DELETE` en `customer` y `device` falla; un pago con método que exige referencia y `reference` nula insertado por SQL falla (RN-12/FR-044, SC-010)
-- [ ] T036 [P] [US2] Prueba en `backend/tests/test_sales_performance.py` (marca `db`): una venta de 20 líneas con 3 pagos se registra en menos de 1 s, medido alrededor de `POST /sync/operations` (R16). SC-002 (búsqueda en < 1 s) ya lo cubre `test_search_performance.py` de la 1.1b, porque la venta reutiliza `GET /products`
-- [ ] T037 [US2] Agregar a `LEAK_CASES` de `backend/tests/test_no_cost_leak.py` la respuesta de `POST /sync/operations` (`sale.create`) para el Vendedor y a `MATRIX` las filas de `GET /customers`. El Vendedor no recibe ninguna clave con `cost` ni `margin` (principio IV/SC-006)
+- [X] T034 [P] [US2] Pruebas en `backend/tests/test_sales_numbering.py` (marca `db`): dos equipos que envían 50 ventas cada uno desde hilos paralelos, con correlativos propios, no repiten ningún número ni dejan una venta sin registrar (RN-11/SC-005)
+- [X] T035 [P] [US2] Pruebas en `backend/tests/test_sale_immutability.py` (marca `db`): `UPDATE` y `DELETE` por SQL directo sobre `sale`, `sale_item`, `payment` y `outbox_operation` fallan; `DELETE` en `customer` y `device` falla; un pago con método que exige referencia y `reference` nula insertado por SQL falla (RN-12/FR-044, SC-010)
+- [X] T036 [P] [US2] Prueba en `backend/tests/test_sales_performance.py` (marca `db`): una venta de 20 líneas con 3 pagos se registra en menos de 1 s, medido alrededor de `POST /sync/operations` (R16). SC-002 (búsqueda en < 1 s) ya lo cubre `test_search_performance.py` de la 1.1b, porque la venta reutiliza `GET /products`
+- [X] T037 [US2] Agregar a `LEAK_CASES` de `backend/tests/test_no_cost_leak.py` la respuesta de `POST /sync/operations` (`sale.create`) para el Vendedor y a `MATRIX` las filas de `GET /customers`. El Vendedor no recibe ninguna clave con `cost` ni `margin` (principio IV/SC-006)
 
 ### Implementation for User Story 2
 
-- [ ] T038 [US2] Crear en `backend/app/api/sale_schemas.py` los esquemas del contrato:
+- [X] T038 [US2] Crear en `backend/app/api/sale_schemas.py` los esquemas del contrato:
   - **Entradas**: `SaleInput`, `SaleItemInput`, `DiscountInput`, `MoneyInput` y `CustomerInput`, con `extra="forbid"` y decimales como cadenas. `customer` y `customer_id` son excluyentes.
   - **Salidas**: `SaleSeller` y `SaleAdmin` (`SaleAdmin` agrega `unit_cost_usd`, `margin_usd`, `cost_usd` y `margin_usd` de la venta), y `sale_for_role(db, sale, role)`, que elige el esquema con el rol leído de la base (ADR-0008).
-- [ ] T039 [US2] Crear `backend/app/services/customers.py` con `search_customers(db, q, limit=20)` (documento exacto normalizado o nombre que contiene, sin acentos) y `resolve_customer(db, *, actor, customer_input | customer_id)`, con la regla de R11: id existente → ese; documento ya registrado → ese; si no, crea. Crear también `GET /customers` en `backend/app/api/customers.py` (`require_roles(ADMIN, SELLER)`) y registrarlo en `main.py` (RF-28/FR-019)
-- [ ] T040 [US2] Crear `backend/app/services/sales.py` con el manejador `create_sale(db, *, device, user, operation)`. Lo registra en `HANDLERS["sale.create"]`, y en una sola transacción:
+- [X] T039 [US2] Crear `backend/app/services/customers.py` con `search_customers(db, q, limit=20)` (documento exacto normalizado o nombre que contiene, sin acentos) y `resolve_customer(db, *, actor, customer_input | customer_id)`, con la regla de R11: id existente → ese; documento ya registrado → ese; si no, crea. Crear también `GET /customers` en `backend/app/api/customers.py` (`require_roles(ADMIN, SELLER)`) y registrarlo en `main.py` (RF-28/FR-019)
+- [X] T040 [US2] Crear `backend/app/services/sales.py` con el manejador `create_sale(db, *, device, user, operation)`. Lo registra en `HANDLERS["sale.create"]`, y en una sola transacción:
   1. Valida el contenido y bloquea la caja (`FOR UPDATE`): debe existir, ser del equipo y estar abierta (si no, 409 `cash_session_unavailable`).
   2. Valida que `seller_id` sea el usuario de la sesión que envía (422 en `seller_id` si no, R17).
   3. Bloquea los productos en orden de id (R16) y valida cada cantidad con `validate_quantity` y los decimales de su unidad (cm ya convertido en el equipo; `entered_unit` informativo).
@@ -289,19 +289,19 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   9. Resuelve el cliente con `resolve_customer`.
   10. Devuelve `sale_for_role` con `alerts_created` y `warnings`.
   - Las alertas y los descuentos se agregan en US5 y US4 (R4, R5, FR-010 a FR-019)
-- [ ] T041 [US2] Agregar `device_id` como parámetro opcional de `post_movement` en `backend/app/services/inventory.py`, guardado en el movimiento, y una prueba en `backend/tests/test_stock_movements.py`
-- [ ] T042 [US2] Crear `frontend/src/lib/sales.ts`:
+- [X] T041 [US2] Agregar `device_id` como parámetro opcional de `post_movement` en `backend/app/services/inventory.py`, guardado en el movimiento, y una prueba en `backend/tests/test_stock_movements.py`
+- [X] T042 [US2] Crear `frontend/src/lib/sales.ts`:
   - estado de la venta en curso: `saleId` de `uuidv7()`, líneas con `id` propio, cliente, pagos, vueltos y tasa con su fecha;
   - `computeSale` de `@sht/shared` para todo lo que se muestra;
   - `buildSaleInput()`, que arma el `SaleInput` con `takeSequenceNumber()`, la caja del equipo, el usuario actual como `seller_id`, la hora del equipo y `device_total_usd`;
   - `confirmSale()`, que encola `sale.create` y espera el resultado con `waitFor`. Si la red falla, la venta queda pendiente con su número y la pantalla lo indica.
-- [ ] T043 [US2] Crear los componentes en `frontend/src/components/sales/`:
+- [X] T043 [US2] Crear los componentes en `frontend/src/components/sales/`:
   - `sale-product-search.tsx`: reutiliza la búsqueda de `GET /products` con `is_active=true`, solo productos con precio, y muestra precio en USD y Bs y stock actual;
   - `sale-lines.tsx`: cantidad con selector `m`/`cm` en productos por metro, enteros en unidades, error en línea con el mensaje de `validateQuantity`, subtotal y quitar línea;
   - `sale-totals.tsx`: subtotal, descuentos, total USD y Bs, y la fecha de la tasa si no es de hoy;
   - `customer-picker.tsx`: buscar por documento o nombre con `GET /customers`, o escribir uno nuevo con nombre, documento y teléfono.
   - Todos con las clases de `docs/guia-de-estilos.md`.
-- [ ] T044 [US2] Crear `frontend/src/app/vender/page.tsx` (Admin y Vendedor):
+- [X] T044 [US2] Crear `frontend/src/app/vender/page.tsx` (Admin y Vendedor):
   - **Requisitos**: sin equipo o sin caja abierta, enlace a `/caja`.
   - **Tasa (FR-014)**: consulta la tasa aplicable al empezar la venta y cada 5 minutos. Si cambió y no hay pagos, aviso y botón "Actualizar tasa", obligatorio antes del primer pago; con pagos, la tasa queda fija.
   - **Contenido**: buscador, líneas, cliente opcional, un pago con método, monto y referencia si el método la exige, y totales.
@@ -309,7 +309,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - **PC**: atajos de teclado (Enter agrega el primer resultado, F2 enfoca el buscador, F9 confirma).
   - **Diseño**: usable a 360 px.
   - (FR-010 a FR-019, SC-001)
-- [ ] T045 [US2] Ejecutar `pnpm api:types` y tipar las llamadas de la venta
+- [X] T045 [US2] Ejecutar `pnpm api:types` y tipar las llamadas de la venta
 
 **Checkpoint**: US2 funciona sola: venta con un pago, número, kardex y sin duplicados al reenviar.
 

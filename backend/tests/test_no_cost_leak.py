@@ -7,6 +7,7 @@ de la respuesta en todos sus niveles y se buscan claves prohibidas.
 """
 
 import io
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -16,6 +17,7 @@ from PIL import Image
 from app.core.clock import utcnow
 from app.domain.business_time import business_date
 from app.domain.roles import Role
+from tests.conftest import operation
 
 pytestmark = pytest.mark.db
 
@@ -52,6 +54,9 @@ class LeakCase:
     body: dict[str, Any] | None = field(default=None)
     # Sube una foto en `multipart/form-data` en lugar de enviar JSON.
     photo: bool = False
+    # Operación de mostrador: el cuerpo lo arma la función del contexto con ese nombre y se
+    # envía el token del equipo (etapa 1.3).
+    counter_body: str | None = None
 
     @property
     def id(self) -> str:
@@ -97,6 +102,9 @@ LEAK_CASES: list[LeakCase] = [
     LeakCase("GET", "/api/v1/products?q=producto&low_stock=true"),
     LeakCase("GET", "/api/v1/inventory/low-stock", (WAREHOUSE,)),
     LeakCase("GET", "/api/v1/inventory/summary", (WAREHOUSE,)),
+    # Venta por la cola de salida (etapa 1.3, US2): el Vendedor no recibe costo ni margen.
+    LeakCase("POST", "/api/v1/sync/operations", (SELLER,), counter_body="sale_operation"),
+    LeakCase("GET", "/api/v1/customers?q=taller", (SELLER,)),
     # Conteos físicos (US5): el Almacén tampoco recibe el stock esperado ni la diferencia
     LeakCase("GET", "/api/v1/stock-counts", (WAREHOUSE,)),
     LeakCase("GET", "/api/v1/stock-counts/{count_id}", (WAREHOUSE,)),
@@ -208,6 +216,8 @@ def leak_context(
     make_supplier,
     make_rate,
     make_purchase,
+    make_device,
+    open_cash_session,
 ) -> dict[str, Any]:
     """Datos con precio y costo definidos para que una fuga se note."""
     product = make_product("MAN", sale_price="12.50", avg_cost="7.250000", min_stock="50")
@@ -239,6 +249,36 @@ def leak_context(
         confirm=True,
     )
     draft = make_purchase(headers[WAREHOUSE], supplier, [(product, "1", "3")])
+    # Mostrador del Vendedor con caja abierta, para vender el producto con costo.
+    _, token = make_device("Mostrador de la fuga")
+    session = open_cash_session(headers[SELLER], token)
+    seller_id = client.get("/api/v1/auth/me", headers=headers[SELLER]).json()["user"]["id"]
+
+    def sale_operation() -> dict[str, Any]:
+        payload = {
+            "id": str(uuid.uuid7()),
+            "sequence_number": 1,
+            "cash_session_id": session["id"],
+            "seller_id": seller_id,
+            "occurred_at": utcnow().isoformat(),
+            "exchange_rate": "36.50000000",
+            "exchange_rate_date": today.isoformat(),
+            "customer": {"id": str(uuid.uuid7()), "name": "Taller de la fuga"},
+            "items": [
+                {
+                    "id": str(uuid.uuid7()),
+                    "product_id": str(product.id),
+                    "quantity": "1",
+                    "entered_unit": "m",
+                    "unit_price_usd": "12.50",
+                }
+            ],
+            "payments": [{"method": "cash_usd", "amount": "12.50"}],
+            "change": [],
+            "device_total_usd": "12.50",
+        }
+        return operation("sale.create", payload)
+
     return {
         "supplier_id": str(supplier.id),
         "today": today.isoformat(),
@@ -252,6 +292,8 @@ def leak_context(
         "count_id": count["id"],
         "line_id": count["lines"][0]["id"],
         "frt_category_id": str(category_id("FRT")),
+        "device_token": token,
+        "sale_operation": sale_operation,
     }
 
 
@@ -263,7 +305,13 @@ def test_sin_costos_para_vendedor_ni_precio_para_almacen(
         values = {key: value for key, value in leak_context.items() if isinstance(value, str)}
         path = case.path.format(**values)
         kwargs: dict[str, Any] = {"headers": leak_context["headers"][role]}
-        if case.photo:
+        if case.counter_body is not None:
+            kwargs["json"] = leak_context[case.counter_body]()
+            kwargs["headers"] = {
+                **kwargs["headers"],
+                "X-Device-Token": leak_context["device_token"],
+            }
+        elif case.photo:
             kwargs["files"] = {"file": ("foto.jpg", jpeg_bytes(), "image/jpeg")}
         elif case.body is not None:
             kwargs["json"] = fill(case.body, values)

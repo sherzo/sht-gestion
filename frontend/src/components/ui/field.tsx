@@ -2,7 +2,7 @@
 
 import { Eye, EyeOff } from "lucide-react";
 import { useId, useState } from "react";
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import type { InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 // Campos con etiqueta, ayuda y error accesibles (guía de estilos §6).
 const CONTROL =
@@ -47,9 +47,11 @@ type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   hint?: string;
   error?: string;
+  /** Para enfocar el campo desde la pantalla (atajos de teclado de la venta). */
+  ref?: Ref<HTMLInputElement>;
 };
 
-export function TextField({ label, hint, error, id, type, className = "", ...props }: TextFieldProps) {
+export function TextField({ label, hint, error, id, type, className = "", ref, ...props }: TextFieldProps) {
   const generated = useId();
   const fieldId = id ?? generated;
   const [visible, setVisible] = useState(false);
@@ -57,6 +59,7 @@ export function TextField({ label, hint, error, id, type, className = "", ...pro
 
   const input = (
     <input
+      ref={ref}
       id={fieldId}
       type={isSecret && visible ? "text" : type}
       aria-invalid={error ? true : undefined}

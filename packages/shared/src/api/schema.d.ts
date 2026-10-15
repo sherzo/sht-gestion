@@ -1098,6 +1098,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Customers
+         * @description Por documento (exacto) o por nombre (contiene, sin acentos); como máximo 20.
+         */
+        get: operations["search_customers_api_v1_customers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/operations": {
         parameters: {
             query?: never;
@@ -1379,6 +1399,36 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** CashSessionOut */
+        CashSessionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            opened_by: components["schemas"]["UserRef"];
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Opening Float Ves */
+            opening_float_ves: string;
+            /** Opening Float Usd */
+            opening_float_usd: string;
+            /** Status */
+            status: string;
+        };
         /** CategoryOut */
         CategoryOut: {
             /**
@@ -1564,6 +1614,20 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** CustomerOut */
+        CustomerOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Document Id */
+            document_id: string | null;
+            /** Phone */
+            phone: string | null;
+        };
         /** DeviceCreate */
         DeviceCreate: {
             /** Name */
@@ -1592,6 +1656,18 @@ export interface components {
             revoked_at: string | null;
             open_cash_session: components["schemas"]["OpenCashSessionRef"] | null;
         };
+        /** DeviceRef */
+        DeviceRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Series */
+            series: string;
+        };
         /**
          * DeviceRegistered
          * @description Respuesta del registro: única vez que se entrega el token (research R3).
@@ -1619,6 +1695,18 @@ export interface components {
             open_cash_session: components["schemas"]["OpenCashSessionRef"] | null;
             /** Token */
             token: string;
+        };
+        /** DiscountOut */
+        DiscountOut: {
+            /** Type */
+            type: string;
+            /** Value */
+            value: string;
+            /** Amount Usd */
+            amount_usd: string;
+            authorized_by: components["schemas"]["UserRef"] | null;
+            /** Method */
+            method: string | null;
         };
         /** ExchangeRateOut */
         ExchangeRateOut: {
@@ -1788,6 +1876,21 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** PaymentOut */
+        PaymentOut: {
+            /** Kind */
+            kind: string;
+            /** Method */
+            method: string;
+            /** Currency */
+            currency: string;
+            /** Amount */
+            amount: string;
+            /** Amount Usd */
+            amount_usd: string;
+            /** Reference */
+            reference: string | null;
+        };
         /** PhotoOut */
         PhotoOut: {
             /**
@@ -1885,6 +1988,22 @@ export interface components {
             page: number;
             /** Page Size */
             page_size: number;
+        };
+        /** ProductRefOut */
+        ProductRefOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Unit Code */
+            unit_code: string;
+            /** Unit Decimals */
+            unit_decimals: number;
         };
         /** ProductSeller */
         ProductSeller: {
@@ -2404,6 +2523,209 @@ export interface components {
         ResetPasswordRequest: {
             /** New Password */
             new_password: string;
+        };
+        /** SaleAdmin */
+        SaleAdmin: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+            /** Needs Review */
+            needs_review: boolean;
+            device: components["schemas"]["DeviceRef"];
+            /**
+             * Cash Session Id
+             * Format: uuid
+             */
+            cash_session_id: string;
+            seller: components["schemas"]["UserRef"];
+            customer: components["schemas"]["CustomerOut"] | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            /**
+             * Synced At
+             * Format: date-time
+             */
+            synced_at: string;
+            /** Exchange Rate */
+            exchange_rate: string;
+            /**
+             * Exchange Rate Date
+             * Format: date
+             */
+            exchange_rate_date: string;
+            /** Items */
+            items: components["schemas"]["SaleItemAdmin"][];
+            /** Subtotal Usd */
+            subtotal_usd: string;
+            discount: components["schemas"]["DiscountOut"] | null;
+            /** Discount Usd */
+            discount_usd: string;
+            /** Total Usd */
+            total_usd: string;
+            /** Total Ves */
+            total_ves: string;
+            /** Paid Usd */
+            paid_usd: string;
+            /** Change Usd */
+            change_usd: string;
+            /** Overpaid Usd */
+            overpaid_usd: string;
+            /** Device Total Usd */
+            device_total_usd: string;
+            /** Payments */
+            payments: components["schemas"]["PaymentOut"][];
+            void: components["schemas"]["SaleVoidOut"] | null;
+            /** Cost Usd */
+            cost_usd: string | null;
+            /** Margin Usd */
+            margin_usd: string | null;
+        };
+        /** SaleItemAdmin */
+        SaleItemAdmin: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Number */
+            line_number: number;
+            product: components["schemas"]["ProductRefOut"];
+            /** Quantity */
+            quantity: string;
+            /** Entered Unit */
+            entered_unit: string;
+            /** Unit Price Usd */
+            unit_price_usd: string;
+            /** Server Price Usd */
+            server_price_usd: string | null;
+            /** Line Subtotal Usd */
+            line_subtotal_usd: string;
+            item_discount: components["schemas"]["DiscountOut"] | null;
+            /** Allocated Sale Discount Usd */
+            allocated_sale_discount_usd: string;
+            /** Line Total Usd */
+            line_total_usd: string;
+            /** Unit Cost Usd */
+            unit_cost_usd: string | null;
+            /** Margin Usd */
+            margin_usd: string | null;
+        };
+        /** SaleItemSeller */
+        SaleItemSeller: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Number */
+            line_number: number;
+            product: components["schemas"]["ProductRefOut"];
+            /** Quantity */
+            quantity: string;
+            /** Entered Unit */
+            entered_unit: string;
+            /** Unit Price Usd */
+            unit_price_usd: string;
+            /** Server Price Usd */
+            server_price_usd: string | null;
+            /** Line Subtotal Usd */
+            line_subtotal_usd: string;
+            item_discount: components["schemas"]["DiscountOut"] | null;
+            /** Allocated Sale Discount Usd */
+            allocated_sale_discount_usd: string;
+            /** Line Total Usd */
+            line_total_usd: string;
+        };
+        /** SaleSeller */
+        SaleSeller: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+            /** Needs Review */
+            needs_review: boolean;
+            device: components["schemas"]["DeviceRef"];
+            /**
+             * Cash Session Id
+             * Format: uuid
+             */
+            cash_session_id: string;
+            seller: components["schemas"]["UserRef"];
+            customer: components["schemas"]["CustomerOut"] | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            /**
+             * Synced At
+             * Format: date-time
+             */
+            synced_at: string;
+            /** Exchange Rate */
+            exchange_rate: string;
+            /**
+             * Exchange Rate Date
+             * Format: date
+             */
+            exchange_rate_date: string;
+            /** Items */
+            items: components["schemas"]["SaleItemSeller"][];
+            /** Subtotal Usd */
+            subtotal_usd: string;
+            discount: components["schemas"]["DiscountOut"] | null;
+            /** Discount Usd */
+            discount_usd: string;
+            /** Total Usd */
+            total_usd: string;
+            /** Total Ves */
+            total_ves: string;
+            /** Paid Usd */
+            paid_usd: string;
+            /** Change Usd */
+            change_usd: string;
+            /** Overpaid Usd */
+            overpaid_usd: string;
+            /** Device Total Usd */
+            device_total_usd: string;
+            /** Payments */
+            payments: components["schemas"]["PaymentOut"][];
+            void: components["schemas"]["SaleVoidOut"] | null;
+        };
+        /** SaleVoidOut */
+        SaleVoidOut: {
+            /** Reason */
+            reason: string;
+            voided_by: components["schemas"]["UserRef"];
+            /**
+             * Voided At
+             * Format: date-time
+             */
+            voided_at: string;
         };
         /** Scope */
         Scope: {
@@ -5429,6 +5751,37 @@ export interface operations {
             };
         };
     };
+    search_customers_api_v1_customers_get: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     post_operation_api_v1_sync_operations_post: {
         parameters: {
             query?: never;
@@ -5448,7 +5801,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SaleAdmin"] | components["schemas"]["SaleSeller"] | components["schemas"]["CashSessionOut"];
                 };
             };
             /** @description Validation Error */
