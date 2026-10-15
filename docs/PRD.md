@@ -3,7 +3,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.10 |
+| Versión | 0.11 |
 | Fecha | 2026-10-15 |
 | Estado | Aprobado por el dueño |
 | Documentos relacionados | `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`, `CLAUDE.md` |
@@ -159,7 +159,7 @@ Cada requisito tiene un identificador (`RF-XX`) para poder referenciarlo en tare
 
 - **RF-25** Calcular el **vuelto** cuando el pago excede el total y registrar en qué método y moneda se entregó. Puede entregarse en uno o varios métodos y ser menor o igual que el excedente (por ejemplo, sin sencillo); la diferencia queda como sobrepago de la venta.
 - **RF-26** Cada venta guarda: número correlativo, fecha y hora, vendedor, caja, ítems con precio unitario en USD, tasa BCV usada, descuentos, pagos y vuelto.
-- **RF-27** Solo el admin puede anular una venta, con motivo obligatorio. La anulación es de la venta completa, devuelve el stock y revierte los movimientos de caja. No hay devoluciones parciales: se anula y se registra una venta nueva con lo que el cliente se queda.
+- **RF-27** Solo el admin puede anular una venta, con motivo obligatorio. La anulación es de la venta completa, devuelve el stock y revierte los movimientos de caja. Si la caja de la venta sigue abierta, el dinero se revierte en ella; si ya está cerrada, en la caja abierta del equipo desde el que el admin anula (si no hay una abierta, debe abrirla), y el cierre anterior no se toca (RF-33). No hay devoluciones parciales: se anula y se registra una venta nueva con lo que el cliente se queda.
 - **RF-28** Cliente opcional en la venta: nombre, cédula o RIF y teléfono. Será obligatorio para ventas a crédito en la fase 2.
 
 ### 6.6 Caja
@@ -275,7 +275,7 @@ Preguntas surgidas al definir la arquitectura (ver `docs/arquitectura.md`); se r
 
 - ✅ (1.3) Con conexión, ¿se puede vender un producto sin stock suficiente? Sí, con advertencia; el stock negativo genera alerta al admin (RN-10).
 - ✅ (1.3/1.5) ¿Se permiten descuentos sin conexión? Sí; la venta queda marcada para revisión del admin (RN-07).
-- (1.4) Si se anula una venta cuya caja ya está cerrada, ¿en qué caja se registra la reversión del dinero? (RF-27, RF-33)
+- ✅ (1.4) Si se anula una venta cuya caja ya está cerrada, ¿en qué caja se registra la reversión del dinero? En la caja abierta del equipo desde el que el admin anula; el cierre anterior no cambia (RF-27, RF-33).
 
 ## 11. Plan de fases (resumen)
 
@@ -327,3 +327,4 @@ El detalle va en `docs/plan-de-fases.md`.
 | 0.8 | 2026-10-08 | Aclaraciones de la etapa 1.1b: costo inicial fijado por el admin mientras no haya compras confirmadas (RN-09); un solo precio de venta por producto, sin precios de mayorista en la Fase 1 (RN-18). Respondida la pregunta abierta sobre mayoristas. Salidas de inventario del Almacén con aprobación del admin y conteos aplicados solo por el admin (RN-19, matriz de permisos). Solo el admin publica productos en el catálogo y el vendedor no ve el kardex (matriz de permisos). |
 | 0.9 | 2026-10-13 | Aclaraciones de la etapa 1.2: si al confirmar una compra el stock previo es cero o negativo, o el producto no tiene costo, el costo pasa a ser el costo final por unidad de la compra, sin promediar (RN-09; respondida la pregunta abierta). El Almacén registra y confirma compras y ve los costos de factura que escribe, pero no el costo promedio ni márgenes (matriz de permisos). La carga de la tasa BCV (RF-17, RN-15) se adelanta a la etapa 1.2 y se confirma el supuesto 2 (§9, §11). Gastos de las compras (importaciones): por porcentaje de la factura o monto fijo, lista de gastos frecuentes y costo final por unidad repartido por valor (RF-14, RN-20, RN-09, matriz de permisos, §5.4). |
 | 0.10 | 2026-10-15 | Respondidas las preguntas abiertas de la etapa 1.3: con conexión se permite vender sin stock suficiente, con advertencia y alerta al admin por el stock negativo (RN-10); sin conexión se permiten descuentos, con la venta marcada para revisión del admin (RN-07). La apertura de caja (RF-29, RF-30, RN-16) se adelanta de la etapa 1.4 a la 1.3 (§11). Aclaraciones de la etapa 1.3: tasa de cada venta al empezarla (RF-18), aprobación de descuentos con un valor menor (RF-22), vuelto menor o igual que el excedente con sobrepago (RF-25) y anulación solo completa (RF-27). |
+| 0.11 | 2026-10-15 | Respondida la pregunta abierta de la etapa 1.4: al anular una venta cuya caja ya está cerrada, el dinero se revierte en la caja abierta del equipo desde el que el admin anula, sin tocar el cierre anterior (RF-27, RF-33). |

@@ -152,7 +152,7 @@ Se responden antes de especificar la etapa indicada (PRD §10).
 | 1.2 | ✅ Costo promedio cuando el stock previo es cero o negativo: el costo pasa a ser el de la compra, sin promediar (RN-09) |
 | 1.3 | ✅ Con conexión, ¿vender sin stock suficiente? Sí, con advertencia y alerta al admin por el stock negativo (RN-10) |
 | 1.3 | ✅ ¿Descuentos sin conexión? Sí, con la venta marcada para revisión del admin (RN-07) |
-| 1.4 | Caja en la que se revierte el dinero al anular una venta de una caja ya cerrada |
+| 1.4 | ✅ Caja en la que se revierte el dinero al anular una venta de una caja ya cerrada: la caja abierta del equipo desde el que el admin anula (RF-27, RF-33) |
 | 1.6 | Número de WhatsApp del negocio y cada cuántas horas se regenera el catálogo |
 | Fase 2 | Impresora de la nota de entrega: térmica o carta/media carta |
 

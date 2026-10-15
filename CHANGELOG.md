@@ -6,6 +6,13 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3
 
 ## [Sin publicar]
 
+### Cambiado
+
+- PRD v0.11, antes de especificar la etapa 1.4: al anular una venta cuya caja ya está
+  cerrada, el dinero se revierte en la caja abierta del equipo desde el que el admin
+  anula, sin tocar el cierre anterior (RF-27, RF-33). También en `docs/plan-de-fases.md`,
+  `docs/arquitectura.md` y `docs/modelo-de-datos.md`.
+
 ## [0.4.0] — 2026-10-15 — Etapa 1.3: ventas multimoneda, pagos mixtos, descuentos y apertura de caja
 
 Escenarios del quickstart recorridos por el dueño, revisión de seguridad y de código

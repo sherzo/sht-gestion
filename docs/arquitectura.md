@@ -377,7 +377,8 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 **Preguntas de negocio** (registradas en PRD §10, se responden antes de la etapa
 indicada):
 
-- (1.4) Caja en la que se revierte una anulación de una caja ya cerrada.
+- ✅ (1.4) Caja en la que se revierte una anulación de una caja ya cerrada: la caja abierta
+  del equipo desde el que el admin anula (PRD v0.11, RF-27).
 
 Las preguntas de la 1.3 (venta sin stock con conexión y descuentos sin conexión) se
 respondieron en el PRD v0.10 (RN-10, RN-07).

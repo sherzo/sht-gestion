@@ -407,8 +407,9 @@ PIN y las solicitudes (reemplaza a la `discount_request` prevista). `sale_id` y
 
 **`sale_void`** (RF-27; solo inserción): `sale_id` (único), `reason` (5–500),
 `voided_by`, `voided_at`. Genera movimientos de kardex `sale_void` y el espejo de cada
-pago (`void_refund`) y vuelto (`void_change`) en la caja de la venta. En qué caja se
-revierte el dinero si la de la venta ya está cerrada se decide en la etapa 1.4 (PRD §10).
+pago (`void_refund`) y vuelto (`void_change`) en la caja de la venta. Si la caja de la
+venta ya está cerrada, el dinero se revierte en la caja abierta del equipo desde el que
+el admin anula (PRD v0.11, RF-27); el detalle llega con la etapa 1.4.
 
 ### 3.7 Caja (RF-29 a RF-33, RN-16)
 
