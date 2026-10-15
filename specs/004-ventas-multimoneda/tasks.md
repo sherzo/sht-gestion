@@ -203,7 +203,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 > Escribir primero y comprobar que fallan.
 
-- [ ] T024 [P] [US1] Pruebas en `backend/tests/test_devices.py` (marca `db`):
+- [X] T024 [P] [US1] Pruebas en `backend/tests/test_devices.py` (marca `db`):
   - `POST /devices` como Admin → serie `A` y `token` en la respuesta, que no aparece en `GET /devices`;
   - el segundo equipo recibe `B`; tras revocar `B`, el siguiente recibe `C`;
   - revocar dos veces → 409 `invalid_state`;
@@ -212,7 +212,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - auditoría `device.registered` y `device.revoked`;
   - nombre vacío o de más de 60 caracteres → 422.
   - (RN-11/FR-001 a FR-004)
-- [ ] T025 [P] [US1] Pruebas en `backend/tests/test_cash_sessions.py` (marca `db`):
+- [X] T025 [P] [US1] Pruebas en `backend/tests/test_cash_sessions.py` (marca `db`):
   - apertura por `POST /sync/operations` (`cash_session.open`) con `500.00` Bs y `20.00` USD → caja `open` del equipo con `opened_by`, `business_date` de Caracas y auditoría `cash_session.opened`;
   - segunda apertura con otro id → 409 `cash_session_open` con `opened_by` y `opened_at`;
   - fondo negativo o con más de 2 decimales → 422;
@@ -222,27 +222,27 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - otro equipo puede abrir su propia caja;
   - `UPDATE` directo del fondo → error del trigger.
   - (RF-29, RF-30, RN-16/FR-005 a FR-008)
-- [ ] T026 [US1] Agregar a `MATRIX` de `backend/tests/test_permissions_matrix.py` las filas de `POST /devices`, `GET /devices`, `POST /devices/{id}/revoke`, `GET /devices/current` y `POST /sync/operations` según `contracts/api.md`, con los marcadores `{device_id}` y la cabecera del equipo creados en `actor_headers`
+- [X] T026 [US1] Agregar a `MATRIX` de `backend/tests/test_permissions_matrix.py` las filas de `POST /devices`, `GET /devices`, `POST /devices/{id}/revoke`, `GET /devices/current` y `POST /sync/operations` según `contracts/api.md`, con los marcadores `{device_id}` y la cabecera del equipo creados en `actor_headers`
 
 ### Implementation for User Story 1
 
-- [ ] T027 [US1] Crear `backend/app/api/devices.py` con `POST /devices`, `GET /devices` y `POST /devices/{id}/revoke` (`require_roles(ADMIN)`), y `GET /devices/current` (`require_roles(ADMIN, SELLER)` + `ActiveDevice`). Esquema `Device` del contrato en `backend/app/api/sale_schemas.py`. Registrar el router en `backend/app/main.py`
-- [ ] T028 [US1] Crear `backend/app/services/cash_sessions.py` con el manejador `open_cash_session(db, *, device, user, operation)`:
+- [X] T027 [US1] Crear `backend/app/api/devices.py` con `POST /devices`, `GET /devices` y `POST /devices/{id}/revoke` (`require_roles(ADMIN)`), y `GET /devices/current` (`require_roles(ADMIN, SELLER)` + `ActiveDevice`). Esquema `Device` del contrato en `backend/app/api/sale_schemas.py`. Registrar el router en `backend/app/main.py`
+- [X] T028 [US1] Crear `backend/app/services/cash_sessions.py` con el manejador `open_cash_session(db, *, device, user, operation)`:
   - valida el fondo con `validate_usd` (≥ 0, 2 decimales);
   - exige `applicable_rate(db, hoy)` (409 `exchange_rate_missing` si es nula);
   - inserta con el id del contenido y captura la violación del índice único parcial como 409 `cash_session_open`, con quién y desde cuándo;
   - audita `cash_session.opened`.
   Registrarlo en `HANDLERS["cash_session.open"]` de `services/sync.py` (R7, FR-005 a FR-008)
-- [ ] T029 [US1] Abrir `GET /exchange-rates/applicable` al Vendedor en `backend/app/api/exchange_rates.py`, cambiando la dependencia a Admin, Vendedor y Almacén, y actualizar su fila en `MATRIX` (R13)
-- [ ] T030 [US1] Crear `frontend/src/app/caja/page.tsx`:
+- [X] T029 [US1] Abrir `GET /exchange-rates/applicable` al Vendedor en `backend/app/api/exchange_rates.py`, cambiando la dependencia a Admin, Vendedor y Almacén, y actualizar su fila en `MATRIX` (R13)
+- [X] T030 [US1] Crear `frontend/src/app/caja/page.tsx`:
   - **Sin equipo en IndexedDB**: si el usuario es Admin, formulario "Registrar este equipo" (nombre); guarda id, serie, nombre y token con `saveDevice`. Si no es Admin, mensaje "Este equipo no está registrado; pídeselo al administrador".
   - **Con equipo**: llama a `GET /devices/current` y `syncSequence`, y muestra la serie y la caja abierta (quién y desde cuándo).
   - **Sin caja abierta**: formulario de apertura (fondo en Bs y USD con `DecimalInput`) y la tasa aplicable de hoy. Si es de otro día, aviso "No hay tasa BCV de hoy; se usará la del dd/mm/aaaa"; sin tasa, botón deshabilitado con explicación.
   - **Apertura**: se encola `cash_session.open` y se espera el resultado con `waitFor`.
   - **Equipo revocado** (403 `device_revoked`): ofrece borrar el equipo local y registrarlo de nuevo (Admin).
   - (FR-001 a FR-008, RF-18)
-- [ ] T031 [US1] Crear `frontend/src/app/configuracion/equipos/page.tsx` (Admin): lista de equipos con serie, nombre, quién y cuándo se registró, caja abierta y estado, y acción "Revocar" con confirmación (FR-002)
-- [ ] T032 [US1] Ejecutar `pnpm api:types` y tipar las llamadas de equipos y caja con `packages/shared/src/api/schema.d.ts`
+- [X] T031 [US1] Crear `frontend/src/app/configuracion/equipos/page.tsx` (Admin): lista de equipos con serie, nombre, quién y cuándo se registró, caja abierta y estado, y acción "Revocar" con confirmación (FR-002)
+- [X] T032 [US1] Ejecutar `pnpm api:types` y tipar las llamadas de equipos y caja con `packages/shared/src/api/schema.d.ts`
 
 **Checkpoint**: US1 funciona sola: equipos con serie y caja abierta en el equipo.
 

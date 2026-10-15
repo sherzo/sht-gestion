@@ -42,6 +42,8 @@ ANY_ROLE = frozenset({ADMIN, SELLER, WAREHOUSE})
 ADMIN_ONLY = frozenset({ADMIN})
 ADMIN_WAREHOUSE = frozenset({ADMIN, WAREHOUSE})
 WAREHOUSE_ONLY = frozenset({WAREHOUSE})
+ADMIN_SELLER = frozenset({ADMIN, SELLER})
+SELLER_ONLY = frozenset({SELLER})
 
 PURCHASE_BODY = {
     "supplier_id": "{supplier_id}",
@@ -60,6 +62,8 @@ class Row:
     path: str
     allowed: frozenset[str]
     body: dict[str, Any] | None = field(default=None)
+    # Operación de mostrador: se envía también el token del equipo (X-Device-Token).
+    device: bool = False
 
     @property
     def id(self) -> str:
@@ -213,7 +217,7 @@ MATRIX: list[Row] = [
         "POST", "/api/v1/exchange-rates", ADMIN_ONLY, {"business_date": "{yesterday}", "rate": "36"}
     ),
     Row("PUT", "/api/v1/exchange-rates/{today}", ADMIN_ONLY, {"rate": "37"}),
-    Row("GET", "/api/v1/exchange-rates/applicable?date={today}", ADMIN_WAREHOUSE),
+    Row("GET", "/api/v1/exchange-rates/applicable?date={today}", ANY_ROLE),
     # Gastos frecuentes (RF-14/FR-032)
     Row("GET", "/api/v1/charge-templates", ADMIN_WAREHOUSE),
     Row(
@@ -223,6 +227,28 @@ MATRIX: list[Row] = [
     # Alertas (RN-14)
     Row("GET", "/api/v1/alerts", ADMIN_ONLY),
     Row("POST", "/api/v1/alerts/{alert_id}/resolve", ADMIN_ONLY),
+    # Equipos y cola de salida (etapa 1.3, US1)
+    Row("POST", "/api/v1/devices", ADMIN_ONLY, {"name": "Equipo de la matriz"}),
+    Row("GET", "/api/v1/devices", ADMIN_ONLY),
+    Row("POST", "/api/v1/devices/{device_id}/revoke", ADMIN_ONLY),
+    Row("GET", "/api/v1/devices/current", ADMIN_SELLER, device=True),
+    Row(
+        "POST",
+        "/api/v1/sync/operations",
+        ADMIN_SELLER,
+        {
+            "id": "{op_id}",
+            "operation_type": "cash_session.open",
+            "schema_version": 1,
+            "created_at": "{now}",
+            "payload": {
+                "id": "{session_id}",
+                "opening_float_ves": "0.00",
+                "opening_float_usd": "0.00",
+            },
+        },
+        device=True,
+    ),
 ]
 
 
@@ -239,6 +265,7 @@ def actor_headers(
     make_rate,
     make_charge_template,
     make_purchase,
+    make_device,
 ):
     """Crea los usuarios de cada actor y los datos de las rutas, y devuelve el encabezado
     del pedido."""
@@ -311,6 +338,15 @@ def actor_headers(
         "alert_id": str(alert.id),
     }
 
+    device, device_token = make_device("Equipo de la matriz")
+    sale_ids = {
+        "device_id": str(device.id),
+        "device_token": device_token,
+        "op_id": str(uuid.uuid7()),
+        "session_id": str(uuid.uuid7()),
+        "now": utcnow().isoformat(),
+    }
+
     def headers_for(actor: str) -> dict[str, str]:
         if actor == ANONYMOUS:
             return {}
@@ -325,6 +361,7 @@ def actor_headers(
         "line_id": str(line.id),
         "other_product_id": str(other.id),
         **purchase_ids,
+        **sale_ids,
         "category_id": str(category_id("FRT")),
         "unit_id": str(db.scalar(select(Unit.id).where(Unit.code == "u"))),
         "attribute_id": str(
@@ -349,6 +386,8 @@ def _fill(value: Any, ids: dict[str, str]) -> Any:
 @pytest.mark.parametrize("row", MATRIX, ids=lambda row: row.id)
 def test_matriz_de_permisos(client, actor_headers, row: Row, actor: str) -> None:
     headers = actor_headers(actor)
+    if row.device:
+        headers = {**headers, "X-Device-Token": actor_headers.ids["device_token"]}
     path = _fill(row.path, actor_headers.ids)
     kwargs: dict[str, Any] = {"headers": headers}
     if row.body is not None:

@@ -40,16 +40,9 @@ class Operation:
 
 Handler = Callable[[Session, Device, AppUser, Operation], dict[str, Any]]
 
-# Manejadores por tipo de operación; cada servicio registra el suyo al importarse.
+# Manejadores por tipo de operación. Los registra la capa de la API (`app/api/sync.py`):
+# validan el contenido, llaman al servicio y devuelven la respuesta en JSON.
 HANDLERS: dict[str, Handler] = {}
-
-
-def register(operation_type: str) -> Callable[[Handler], Handler]:
-    def decorator(handler: Handler) -> Handler:
-        HANDLERS[operation_type] = handler
-        return handler
-
-    return decorator
 
 
 def _is_permanent(error: ApiError) -> bool:

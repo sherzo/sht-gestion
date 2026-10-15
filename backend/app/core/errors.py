@@ -59,6 +59,27 @@ def _field_name(location: tuple[Any, ...]) -> str:
     return ".".join(parts)
 
 
+def validation_fields(errors: Any, *, prefix: str | None = None) -> dict[str, str]:
+    """Campos con su mensaje en español a partir de los errores de Pydantic. Sin `prefix`
+    se omite el origen (`body`, `query`, `path`); con él, se antepone (por ejemplo,
+    `payload` para el contenido de una operación de la cola)."""
+    fields: dict[str, str] = {}
+    for error in errors:
+        location = tuple(error.get("loc", ()))
+        name = (
+            _field_name(location)
+            if prefix is None
+            else ".".join([prefix, *(str(part) for part in location)])
+        )
+        if error.get("type") == "value_error":
+            # Validadores propios: el mensaje en español viene en el ValueError.
+            message = str(error.get("ctx", {}).get("error", "El valor no es válido"))
+        else:
+            message = _VALIDATION_MESSAGES.get(error.get("type", ""), "El valor no es válido")
+        fields.setdefault(name, message)
+    return fields
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api_error(_: Request, exc: ApiError) -> JSONResponse:
@@ -67,14 +88,6 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
-        fields: dict[str, str] = {}
-        for error in exc.errors():
-            name = _field_name(tuple(error.get("loc", ())))
-            if error.get("type") == "value_error":
-                # Validadores propios: el mensaje en español viene en el ValueError.
-                message = str(error.get("ctx", {}).get("error", "El valor no es válido"))
-            else:
-                message = _VALIDATION_MESSAGES.get(error.get("type", ""), "El valor no es válido")
-            fields.setdefault(name, message)
+        fields = validation_fields(exc.errors())
         detail = {"code": "validation_error", "message": "Hay datos inválidos", "fields": fields}
         return JSONResponse(status_code=422, content={"detail": detail})

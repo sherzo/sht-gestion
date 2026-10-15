@@ -10,6 +10,7 @@ from app.api import (
     auth,
     catalog_config,
     charge_templates,
+    devices,
     exchange_rates,
     health,
     inventory,
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     api_v1.include_router(exchange_rates.router)
     api_v1.include_router(charge_templates.router)
     api_v1.include_router(alerts.router)
+    api_v1.include_router(devices.router)
     api_v1.include_router(sync.router)
     app.include_router(api_v1)
 

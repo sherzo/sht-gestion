@@ -13,7 +13,10 @@ export type StatusChipVariant =
   | "withdrawn"
   | "draft"
   | "confirmed"
-  | "voided";
+  | "voided"
+  | "active"
+  | "revoked"
+  | "needs_review";
 
 const VARIANTS: Record<StatusChipVariant, { label: string; icon: LucideIcon; className: string }> = {
   low_stock: { label: "Stock bajo", icon: AlertTriangle, className: "bg-warning-soft text-warning" },
@@ -27,6 +30,9 @@ const VARIANTS: Record<StatusChipVariant, { label: string; icon: LucideIcon; cla
   draft: { label: "Borrador", icon: FilePen, className: "bg-warning-soft text-warning" },
   confirmed: { label: "Confirmada", icon: CheckCircle2, className: "bg-success-soft text-success" },
   voided: { label: "Anulada", icon: Ban, className: "bg-danger-soft text-danger" },
+  active: { label: "Vigente", icon: CheckCircle2, className: "bg-success-soft text-success" },
+  revoked: { label: "Revocado", icon: Ban, className: "bg-danger-soft text-danger" },
+  needs_review: { label: "Para revisar", icon: AlertTriangle, className: "bg-warning-soft text-warning" },
 };
 
 export function StatusChip({ variant, label }: { variant: StatusChipVariant; label?: string }) {

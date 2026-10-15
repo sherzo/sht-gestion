@@ -942,7 +942,8 @@ export interface paths {
         };
         /**
          * Applicable Rate
-         * @description La tasa que usaría una compra con esa fecha (FR-012).
+         * @description La tasa que usaría una compra o una venta con esa fecha (FR-012 de la 1.2; RF-18,
+         *     FR-007 y FR-014 de la 1.3: el Vendedor la consulta al abrir caja y al vender).
          */
         get: operations["applicable_rate_api_v1_exchange_rates_applicable_get"];
         put?: never;
@@ -1036,6 +1037,82 @@ export interface paths {
         put?: never;
         /** Resolve Alert */
         post: operations["resolve_alert_api_v1_alerts__alert_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Devices */
+        get: operations["list_devices_api_v1_devices_get"];
+        put?: never;
+        /** Register Device */
+        post: operations["register_device_api_v1_devices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devices/{device_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Device */
+        post: operations["revoke_device_api_v1_devices__device_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devices/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Current Device
+         * @description El equipo del token, con su caja abierta y el último correlativo registrado.
+         */
+        get: operations["current_device_api_v1_devices_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Operation
+         * @description Procesa una operación del mostrador. 200 con el resultado; los rechazos
+         *     permanentes (403 `device_revoked`, 409, 422) llevan el formato de error común.
+         */
+        post: operations["post_operation_api_v1_sync_operations_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1487,6 +1564,62 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** DeviceCreate */
+        DeviceCreate: {
+            /** Name */
+            name: string;
+        };
+        /** DeviceOut */
+        DeviceOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Series */
+            series: string;
+            /** Last Sequence Number */
+            last_sequence_number: number;
+            registered_by: components["schemas"]["UserRef"];
+            /**
+             * Registered At
+             * Format: date-time
+             */
+            registered_at: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            open_cash_session: components["schemas"]["OpenCashSessionRef"] | null;
+        };
+        /**
+         * DeviceRegistered
+         * @description Respuesta del registro: única vez que se entrega el token (research R3).
+         */
+        DeviceRegistered: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Series */
+            series: string;
+            /** Last Sequence Number */
+            last_sequence_number: number;
+            registered_by: components["schemas"]["UserRef"];
+            /**
+             * Registered At
+             * Format: date-time
+             */
+            registered_at: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            open_cash_session: components["schemas"]["OpenCashSessionRef"] | null;
+            /** Token */
+            token: string;
+        };
         /** ExchangeRateOut */
         ExchangeRateOut: {
             /**
@@ -1606,11 +1739,54 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** OpenCashSessionRef */
+        OpenCashSessionRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            opened_by: components["schemas"]["UserRef"];
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+        };
         /** OpenCountRequest */
         OpenCountRequest: {
             scope: components["schemas"]["Scope"];
             /** Notes */
             notes?: string | null;
+        };
+        /** OutboxOperationIn */
+        OutboxOperationIn: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Operation Type */
+            operation_type: string;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: 1;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
         };
         /** PhotoOut */
         PhotoOut: {
@@ -5136,6 +5312,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_devices_api_v1_devices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceOut"][];
+                };
+            };
+        };
+    };
+    register_device_api_v1_devices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceRegistered"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_device_api_v1_devices__device_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    current_device_api_v1_devices_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceOut"];
+                };
+            };
+        };
+    };
+    post_operation_api_v1_sync_operations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutboxOperationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
