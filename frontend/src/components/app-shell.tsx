@@ -7,6 +7,7 @@ import type { Role } from "@sht/shared";
 import {
   AlertTriangle,
   ClipboardCheck,
+  CloudUpload,
   ClipboardList,
   History,
   Home,
@@ -15,21 +16,26 @@ import {
   LogOut,
   Menu,
   Package,
+  ReceiptText,
   Settings,
+  ShoppingBag,
   ShoppingCart,
   SlidersHorizontal,
   Truck,
   UserCog,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
+import { Dialog } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth/use-auth";
+import { dismissRejected, hasPending, startOutbox, useOutboxAttention, waitsForOwner } from "@/lib/outbox/outbox";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; roles: Role[] };
 
@@ -37,6 +43,9 @@ const ALL_ROLES: Role[] = ["admin", "seller", "warehouse"];
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Inicio", icon: Home, roles: ALL_ROLES },
+  { href: "/vender/", label: "Vender", icon: ShoppingBag, roles: ["admin", "seller"] },
+  { href: "/ventas/", label: "Ventas", icon: ReceiptText, roles: ["admin", "seller"] },
+  { href: "/caja/", label: "Caja", icon: Wallet, roles: ["admin", "seller"] },
   { href: "/productos/", label: "Productos", icon: Package, roles: ALL_ROLES },
   { href: "/inventario/ajuste/", label: "Ajuste de inventario", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
   { href: "/inventario/stock-bajo/", label: "Stock bajo", icon: AlertTriangle, roles: ["admin", "warehouse"] },
@@ -87,11 +96,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [outboxOpen, setOutboxOpen] = useState(false);
+  const attention = useOutboxAttention();
+
+  // La cola de salida se reintenta mientras la app esté abierta (ADR-0003).
+  useEffect(() => {
+    if (user && user.role !== "warehouse") startOutbox(user.id);
+  }, [user]);
 
   if (!user) return null;
   const items = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
 
   async function onLogout() {
+    if (
+      (await hasPending()) &&
+      !window.confirm(
+        "Hay ventas pendientes de envío en este equipo. Se enviarán cuando alguien vuelva a ingresar. ¿Cerrar sesión de todos modos?",
+      )
+    ) {
+      return;
+    }
     await logout();
     router.replace("/ingresar/");
   }
@@ -122,6 +146,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           </div>
           <div className="flex items-center gap-3">
+            {attention.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setOutboxOpen(true)}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-3 font-semibold text-on-accent"
+              >
+                <CloudUpload aria-hidden className="size-5" />
+                <span className="hidden sm:inline">Ventas pendientes de envío:</span>
+                <span className="sr-only sm:hidden">Ventas pendientes de envío:</span> {attention.length}
+              </button>
+            )}
             <div className="hidden text-right text-sm sm:block">
               <p className="font-semibold">{user.full_name}</p>
               <p className="text-navy-200">{ROLE_LABELS[user.role]}</p>
@@ -151,6 +186,44 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
       </div>
+
+      <Dialog open={outboxOpen} title="Pendientes de envío" onClose={() => setOutboxOpen(false)}>
+        {attention.length === 0 ? (
+          <p>No hay operaciones pendientes.</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {attention.map((record) => (
+              <li key={record.id} className="rounded-lg border border-line p-3">
+                <p className="font-semibold">{OPERATION_LABELS[record.type] ?? record.type}</p>
+                <p className="text-sm text-ink-muted">
+                  {new Date(record.createdAt).toLocaleString("es-VE", { timeZone: "America/Caracas" })}
+                </p>
+                {record.status === "pending" && waitsForOwner(record) ? (
+                  <p className="text-sm">Se enviará cuando el vendedor que la hizo vuelva a ingresar en este equipo.</p>
+                ) : record.status === "pending" ? (
+                  <p className="text-sm">Se enviará al haber conexión ({record.attempts} intentos).</p>
+                ) : (
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-danger">Rechazada: {record.error?.message}</p>
+                    <button
+                      type="button"
+                      className="min-h-11 rounded-lg px-3 text-sm font-medium text-primary hover:bg-neutral-100"
+                      onClick={() => void dismissRejected(record.id)}
+                    >
+                      Quitar de la lista
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Dialog>
     </div>
   );
 }
+
+const OPERATION_LABELS: Record<string, string> = {
+  "sale.create": "Venta",
+  "cash_session.open": "Apertura de caja",
+};

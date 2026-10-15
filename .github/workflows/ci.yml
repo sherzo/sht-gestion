@@ -60,5 +60,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Casos compartidos de dinero en TypeScript (ADR-0004; los mismos que corre pytest).
+      - run: pnpm test
       - run: pnpm typecheck
       - run: pnpm build

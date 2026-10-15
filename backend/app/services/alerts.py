@@ -1,7 +1,10 @@
-"""Alertas para el Admin (RN-14/FR-018, research R8).
+"""Alertas para el Admin (RN-10, RN-14/FR-018; research R8 de la 1.2 y R6 de la 1.3).
 
-En esta etapa solo existe `purchase_void_cost`: anular una compra no pudo recalcular el
-costo de un producto y se conservó el vigente. Las etapas 1.3 y 1.5 agregan otros tipos.
+- `purchase_void_cost`: anular una compra no pudo recalcular el costo de un producto y se
+  conservó el vigente (etapa 1.2).
+- De la venta (etapa 1.3), una por tipo y venta: `negative_stock`, `price_mismatch`,
+  `total_mismatch`, `rate_mismatch`, `discount_review` e `inactive_user_sync`. La venta se
+  registra igual: el servidor nunca la rechaza por estas razones.
 """
 
 import uuid
@@ -12,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
 from app.core.errors import ApiError
-from app.db.models import Alert, AppUser
+from app.db.models import Alert, AppUser, Sale
 from app.services.audit import record_audit
 
 
@@ -31,6 +34,17 @@ def create_alert(
     )
     db.add(alert)
     return alert
+
+
+def create_sale_alert(db: Session, *, type: str, sale: Sale, details: dict[str, Any]) -> Alert:
+    """Alerta sobre una venta, con su número para mostrarla en Pendientes."""
+    return create_alert(
+        db,
+        type=type,
+        entity_type="sale",
+        entity_id=sale.id,
+        details={"sale_number": sale.number, **details},
+    )
 
 
 def open_alerts_count(db: Session) -> int:

@@ -84,11 +84,30 @@ navegador no borre los datos locales por falta de espacio.
   (ambiente de pruebas, ADR-0002), una vez que el negocio use el sistema con datos
   reales.
 
-### Pendiente de definir (preguntas abiertas en PRD §10)
+### Resuelto en la etapa 1.3 (PRD v0.10)
 
-- Si se permiten descuentos sin conexión: el PIN del admin no puede validarse de forma
-  segura en el equipo (RN-07).
-- En qué caja se revierte el dinero cuando se anula una venta de una caja ya cerrada.
+- **Descuentos sin conexión:** se permiten; como el PIN no puede validarse en el equipo,
+  la venta queda marcada para revisión del Admin (`needs_review`) con una alerta
+  `discount_review` (RN-07). Con conexión, el descuento del Vendedor se autoriza antes de
+  confirmar: PIN validado en el servidor o solicitud aprobada, atada a la venta, la línea,
+  el valor y la base (`discount_authorization`).
+- **Venta sin stock con conexión:** se advierte y se permite; si el stock queda negativo,
+  alerta para el Admin (RN-10).
+- **Implementación** (specs/004-ventas-multimoneda, research R3 a R5): el equipo se
+  identifica con un token propio en `X-Device-Token`; la cola usa Dexie y envía una
+  operación por petición a `POST /sync/operations`; el servidor bloquea el id de la
+  operación y guarda su respuesta, también la de un rechazo estructural o de datos fuera
+  de límites, para repetirla en un reenvío (rearmada con el esquema del rol de quien la
+  reenvía). Un equipo revocado nunca abre caja; sus ventas creadas antes de la revocación
+  en una caja abierta antes de ella se aceptan con una alerta `revoked_device_sync`. En la
+  1.3 la venta queda a nombre del usuario de la sesión que la envía; la cola del equipo
+  solo envía las ventas del usuario con sesión y deja las demás esperando a su vendedor.
+  La 1.5 define el caso de ventas sin conexión de un vendedor que no vuelve a ingresar.
+
+### Pendiente de definir (pregunta abierta en PRD §10)
+
+- En qué caja se revierte el dinero cuando se anula una venta de una caja ya cerrada
+  (etapa 1.4). En la 1.3 la devolución va a la caja de la venta.
 
 ## Alternativas consideradas
 

@@ -7,9 +7,14 @@
     "./styles/theme.css": "./styles/theme.css"
   },
   "scripts": {
+    "test": "node --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "decimal.js": "10.6.0"
+  },
   "devDependencies": {
+    "@types/node": "^26.6.4",
     "typescript": "^7.0.2"
   }
 }

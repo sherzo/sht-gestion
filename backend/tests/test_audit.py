@@ -309,3 +309,116 @@ def test_acciones_de_compras_y_tasas(
     group = ",".join(sorted(expected))
     listed = client.get("/api/v1/audit-log", params={"action": group}, headers=admin).json()
     assert {item["action"] for item in listed["items"]} == expected
+
+
+def test_acciones_de_ventas_y_caja(
+    client,
+    make_user,
+    auth_headers,
+    make_device,
+    make_rate,
+    open_cash_session,
+    make_product,
+    give_stock,
+    make_sale,
+    db,
+) -> None:
+    """RF-46/FR-050: equipos, apertura de caja, descuentos y su autorización, y anulación
+    quedan con usuario, equipo, entidad y detalle; una venta sin descuento no se audita."""
+    import uuid as uuid_module
+
+    from app.core.clock import utcnow
+    from app.domain.business_time import business_date
+    from tests.conftest import device_headers
+
+    make_rate(business_date(utcnow()), "36.50")
+    admin_user = make_user(Role.ADMIN, username="dueno", pin="4321")
+    admin = auth_headers(admin_user)
+    seller_user = make_user(Role.SELLER, username="vende")
+    seller = auth_headers(seller_user)
+
+    registered = client.post("/api/v1/devices", json={"name": "Mostrador"}, headers=admin).json()
+    token = registered["token"]
+    spare = client.post("/api/v1/devices", json={"name": "Tablet"}, headers=admin).json()
+    client.post(f"/api/v1/devices/{spare['id']}/revoke", headers=admin)
+    session = open_cash_session(seller, token, "100.00", "5.00")
+
+    product = make_product("CON", sale_price="10.00")
+    give_stock(product, "20")
+    before = db.scalar(select(text("count(*)")).select_from(AuditLog))
+    make_sale(seller, token, session["id"], [(product, "1")])
+    assert db.scalar(select(text("count(*)")).select_from(AuditLog)) == before
+
+    sale_id = str(uuid_module.uuid7())
+    request = {
+        "method": "request",
+        "sale_id": sale_id,
+        "discount_type": "percent",
+        "discount_value": "10.00",
+        "base_usd": "10.00",
+    }
+    pending = client.post(
+        "/api/v1/discount-authorizations", json=request, headers=device_headers(seller, token)
+    ).json()
+    client.post(
+        f"/api/v1/discount-authorizations/{pending['id']}/approve",
+        json={"discount_value": "5.00"},
+        headers=admin,
+    )
+    other = client.post(
+        "/api/v1/discount-authorizations", json=request, headers=device_headers(seller, token)
+    ).json()
+    client.post(
+        f"/api/v1/discount-authorizations/{other['id']}/reject",
+        json={"reason": "No aplica"},
+        headers=admin,
+    )
+    sale = make_sale(
+        seller,
+        token,
+        session["id"],
+        [(product, "1")],
+        discount={"type": "percent", "value": "5.00", "authorization_id": pending["id"]},
+        sale_id=sale_id,
+    )
+    client.post(
+        f"/api/v1/sales/{sale['id']}/void", json={"reason": "Error de cobro"}, headers=admin
+    )
+
+    entries: dict[str, list[AuditLog]] = {}
+    for entry in db.scalars(select(AuditLog).order_by(AuditLog.occurred_at)):
+        entries.setdefault(entry.action, []).append(entry)
+    expected = {
+        "device.registered",
+        "device.revoked",
+        "cash_session.opened",
+        "discount_authorization.requested",
+        "discount_authorization.approved",
+        "discount_authorization.rejected",
+        "sale.discounted",
+        "sale.voided",
+    }
+    assert expected <= set(entries)
+    assert len(entries["device.registered"]) == 2
+    assert entries["device.registered"][0].after == {"name": "Mostrador", "series": "A"}
+    assert entries["cash_session.opened"][0].user_id == seller_user.id
+    assert str(entries["cash_session.opened"][0].device_id) == registered["id"]
+    approved = entries["discount_authorization.approved"][0]
+    assert approved.user_id == admin_user.id
+    assert (approved.before["discount_value"], approved.after["discount_value"]) == (
+        "10.00",
+        "5.00",
+    )
+    assert approved.after["requested_value"] == "10.00"
+    assert entries["discount_authorization.rejected"][0].reason == "No aplica"
+    discounted = entries["sale.discounted"][0]
+    assert discounted.user_id == seller_user.id
+    assert discounted.details["sale_discount"]["method"] == "request"
+    assert discounted.details["sale_discount"]["authorized_by"] == str(admin_user.id)
+    voided = entries["sale.voided"][0]
+    assert voided.reason == "Error de cobro"
+    assert str(voided.entity_id) == sale["id"]
+
+    group = ",".join(sorted(expected))
+    listed = client.get("/api/v1/audit-log", params={"action": group}, headers=admin).json()
+    assert {item["action"] for item in listed["items"]} == expected

@@ -41,6 +41,7 @@ from app.db.models import (  # noqa: E402
     AppUser,
     Category,
     ChargeTemplate,
+    Device,
     ExchangeRate,
     Product,
     StockMovement,
@@ -112,8 +113,24 @@ TABLES = (
     "exchange_rate",
     "supplier",
     "sequence_counter",
+    "payment",
+    "sale_void",
+    "sale_item",
+    "sale",
+    "discount_authorization",
+    "cash_session",
+    "customer",
+    "outbox_operation",
+    "device",
+    "payment_method",
 )
-SEEDED_TABLES = ("unit", "category", "attribute_definition", "sequence_counter")
+SEEDED_TABLES = (
+    "unit",
+    "category",
+    "attribute_definition",
+    "sequence_counter",
+    "payment_method",
+)
 
 
 @pytest.fixture(scope="session")
@@ -435,5 +452,187 @@ def make_purchase(client: TestClient) -> Callable[..., dict]:
             assert response.status_code == 200, response.text
             purchase = response.json()
         return purchase
+
+    return factory
+
+
+# --- Equipos, caja y ventas (etapa 1.3) -------------------------------------------------
+
+
+@pytest.fixture
+def make_device(
+    db: Session, make_user: Callable[..., AppUser]
+) -> Callable[..., tuple[Device, str]]:
+    """Registra un equipo con el servicio real (serie del contador) y devuelve el token en
+    claro. `revoked=True` lo revoca enseguida."""
+    from app.services.devices import register_device, revoke_device
+
+    holder: dict[str, AppUser] = {}
+
+    def factory(name: str = "Mostrador", *, revoked: bool = False) -> tuple[Device, str]:
+        if "admin" not in holder:
+            holder["admin"] = make_user(Role.ADMIN, username="equipos")
+        device, token = register_device(db, actor=holder["admin"], name=name)
+        if revoked:
+            revoke_device(db, actor=holder["admin"], device_id=device.id)
+        db.commit()
+        return device, token
+
+    return factory
+
+
+def device_headers(headers: dict[str, str], token: str) -> dict[str, str]:
+    """Cabeceras de una petición de mostrador: sesión del usuario y token del equipo."""
+    return {**headers, "X-Device-Token": token}
+
+
+def operation(operation_type: str, payload: dict, *, op_id: str | None = None) -> dict:
+    """Cuerpo de `POST /sync/operations` con un id nuevo y la hora actual del equipo."""
+    return {
+        "id": op_id or str(uuid.uuid7()),
+        "operation_type": operation_type,
+        "schema_version": 1,
+        "created_at": clock.utcnow().isoformat(),
+        "payload": payload,
+    }
+
+
+@pytest.fixture
+def open_cash_session(client: TestClient) -> Callable[..., dict]:
+    """Abre la caja del equipo por la cola, como la pantalla de Caja."""
+
+    def factory(
+        headers: dict[str, str], token: str, float_ves: str = "0.00", float_usd: str = "0.00"
+    ) -> dict:
+        payload = {
+            "id": str(uuid.uuid7()),
+            "opening_float_ves": float_ves,
+            "opening_float_usd": float_usd,
+        }
+        response = client.post(
+            "/api/v1/sync/operations",
+            json=operation("cash_session.open", payload),
+            headers=device_headers(headers, token),
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    return factory
+
+
+def _is_meter(db: Session, product: Product) -> bool:
+    return db.scalar(select(Unit.decimals).where(Unit.id == product.unit_id)) > 0
+
+
+@pytest.fixture
+def make_sale(client: TestClient, db: Session) -> Callable[..., dict]:
+    """Arma un `SaleInput` válido (precios del producto, tasa aplicable de hoy y totales de
+    `compute_sale`) y lo envía por la cola, como la pantalla de venta.
+
+    `items` es una lista de `(producto, cantidad[, unidad escrita[, descuento[, id]]])`, con la
+    cantidad ya en la unidad del producto; sin `payments`, se paga el total en efectivo
+    USD. Los pagos y vueltos son `(método, monto, referencia)`. Devuelve el cuerpo de la
+    respuesta; `expect` es el código HTTP esperado.
+    """
+    from app.domain.sale_math import DiscountInput, LineInput, SaleInput, compute_sale
+    from app.services.devices import hash_token
+    from app.services.exchange_rates import applicable_rate
+
+    def discount_input(data: dict | None) -> DiscountInput | None:
+        return None if data is None else DiscountInput(data["type"], Decimal(data["value"]))
+
+    def factory(
+        headers: dict[str, str],
+        token: str,
+        cash_session_id: str,
+        items: list[tuple],
+        *,
+        payments: list[tuple] | None = None,
+        change: list[tuple] | None = None,
+        discount: dict | None = None,
+        customer: dict | None = None,
+        customer_id: str | None = None,
+        sequence_number: int | None = None,
+        seller_id: str | None = None,
+        rate: tuple[str, date] | None = None,
+        device_total_usd: str | None = None,
+        unit_prices: dict | None = None,
+        sale_id: str | None = None,
+        op_id: str | None = None,
+        expect: int = 200,
+    ) -> dict:
+        db.expire_all()
+        if rate is None:
+            applicable = applicable_rate(db, business_date(clock.utcnow()))
+            assert applicable is not None, "La prueba necesita una tasa cargada (make_rate)"
+            rate = (str(applicable.rate), applicable.business_date)
+        if seller_id is None:
+            seller_id = client.get("/api/v1/auth/me", headers=headers).json()["user"]["id"]
+        if sequence_number is None:
+            device = db.scalar(select(Device).where(Device.token_hash == hash_token(token)))
+            sequence_number = device.last_sequence_number + 1
+        lines = []
+        for item in items:
+            product, quantity = item[0], item[1]
+            default_unit = "m" if _is_meter(db, product) else "unit"
+            price = (unit_prices or {}).get(product.id, product.sale_price_usd)
+            lines.append(
+                {
+                    "id": item[4] if len(item) > 4 else str(uuid.uuid7()),
+                    "product_id": str(product.id),
+                    "quantity": quantity,
+                    "entered_unit": item[2] if len(item) > 2 else default_unit,
+                    "unit_price_usd": str(price),
+                    "discount": item[3] if len(item) > 3 else None,
+                }
+            )
+        calc_input = SaleInput(
+            rate=Decimal(rate[0]),
+            lines=[
+                LineInput(
+                    line["id"],
+                    Decimal(line["unit_price_usd"]),
+                    Decimal(line["quantity"]),
+                    discount_input(line["discount"]),
+                )
+                for line in lines
+            ],
+            discount=discount_input(discount),
+        )
+        try:
+            total = compute_sale(calc_input).total_usd
+        except ValueError:
+            total = Decimal("0.00")  # venta inválida a propósito: la rechaza el servidor
+        if payments is None:
+            payments = [("cash_usd", str(total), None)] if total > 0 else []
+        payload = {
+            "id": sale_id or str(uuid.uuid7()),
+            "sequence_number": sequence_number,
+            "cash_session_id": cash_session_id,
+            "seller_id": seller_id,
+            "occurred_at": clock.utcnow().isoformat(),
+            "exchange_rate": rate[0],
+            "exchange_rate_date": rate[1].isoformat(),
+            "customer": customer,
+            "customer_id": customer_id,
+            "items": lines,
+            "discount": discount,
+            "payments": [
+                {"method": method, "amount": amount, "reference": reference}
+                for method, amount, reference in payments
+            ],
+            "change": [
+                {"method": method, "amount": amount, "reference": reference}
+                for method, amount, reference in (change or [])
+            ],
+            "device_total_usd": device_total_usd or str(total),
+        }
+        response = client.post(
+            "/api/v1/sync/operations",
+            json=operation("sale.create", payload, op_id=op_id),
+            headers=device_headers(headers, token),
+        )
+        assert response.status_code == expect, response.text
+        return response.json()
 
     return factory

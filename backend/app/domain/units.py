@@ -39,6 +39,14 @@ def validate_quantity(
     return exact
 
 
+def entered_quantity(value: Decimal, entered_unit: str, decimals: int) -> Decimal:
+    """Cantidad de una línea de venta tal como la escribió el vendedor (RF-21): en `cm`
+    se convierte a metros (`cm ÷ 100`, exacto) antes de validar; nunca se redondea. Es la
+    misma regla que `validateQuantity` de `packages/shared/src/money.ts`."""
+    meters = value / 100 if entered_unit == "cm" else value
+    return validate_quantity(meters, decimals, allow_zero=False, allow_negative=False)
+
+
 def format_quantity(value: Decimal, decimals: int) -> str:
     """Cantidad como cadena con los decimales de la unidad (`"8"`, `"0.30"`), para JSON."""
     return str(value.quantize(_step(decimals)))

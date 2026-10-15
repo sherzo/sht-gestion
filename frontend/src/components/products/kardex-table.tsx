@@ -67,6 +67,16 @@ export function KardexTable({ product }: { product: Product }) {
               Compra {item.purchase.number}
             </Link>
           )}
+          {/* Venta de la salida o del reverso (FR-048): el Almacén ve el número, pero no
+              puede abrir la venta (solo el Admin recibe los costos del movimiento). */}
+          {item.sale &&
+            ("cost_before_usd" in item ? (
+              <Link href={`/ventas/detalle/?id=${item.sale.id}`} className="block text-sm text-primary underline-offset-2 hover:underline">
+                Venta {item.sale.number}
+              </Link>
+            ) : (
+              <span className="block text-sm text-ink-muted">Venta {item.sale.number}</span>
+            ))}
         </>
       ),
     },

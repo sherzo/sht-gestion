@@ -294,6 +294,9 @@ function CategoriesContent() {
             <Link href="/configuracion/gastos/" className="text-primary underline-offset-2 hover:underline">
               Ir a gastos frecuentes
             </Link>
+            <Link href="/configuracion/equipos/" className="text-primary underline-offset-2 hover:underline">
+              Ir a equipos de mostrador
+            </Link>
           </span>
         </div>
         <Button onClick={() => setCreatingCategory(true)}>

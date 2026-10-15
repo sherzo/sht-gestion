@@ -4,7 +4,7 @@
 |---|---|
 | Versión | 1.2 |
 | Fecha | 2026-10-15 |
-| Estado | Vigente (etapas 1.0, 1.1 y 1.2 terminadas; siguiente: 1.3) |
+| Estado | Vigente (etapas 1.0, 1.1 y 1.2 terminadas; en curso: 1.3) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,
@@ -90,17 +90,18 @@ La etapa 1.1 completa se publicó como versión `0.2.0`.
 
 | | |
 |---|---|
-| **Requisitos** | RF-18, RF-20 a RF-28, RN-01 a RN-07, RN-11 (la tasa BCV, RF-17 y RN-15, se carga desde la 1.2) |
-| **Entregables** | Uso de la tasa en la venta y aviso de tasa faltante (RF-18); registro de equipos y series; pantalla de venta con totales en USD y Bs, cm→m, descuentos por ítem y total con autorización, pagos mixtos y vuelto; anulación de ventas; módulo de dinero en Python y TypeScript con los casos compartidos |
+| **Requisitos** | RF-18, RF-20 a RF-28, RF-29 y RF-30 (apertura de caja, adelantada de la 1.4), RN-01 a RN-07, RN-10, RN-11, RN-16 (la tasa BCV, RF-17 y RN-15, se carga desde la 1.2) |
+| **Entregables** | Uso de la tasa en la venta y aviso de tasa faltante (RF-18); registro de equipos y series; pantalla de venta con totales en USD y Bs, cm→m, descuentos por ítem y total con autorización, pagos mixtos y vuelto; apertura de caja con fondo inicial y una caja abierta por equipo (adelantada de la 1.4, para que cada venta quede ligada a su caja desde el principio); anulación de ventas; módulo de dinero en Python y TypeScript con los casos compartidos |
 | **Nota** | Las ventas ya se envían por la **cola de salida** con clave de idempotencia (ADR-0003), aunque todavía se use solo con conexión. Así la etapa 1.5 no tiene que rehacer la venta |
 | **Terminada cuando** | Una venta típica (3–5 productos, pago mixto) se registra en menos de 1 minuto; Python y TypeScript dan el mismo resultado en todos los casos compartidos; reenviar una venta no la duplica |
+| **Estado** | En curso (`specs/004-ventas-multimoneda/`): implementada en la rama `004-ventas-multimoneda` con sus pruebas automatizadas (casos compartidos en Python y TypeScript, idempotencia y numeración concurrentes); faltan el recorrido de los escenarios del quickstart, la revisión de seguridad y de código, la integración a `main` y la validación en producción |
 
 ### 1.4 — Caja
 
 | | |
 |---|---|
-| **Requisitos** | RF-29 a RF-33, RN-12, RN-16 |
-| **Entregables** | Apertura con fondo inicial; una caja abierta por equipo; egresos; cierre con esperado por método, contado y diferencias; cierres inmutables |
+| **Requisitos** | RF-31 a RF-33, RN-12 (la apertura, RF-29, RF-30 y RN-16, llega en la 1.3) |
+| **Entregables** | Egresos; cierre con esperado por método, contado y diferencias; cierres inmutables |
 | **Terminada cuando** | El cierre de un día de prueba se completa en menos de 10 minutos y cuadra con las ventas, el vuelto, las anulaciones y los egresos |
 
 ### 1.5 — Funcionamiento sin conexión
@@ -149,8 +150,8 @@ Se responden antes de especificar la etapa indicada (PRD §10).
 | 1.1b | ✅ Medidas de mangueras y conexiones más comunes: el admin las carga como opciones editables antes de la puesta en uso (spec 002) |
 | 1.1b | ✅ ¿Precios distintos para mayoristas o talleres? No en la Fase 1: un solo precio, con el modelo preparado para listas de precios (RN-18) |
 | 1.2 | ✅ Costo promedio cuando el stock previo es cero o negativo: el costo pasa a ser el de la compra, sin promediar (RN-09) |
-| 1.3 | Con conexión, ¿vender sin stock suficiente con advertencia o bloquear? |
-| 1.3 | ¿Descuentos sin conexión? |
+| 1.3 | ✅ Con conexión, ¿vender sin stock suficiente? Sí, con advertencia y alerta al admin por el stock negativo (RN-10) |
+| 1.3 | ✅ ¿Descuentos sin conexión? Sí, con la venta marcada para revisión del admin (RN-07) |
 | 1.4 | Caja en la que se revierte el dinero al anular una venta de una caja ya cerrada |
 | 1.6 | Número de WhatsApp del negocio y cada cuántas horas se regenera el catálogo |
 | Fase 2 | Impresora de la nota de entrega: térmica o carta/media carta |

@@ -58,18 +58,25 @@ exactamente el mismo resultado. El principio I prohíbe el punto flotante.
   (RF-42) y la futura base imponible del IVA (RN-17) sean correctos por línea. La suma
   de lo repartido es exactamente igual al descuento total.
 - USDT, Zelle y efectivo USD cubren su monto 1:1 en USD (RN-04).
+- Vuelto (RF-25, etapa 1.3): uno o varios, cada uno con su método; en Bs cubre
+  `round(monto_bs ÷ tasa)`. Su suma no puede superar el excedente; si es menor (sin
+  sencillo), la diferencia queda como sobrepago de la venta.
+- Con tasa mayor que 1, `round(round(saldo × tasa) ÷ tasa)` devuelve el mismo saldo: pagar
+  en Bs el monto sugerido deja el saldo exactamente en cero (caso compartido).
 - La suma de los precios en Bs de cada línea puede diferir en céntimos del total en Bs.
   Prevalece el total; la pantalla lo muestra así.
 
 ### Un solo punto de implementación
 
-- Backend: un módulo de dominio de dinero (por ejemplo `backend/app/domain/money.py`).
+- Backend: `backend/app/domain/money.py` (helpers de redondeo y conversión) y
+  `backend/app/domain/sale_math.py` (cálculo completo de la venta).
 - Frontend: `packages/shared/src/money.ts`, usado por la app interna y por el catálogo.
+  Usa decimal.js con `ROUND_HALF_UP`; sus pruebas corren con `node --test` (`pnpm test`).
 - Ningún otro código multiplica, divide ni redondea montos por su cuenta.
 
 ### Casos de prueba compartidos (principio VII)
 
-- `shared/test-vectors/money.json` contiene casos con entradas y resultados esperados:
+- `packages/shared/test-vectors/money.json` contiene casos con entradas y resultados esperados:
   líneas por metro y por unidad, ingreso en cm, conversión a Bs, pagos mixtos, vuelto y
   casos borde de redondeo.
 - La suite de Python y la de TypeScript ejecutan **los mismos casos**. Si una de las dos

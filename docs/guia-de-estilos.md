@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.3 |
-| Fecha | 2026-10-13 |
-| Estado | Vigente (base y componentes de las etapas 1.1a, 1.1b y 1.2) |
+| Versión | 1.4 |
+| Fecha | 2026-10-15 |
+| Estado | Vigente (base y componentes de las etapas 1.1a, 1.1b, 1.2 y 1.3) |
 | Documentos relacionados | `docs/decisiones/0007-guia-de-estilos-y-tecnologia-css.md`, `docs/arquitectura.md`, `docs/marca/` |
 
 > Reglas visuales comunes a la app interna (`frontend/`) y al catálogo (`catalog/`).
@@ -245,6 +245,36 @@ En `frontend/src/components/purchases/`:
   `warning`. El botón de anular usa `danger`.
 - La tasa que no es del día de la factura se muestra en `warning` con su fecha (RF-18).
 
+### 7.1.3 Componentes de ventas y caja (etapa 1.3)
+
+`StatusChip` suma `needs_review` ("Para revisar", `warning`), `active` ("Vigente",
+`success`) y `revoked` ("Revocado", `danger`); una venta anulada usa `voided`.
+
+En `frontend/src/components/sales/`:
+
+- `SaleProductSearch`: buscador de la pantalla de venta con precio en USD y en Bs por
+  unidad y stock; Enter agrega el primer resultado y F2 vuelve al buscador.
+- `SaleLines`: una tarjeta por línea con la cantidad y, en productos por metro, el
+  selector `m` / `cm` (botones de 44 px con `aria-pressed`); el equivalente en metros se
+  muestra al escribir en cm; el error de cantidad aparece en la misma línea. Si la
+  cantidad supera el stock, aviso en `warning` sin bloquear (RN-10).
+- `SaleTotals`: total en USD en grande y en Bs en `primary`, con la tasa; si no es la de
+  hoy, la fecha en `warning` (RF-18).
+- `PaymentsPanel`: pagos con método, monto en su moneda y referencia cuando el método la
+  exige; botones para agregar cada método; "Falta" en `danger` con el saldo en USD y Bs
+  hasta cubrir el total; sección de vuelto con su monto en USD y Bs y el sobrepago si el
+  vuelto es menor.
+- `DiscountDialog`: porcentaje o monto, vista previa del descuento y, para el Vendedor,
+  "Autorizar con PIN" (usuario y PIN del Admin) o "Pedir aprobación" con un aviso de
+  espera en `info`.
+- `CustomerPicker`: buscar cliente por documento o nombre, o escribir uno nuevo.
+- `VoidSaleDialog`: motivo obligatorio y resumen de lo que vuelve al inventario y a la
+  caja; botón en `danger`.
+- Botón "Confirmar venta (F9)" en `accent` de 56 px de alto, deshabilitado mientras falte
+  algo, con el motivo debajo en texto secundario.
+- En la barra de la app, "Ventas pendientes de envío: N" en `accent` cuando la cola tiene
+  operaciones pendientes o rechazadas; abre la lista con su estado.
+
 ### 7.2 Íconos
 
 `lucide-react` (licencia ISC; el build solo incluye los íconos usados). Tamaño `size-5`
@@ -265,6 +295,6 @@ texto que ya dice lo mismo, o con `aria-label` en botones que solo tienen ícono
 | 1.1a | ✅ Hecho: componentes base (§7.1), íconos (§7.2), pantallas de ingreso, usuarios, mi cuenta y auditoría |
 | 1.1b | ✅ Hecho: componentes de productos e inventario (§7.1.1), pantallas de productos, ficha, ajuste, pendientes, mis solicitudes, stock bajo, conteos y configuración |
 | 1.2 | ✅ Hecho: componentes de compras (§7.1.2), pantallas de compras, detalle, proveedores, tasa BCV, gastos frecuentes y alertas en pendientes |
-| 1.3 | Pantalla de venta: lista de productos, totales USD/Bs, teclado numérico, pagos |
+| 1.3 | ✅ Hecho: componentes de ventas y caja (§7.1.3), pantallas Vender, Ventas, Detalle de venta, Caja y Configuración > Equipos, solicitudes de descuento y alertas de venta en Pendientes |
 | 1.5 | Íconos de la app instalable (PNG 192/512 y "maskable") a partir de `icono-app.svg`; indicador de sin conexión y pendientes |
 | 1.6 | Diseño del catálogo público: tarjetas de producto, filtros, botón de WhatsApp |

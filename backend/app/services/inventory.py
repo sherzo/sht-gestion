@@ -74,6 +74,7 @@ def post_movement(
     allow_negative: bool = False,
     cost_before_usd: Decimal | None = None,
     cost_after_usd: Decimal | None = None,
+    device_id: uuid.UUID | None = None,
 ) -> StockMovement:
     """Registra un movimiento sin confirmar la transacción.
 
@@ -98,6 +99,7 @@ def post_movement(
         cost_after_usd=cost_after_usd,
         occurred_at=utcnow(),
         created_by=created_by,
+        device_id=device_id,
     )
     db.add(movement)
     db.flush()

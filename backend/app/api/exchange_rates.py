@@ -22,7 +22,7 @@ from app.services.users import users_by_id
 router = APIRouter(prefix="/exchange-rates", tags=["exchange-rates"])
 
 Admin = Annotated[CurrentUser, Depends(require_roles(Role.ADMIN))]
-AdminOrWarehouse = Annotated[CurrentUser, Depends(require_roles(Role.ADMIN, Role.WAREHOUSE))]
+AnyRole = Annotated[CurrentUser, Depends(require_roles(Role.ADMIN, Role.SELLER, Role.WAREHOUSE))]
 
 
 class RateCreate(BaseModel):
@@ -103,9 +103,10 @@ def create_rate(body: RateCreate, current: Admin, db: DbSession) -> ExchangeRate
 
 @router.get("/applicable")
 def applicable_rate(
-    current: AdminOrWarehouse, db: DbSession, on_date: Annotated[date, Query(alias="date")]
+    current: AnyRole, db: DbSession, on_date: Annotated[date, Query(alias="date")]
 ) -> ApplicableRateOut:
-    """La tasa que usaría una compra con esa fecha (FR-012)."""
+    """La tasa que usaría una compra o una venta con esa fecha (FR-012 de la 1.2; RF-18,
+    FR-007 y FR-014 de la 1.3: el Vendedor la consulta al abrir caja y al vender)."""
     rate = rates_service.applicable_rate(db, on_date)
     if rate is None:
         raise ApiError(404, "not_found", "No hay tasa BCV cargada en o antes de esa fecha")

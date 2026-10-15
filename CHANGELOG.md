@@ -6,6 +6,57 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Etapa 1.3: ventas multimoneda, pagos mixtos, descuentos y apertura de caja** (RF-18,
+  RF-20 a RF-30, RN-01 a RN-07, RN-10, RN-11, RN-16; especificación en
+  `specs/004-ventas-multimoneda/`):
+  - Equipos de mostrador registrados por el Admin desde su navegador, con serie (`A`,
+    `B`…) que nunca se reutiliza y token propio; revocación.
+  - Apertura de caja con fondo en Bs y USD, una caja abierta por equipo, aviso de tasa
+    faltante con la fecha de la última (adelantada de la 1.4).
+  - Cálculo de la venta idéntico en el equipo y en el servidor
+    (`domain/sale_math.py` y `packages/shared/src/money.ts`) con los mismos casos en
+    `packages/shared/test-vectors/money.json`; `pnpm test` en la CI.
+  - Cola de salida real en IndexedDB (Dexie) e idempotencia en `POST /sync/operations`:
+    reenviar una venta nunca la duplica; las operaciones pendientes o rechazadas se ven
+    en la barra de la app.
+  - Pantalla Vender: búsqueda con precio en USD y Bs, cantidades en m o cm, totales,
+    cliente opcional, pagos mixtos con referencia, vuelto en uno o varios métodos y
+    sobrepago, atajos F2 y F9, y tasa verificada al empezar y cada 5 minutos.
+  - Descuentos por ítem o total, en monto o porcentaje: el Admin los aplica; el
+    Vendedor los autoriza con el PIN del Admin o por solicitud, que el Admin aprueba (tal
+    cual o con un valor menor) o rechaza desde Pendientes. Sin autorización válida la
+    venta va a revisión con alerta.
+  - Venta sin stock, con precio, total o tasa distintos: se registra igual con alerta
+    para el Admin; el servidor nunca rechaza una venta por razones de negocio.
+  - Anulación completa solo del Admin, con motivo: reversos de kardex y espejo de cada
+    pago y vuelto en la caja de la venta.
+  - Consulta de ventas: el Admin filtra y ve costo y margen; el Vendedor solo sus ventas
+    de hoy, sin costos. El kardex enlaza con la venta.
+  - Inmutabilidad en la base (migración `0006`): ventas, líneas, pagos, anulaciones y
+    operaciones de la cola son de solo inserción.
+  - Pruebas: casos compartidos en Python y TypeScript, 10 envíos simultáneos de la misma
+    venta, 2 equipos × 50 ventas en paralelo, venta de 20 líneas en < 1 s, inmutabilidad
+    por SQL, matriz de permisos, fuga de costos y auditoría de la etapa.
+
+### Cambiado
+
+- PRD v0.10, antes de especificar la etapa 1.3: con conexión se permite vender sin stock
+  suficiente, con advertencia y alerta al admin (RN-10); sin conexión se permiten
+  descuentos, con la venta marcada para revisión del admin (RN-07). La apertura de caja
+  (RF-29, RF-30, RN-16) se adelanta de la etapa 1.4 a la 1.3 (también en
+  `docs/plan-de-fases.md`). Aclaraciones de la 1.3: tasa de cada venta al empezarla
+  (RF-18), aprobación de descuentos con un valor menor (RF-22), vuelto menor o igual que
+  el excedente con sobrepago (RF-25) y anulación solo completa (RF-27).
+- `docs/modelo-de-datos.md` 1.4 (§3.1, §3.6 a §3.8: `discount_authorization` reemplaza a
+  `discount_request`, `payment_method` con `code` como clave, `void_change`,
+  `outbox_operation` con su respuesta), `docs/arquitectura.md` 1.4 (flujo de venta con la
+  cola real), `docs/guia-de-estilos.md` 1.4 (componentes de ventas y caja), ADR-0003
+  (preguntas de la 1.3 resueltas) y ADR-0004 (ruta de los casos compartidos y vuelto).
+- `GET /exchange-rates/applicable` se abre al Vendedor; `GET /alerts` trae el número de
+  la venta; `GET /inventory/summary` suma las solicitudes de descuento pendientes.
+
 ## [0.3.0] — 2026-10-15 — Etapa 1.2: proveedores, compras y tasa BCV
 
 Validada en producción: carga de la tasa del día, compra real registrada y confirmada
