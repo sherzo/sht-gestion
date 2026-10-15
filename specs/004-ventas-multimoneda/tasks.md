@@ -382,7 +382,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T053 [P] [US4] Pruebas en `backend/tests/test_discounts.py` (marca `db`):
+- [X] T053 [P] [US4] Pruebas en `backend/tests/test_discounts.py` (marca `db`):
   - **Por PIN**: `POST /discount-authorizations` con PIN correcto → `approved` con `decided_by` el Admin; PIN incorrecto → 403 `pin_invalid`; 5 fallos → 423 `pin_locked`.
   - **Por solicitud**: `pending`, que el Vendedor consulta (solo las suyas; ajena → 404) y el Admin lista en `?status=pending`.
   - **Aprobar o rechazar**: aprobar tal cual; aprobar con `5.00` sobre un pedido de `10.00` → `discount_value` `5.00`, `requested_value` `10.00` y `discount_usd` recalculado; valor mayor que el pedido o ≤ 0 → 422; rechazar con motivo; decidir dos veces → 409 `invalid_state`.
@@ -395,11 +395,11 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - **Reparto**: el descuento total se reparte con el residuo correcto.
   - **Auditoría**: `sale.discounted` con el detalle, y `discount_authorization.requested`, `approved` y `rejected`.
   - (RF-22, RN-07/FR-020 a FR-029)
-- [ ] T054 [US4] Agregar a `MATRIX` las filas de `POST /discount-authorizations`, `GET /discount-authorizations/{id}`, `GET /discount-authorizations`, `POST …/approve` y `POST …/reject` según el contrato
+- [X] T054 [US4] Agregar a `MATRIX` las filas de `POST /discount-authorizations`, `GET /discount-authorizations/{id}`, `GET /discount-authorizations`, `POST …/approve` y `POST …/reject` según el contrato
 
 ### Implementation for User Story 4
 
-- [ ] T055 [US4] Crear `backend/app/services/discounts.py`:
+- [X] T055 [US4] Crear `backend/app/services/discounts.py`:
   - `request_authorization(db, *, device, user, data)`:
     - calcula `discount_usd` con `sale_math` sobre `base_usd`;
     - con `method = "pin"`, valida con `pin.verify_admin_pin` y crea `approved` con `decided_by` el Admin;
@@ -411,22 +411,22 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
   - `reject(db, *, actor, id, reason=None)`: audita.
   - `match_authorization(db, *, sale_id, sale_item_id, discount_type, discount_value, base_usd) -> DiscountAuthorization | None`: solo `approved` sin usar.
   - (R8, FR-023 a FR-027)
-- [ ] T056 [US4] Crear `backend/app/api/discount_authorizations.py` con los cinco endpoints del contrato (`POST` con `ActiveDevice`: un equipo revocado → 403 `device_revoked`) y registrarlo en `main.py`; sumar `pending_discount_requests` a `GET /inventory/summary` para el Admin en `backend/app/services/inventory.py`
-- [ ] T057 [US4] Completar `create_sale` en `backend/app/services/sales.py` con los descuentos:
+- [X] T056 [US4] Crear `backend/app/api/discount_authorizations.py` con los cinco endpoints del contrato (`POST` con `ActiveDevice`: un equipo revocado → 403 `device_revoked`) y registrarlo en `main.py`; sumar `pending_discount_requests` a `GET /inventory/summary` para el Admin en `backend/app/services/inventory.py`
+- [X] T057 [US4] Completar `create_sale` en `backend/app/services/sales.py` con los descuentos:
   - pasa los descuentos de ítem y total a `compute_sale`;
   - si el vendedor es Admin, aplica `admin_self`;
   - si es Vendedor, usa `match_authorization` y liga la autorización (la unicidad la garantiza la base);
   - sin coincidencia, `needs_review = True` y alerta `discount_review`;
   - audita `sale.discounted` con el detalle de cada descuento, el autorizante y el método.
   - (FR-020 a FR-028)
-- [ ] T058 [US4] Crear `frontend/src/components/sales/discount-dialog.tsx`:
+- [X] T058 [US4] Crear `frontend/src/components/sales/discount-dialog.tsx`:
   - elige línea o total, tipo (monto o %) y valor, y muestra el resultado con `computeSale`;
   - **Admin**: lo aplica directamente;
   - **Vendedor, por PIN**: pide usuario y PIN del Admin, llama a `POST /discount-authorizations` con `method: "pin"` y aplica con el `authorization_id`;
   - **Vendedor, por solicitud**: la crea y consulta su estado cada 3 s; al aprobarse aplica el valor aprobado e indica si fue menor; si se rechaza, muestra el motivo;
   - si la línea, la base o el valor cambian después, quita la autorización y pide de nuevo.
   Integrarlo en `frontend/src/app/vender/page.tsx` (FR-020 a FR-026, SC-011)
-- [ ] T059 [US4] Ampliar `frontend/src/app/pendientes/page.tsx` (Admin) con "Solicitudes de descuento", que se actualiza cada 15 s. Muestra quién pide, el equipo, el producto o el total, el tipo, el valor y los montos, con las acciones "Aprobar", "Aprobar con otro valor" (campo ≤ pedido) y "Rechazar" (motivo opcional). Sumar la tarjeta de solicitudes pendientes en `frontend/src/app/page.tsx` (FR-025)
+- [X] T059 [US4] Ampliar `frontend/src/app/pendientes/page.tsx` (Admin) con "Solicitudes de descuento", que se actualiza cada 15 s. Muestra quién pide, el equipo, el producto o el total, el tipo, el valor y los montos, con las acciones "Aprobar", "Aprobar con otro valor" (campo ≤ pedido) y "Rechazar" (motivo opcional). Sumar la tarjeta de solicitudes pendientes en `frontend/src/app/page.tsx` (FR-025)
 
 **Checkpoint**: US4 funciona: descuentos con PIN, solicitud y revisión.
 

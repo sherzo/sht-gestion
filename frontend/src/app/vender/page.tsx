@@ -8,13 +8,16 @@
 // Tasa (FR-014): cada venta toma la vigente al empezar; si cambia mientras se arma y aún
 // no hay pagos, se pide actualizarla antes del primer pago; con pagos, la venta conserva
 // la suya. Atajos en PC: F2 enfoca el buscador y F9 confirma.
-import { formatDate, formatRate, formatUsd, todayInCaracas } from "@sht/shared";
+import { formatDate, formatPercent, formatRate, formatUsd, todayInCaracas } from "@sht/shared";
+import { Percent } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { RequireAuth } from "@/components/require-auth";
 import { CustomerPicker } from "@/components/sales/customer-picker";
+import { DiscountDialog } from "@/components/sales/discount-dialog";
+import type { DiscountTarget } from "@/components/sales/discount-dialog";
 import { PaymentsPanel } from "@/components/sales/payments-panel";
 import { SaleLines } from "@/components/sales/sale-lines";
 import { SaleProductSearch } from "@/components/sales/sale-product-search";
@@ -25,7 +28,7 @@ import { ApiError, apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/use-auth";
 import { useCounterDevice } from "@/lib/device/use-device";
 import { calculate, confirmSale, moneyProblem, newDraft, newLine } from "@/lib/sales";
-import type { ApplicableRate, SaleDraft, SellableProduct } from "@/lib/sales";
+import type { ApplicableRate, LineDiscount, SaleDraft, SaleLine, SellableProduct } from "@/lib/sales";
 
 const RATE_CHECK_MS = 5 * 60_000;
 
@@ -42,6 +45,23 @@ function sameRate(a: ApplicableRate, b: ApplicableRate): boolean {
   return a.rate === b.rate && a.business_date === b.business_date;
 }
 
+/** Una autorización vale solo para el monto que se autorizó: si cambia, se pide de nuevo. */
+function withoutAuthorization(discount: LineDiscount | null): LineDiscount | null {
+  return discount?.authorizationId ? { ...discount, authorizationId: null, requestedValue: undefined } : discount;
+}
+
+/** Cambio en una línea: si cambia su cantidad, su descuento y el del total pierden la autorización. */
+function changeLine(draft: SaleDraft, line: SaleLine): SaleDraft {
+  const previous = draft.lines.find((item) => item.id === line.id);
+  const baseChanged = previous && (previous.text !== line.text || previous.enteredUnit !== line.enteredUnit);
+  const updated = baseChanged ? { ...line, discount: withoutAuthorization(line.discount) } : line;
+  return {
+    ...draft,
+    lines: draft.lines.map((item) => (item.id === line.id ? updated : item)),
+    discount: baseChanged ? withoutAuthorization(draft.discount) : draft.discount,
+  };
+}
+
 type Notice = { variant: "success" | "warning" | "danger" | "info"; text: string };
 
 function SellContent() {
@@ -52,7 +72,9 @@ function SellContent() {
   const [newerRate, setNewerRate] = useState<ApplicableRate | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [saving, setSaving] = useState(false);
+  const [discountTarget, setDiscountTarget] = useState<(DiscountTarget & { lineId: string | null }) | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const isAdmin = user?.role === "admin";
 
   const startSale = useCallback(async () => {
     try {
@@ -83,10 +105,13 @@ function SellContent() {
   const calc = useMemo(() => (draft ? calculate(draft) : null), [draft]);
   const results = useMemo(() => new Map((calc?.result?.lines ?? []).map((line) => [line.id, line])), [calc]);
   const rateLocked = Boolean(newerRate && draft && draft.payments.length === 0);
+  const unauthorized =
+    !isAdmin && draft && [draft.discount, ...draft.lines.map((line) => line.discount)].some((discount) => discount && !discount.authorizationId);
   const problem =
     !draft || draft.lines.length === 0
       ? "Agrega al menos un producto"
       : (calc?.error ??
+        (unauthorized ? "Pide la autorización del administrador para los descuentos" : null) ??
         moneyProblem(draft.payments) ??
         moneyProblem(draft.change) ??
         (calc?.result && Number(calc.result.balance_usd) > 0 ? "Los pagos no cubren el total" : null));
@@ -189,13 +214,48 @@ function SellContent() {
             <SaleLines
               draft={draft}
               results={results}
-              onChange={(line) => update((current) => ({ ...current, lines: current.lines.map((item) => (item.id === line.id ? line : item)) }))}
-              onRemove={(id) => update((current) => ({ ...current, lines: current.lines.filter((item) => item.id !== id) }))}
+              onChange={(line) => update((current) => changeLine(current, line))}
+              onRemove={(id) =>
+                update((current) => ({ ...current, lines: current.lines.filter((item) => item.id !== id), discount: withoutAuthorization(current.discount) }))
+              }
+              onDiscount={(line) =>
+                setDiscountTarget({
+                  lineId: line.id,
+                  title: `Descuento: ${line.product.name}`,
+                  saleId: draft.saleId,
+                  saleItemId: line.id,
+                  productId: line.product.id,
+                  base: results.get(line.id)?.line_subtotal_usd ?? "0.00",
+                  current: line.discount,
+                })
+              }
             />
             <CustomerPicker value={draft.customer} onChange={(customer) => update((current) => ({ ...current, customer }))} />
           </div>
           <div className="flex flex-col gap-4">
             <SaleTotals result={calc?.result ?? null} rate={draft.rate} />
+            {draft.lines.length > 0 && (
+              <button
+                type="button"
+                className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-3 font-medium text-primary hover:bg-neutral-100"
+                onClick={() =>
+                  setDiscountTarget({
+                    lineId: null,
+                    title: "Descuento sobre el total",
+                    saleId: draft.saleId,
+                    saleItemId: null,
+                    productId: null,
+                    base: calc?.result?.subtotal_usd ?? "0.00",
+                    current: draft.discount,
+                  })
+                }
+              >
+                <Percent aria-hidden className="size-4" />
+                {draft.discount
+                  ? `Descuento sobre el total: ${draft.discount.type === "percent" ? formatPercent(draft.discount.value) : `${formatUsd(draft.discount.value)} USD`}${draft.discount.authorizationId || isAdmin ? "" : " (sin autorizar)"}`
+                  : "Descuento sobre el total"}
+              </button>
+            )}
             <PaymentsPanel
               payments={draft.payments}
               change={draft.change}
@@ -212,6 +272,25 @@ function SellContent() {
           </div>
         </div>
       )}
+      <DiscountDialog
+        target={discountTarget}
+        isAdmin={isAdmin}
+        device={device.local}
+        onClose={() => setDiscountTarget(null)}
+        onApply={(discount) => {
+          const target = discountTarget;
+          if (!target) return;
+          update((current) =>
+            target.lineId
+              ? {
+                  ...current,
+                  lines: current.lines.map((line) => (line.id === target.lineId ? { ...line, discount } : line)),
+                  discount: withoutAuthorization(current.discount),
+                }
+              : { ...current, discount },
+          );
+        }}
+      />
     </AppShell>
   );
 }

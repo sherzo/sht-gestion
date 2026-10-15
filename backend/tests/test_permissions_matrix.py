@@ -19,6 +19,7 @@ from app.db.models import (
     AdjustmentRequest,
     Alert,
     AttributeDefinition,
+    DiscountAuthorization,
     ProductPhoto,
     StockCount,
     StockCountLine,
@@ -251,6 +252,24 @@ MATRIX: list[Row] = [
     ),
     # Clientes (US2)
     Row("GET", "/api/v1/customers?q=taller", ADMIN_SELLER),
+    # Autorizaciones de descuento (US4)
+    Row(
+        "POST",
+        "/api/v1/discount-authorizations",
+        SELLER_ONLY,
+        {
+            "method": "request",
+            "sale_id": "{session_id}",
+            "discount_type": "percent",
+            "discount_value": "5",
+            "base_usd": "10",
+        },
+        device=True,
+    ),
+    Row("GET", "/api/v1/discount-authorizations/{authorization_id}", ADMIN_SELLER),
+    Row("GET", "/api/v1/discount-authorizations?status=pending", ADMIN_ONLY),
+    Row("POST", "/api/v1/discount-authorizations/{authorization_id}/approve", ADMIN_ONLY, {}),
+    Row("POST", "/api/v1/discount-authorizations/{authorization_id}/reject", ADMIN_ONLY, {}),
 ]
 
 
@@ -341,7 +360,23 @@ def actor_headers(
     }
 
     device, device_token = make_device("Equipo de la matriz")
+    authorization = DiscountAuthorization(
+        sale_id=uuid.uuid7(),
+        discount_type="percent",
+        requested_value=Decimal("5"),
+        discount_value=Decimal("5"),
+        base_usd=Decimal("10"),
+        discount_usd=Decimal("0.50"),
+        method="request",
+        status="pending",
+        requested_by=users[SELLER].id,
+        requested_at=utcnow(),
+        device_id=device.id,
+    )
+    db.add(authorization)
+    db.commit()
     sale_ids = {
+        "authorization_id": str(authorization.id),
         "device_id": str(device.id),
         "device_token": device_token,
         "op_id": str(uuid.uuid7()),

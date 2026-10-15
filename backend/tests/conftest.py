@@ -529,7 +529,7 @@ def make_sale(client: TestClient, db: Session) -> Callable[..., dict]:
     """Arma un `SaleInput` válido (precios del producto, tasa aplicable de hoy y totales de
     `compute_sale`) y lo envía por la cola, como la pantalla de venta.
 
-    `items` es una lista de `(producto, cantidad[, unidad escrita[, descuento]])`, con la
+    `items` es una lista de `(producto, cantidad[, unidad escrita[, descuento[, id]]])`, con la
     cantidad ya en la unidad del producto; sin `payments`, se paga el total en efectivo
     USD. Los pagos y vueltos son `(método, monto, referencia)`. Devuelve el cuerpo de la
     respuesta; `expect` es el código HTTP esperado.
@@ -578,7 +578,7 @@ def make_sale(client: TestClient, db: Session) -> Callable[..., dict]:
             price = (unit_prices or {}).get(product.id, product.sale_price_usd)
             lines.append(
                 {
-                    "id": str(uuid.uuid7()),
+                    "id": item[4] if len(item) > 4 else str(uuid.uuid7()),
                     "product_id": str(product.id),
                     "quantity": quantity,
                     "entered_unit": item[2] if len(item) > 2 else default_unit,

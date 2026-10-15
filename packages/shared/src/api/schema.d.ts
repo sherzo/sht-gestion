@@ -1118,6 +1118,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discount-authorizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pending
+         * @description Solicitudes por decidir, más antiguas primero.
+         */
+        get: operations["list_pending_api_v1_discount_authorizations_get"];
+        put?: never;
+        /** Request Authorization */
+        post: operations["request_authorization_api_v1_discount_authorizations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discount-authorizations/{authorization_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Authorization */
+        get: operations["get_authorization_api_v1_discount_authorizations__authorization_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discount-authorizations/{authorization_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve */
+        post: operations["approve_api_v1_discount_authorizations__authorization_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discount-authorizations/{authorization_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject */
+        post: operations["reject_api_v1_discount_authorizations__authorization_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/operations": {
         parameters: {
             query?: never;
@@ -1224,6 +1296,8 @@ export interface components {
             open_alerts: number;
             /** Draft Purchases */
             draft_purchases: number;
+            /** Pending Discount Requests */
+            pending_discount_requests: number;
         };
         /** AlertOut */
         AlertOut: {
@@ -1291,6 +1365,11 @@ export interface components {
             adjustments: number;
             /** Negative Products */
             negative_products: components["schemas"]["NegativeProduct"][];
+        };
+        /** ApproveIn */
+        ApproveIn: {
+            /** Discount Value */
+            discount_value?: number | string | null;
         };
         /** AttributeOption */
         AttributeOption: {
@@ -1379,6 +1458,58 @@ export interface components {
             username: string;
             /** Full Name */
             full_name: string;
+        };
+        /** AuthorizationDevice */
+        AuthorizationDevice: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** AuthorizationIn */
+        AuthorizationIn: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "pin" | "request";
+            /** Admin Username */
+            admin_username?: string | null;
+            /** Pin */
+            pin?: string | null;
+            /**
+             * Sale Id
+             * Format: uuid
+             */
+            sale_id: string;
+            /** Sale Item Id */
+            sale_item_id?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /**
+             * Discount Type
+             * @enum {string}
+             */
+            discount_type: "amount" | "percent";
+            /** Discount Value */
+            discount_value: number | string;
+            /** Base Usd */
+            base_usd: number | string;
+        };
+        /** AuthorizationProduct */
+        AuthorizationProduct: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
         };
         /** Authorizer */
         Authorizer: {
@@ -1696,6 +1827,48 @@ export interface components {
             open_cash_session: components["schemas"]["OpenCashSessionRef"] | null;
             /** Token */
             token: string;
+        };
+        /** DiscountAuthorizationOut */
+        DiscountAuthorizationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Sale Id
+             * Format: uuid
+             */
+            sale_id: string;
+            /** Sale Item Id */
+            sale_item_id: string | null;
+            product: components["schemas"]["AuthorizationProduct"] | null;
+            /** Discount Type */
+            discount_type: string;
+            /** Requested Value */
+            requested_value: string;
+            /** Discount Value */
+            discount_value: string;
+            /** Base Usd */
+            base_usd: string;
+            /** Discount Usd */
+            discount_usd: string;
+            /** Method */
+            method: string;
+            /** Status */
+            status: string;
+            requested_by: components["schemas"]["UserRef"];
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            device: components["schemas"]["AuthorizationDevice"];
+            decided_by: components["schemas"]["UserRef"] | null;
+            /** Decided At */
+            decided_at: string | null;
+            /** Rejection Reason */
+            rejection_reason: string | null;
         };
         /** DiscountOut */
         DiscountOut: {
@@ -2499,6 +2672,11 @@ export interface components {
         RejectBody: {
             /** Reason */
             reason: string;
+        };
+        /** RejectIn */
+        RejectIn: {
+            /** Reason */
+            reason?: string | null;
         };
         /** ReorderPhotosRequest */
         ReorderPhotosRequest: {
@@ -5780,6 +5958,171 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_pending_api_v1_discount_authorizations_get: {
+        parameters: {
+            query?: {
+                status?: "pending";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountAuthorizationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_authorization_api_v1_discount_authorizations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountAuthorizationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_authorization_api_v1_discount_authorizations__authorization_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                authorization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountAuthorizationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_api_v1_discount_authorizations__authorization_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                authorization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountAuthorizationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_api_v1_discount_authorizations__authorization_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                authorization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountAuthorizationOut"];
                 };
             };
             /** @description Validation Error */

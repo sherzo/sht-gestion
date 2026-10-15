@@ -1,9 +1,10 @@
 "use client";
 
-// Inicio: saludo, rol y vencimiento de la jornada (RF-44/FR-005, FR-030), y tarjetas del
-// inventario para Admin y Almacén (RF-11, RN-19; research R11).
+// Inicio: saludo, rol y vencimiento de la jornada (RF-44/FR-005, FR-030), tarjetas del
+// inventario para Admin y Almacén (RF-11, RN-19; research R11) y accesos a Vender y Caja
+// para quien vende (etapa 1.3).
 import { ROLE_LABELS, formatDateTime } from "@sht/shared";
-import { AlertTriangle, ClipboardCheck, ClipboardList, FilePen, Inbox, ShieldAlert } from "lucide-react";
+import { AlertTriangle, BadgePercent, ClipboardCheck, ClipboardList, FilePen, Inbox, ShieldAlert, ShoppingBag, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -24,6 +25,7 @@ function cards(summary: Summary): Card[] {
       { href: "/pendientes/", label: "Salidas por aprobar", count: summary.pending_adjustments, icon: Inbox, tone: "info" },
       { href: "/pendientes/", label: "Conteos listos para revisión", count: summary.counts_ready_for_review, icon: ClipboardCheck, tone: "info" },
       { href: "/pendientes/", label: "Alertas por revisar", count: summary.open_alerts, icon: ShieldAlert, tone: "warning" },
+      { href: "/pendientes/", label: "Descuentos por aprobar", count: summary.pending_discount_requests, icon: BadgePercent, tone: "warning" },
     );
   } else {
     result.push(
@@ -83,6 +85,16 @@ function HomeContent() {
           Tu jornada vence el <strong>{formatDateTime(sessionExpiresAt)}</strong>. Después tendrás
           que volver a ingresar tu contraseña.
         </p>
+      )}
+      {(user.role === "admin" || user.role === "seller") && (
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href="/vender/" className="inline-flex min-h-14 items-center gap-2 rounded-xl bg-accent px-5 text-lg font-semibold text-on-accent hover:bg-accent-hover">
+            <ShoppingBag aria-hidden className="size-6" /> Vender
+          </Link>
+          <Link href="/caja/" className="inline-flex min-h-14 items-center gap-2 rounded-xl border border-line bg-surface px-5 text-lg font-semibold hover:bg-neutral-50">
+            <Wallet aria-hidden className="size-6" /> Caja
+          </Link>
+        </div>
       )}
       {(user.role === "admin" || user.role === "warehouse") && <InventoryCards />}
     </AppShell>

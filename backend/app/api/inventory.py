@@ -27,6 +27,7 @@ from app.db.models import AdjustmentRequest, Product, Unit
 from app.domain.roles import Role
 from app.domain.units import format_quantity
 from app.services import alerts as alerts_service
+from app.services import discounts as discounts_service
 from app.services import inventory as inventory_service
 from app.services import products as products_service
 from app.services import purchases as purchases_service
@@ -219,6 +220,7 @@ class AdminSummary(BaseModel):
     counts_ready_for_review: int
     open_alerts: int
     draft_purchases: int
+    pending_discount_requests: int
 
 
 class WarehouseSummary(BaseModel):
@@ -247,6 +249,7 @@ def summary(current: AdminOrWarehouse, db: DbSession) -> AdminSummary | Warehous
             counts_ready_for_review=counts.counts_ready_for_review,
             open_alerts=alerts_service.open_alerts_count(db),
             draft_purchases=purchases_service.draft_count(db),
+            pending_discount_requests=len(discounts_service.list_pending(db)),
         )
     return WarehouseSummary(
         low_stock=counts.low_stock,
