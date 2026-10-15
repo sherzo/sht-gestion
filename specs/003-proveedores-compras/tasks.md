@@ -251,7 +251,7 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 - [X] T069 Ejecutar `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest` (con `DATABASE_URL`), la migración subir–bajar–subir, `pnpm typecheck` y `pnpm build`, y corregir lo que falle
 - [X] T070 Recorrer los escenarios manuales 1–10 de `quickstart.md` en local, en PC y con ancho de teléfono de 360 px; medir SC-003 (compra de 10 líneas < 5 min) y SC-011 (gastos de una importación < 1 min); anotar cualquier desviación como tarea nueva
 - [X] T071 Ejecutar `/security-review` y `/code-review` sobre la rama `003-proveedores-compras`, corregir los hallazgos confirmados y repetir T069. Requisito para integrar a `main` (constitución, "Flujo de trabajo")
-- [ ] T072 **Después de integrar a `main` (dueño y asistente):** con el despliegue terminado, cargar la tasa del día, registrar y confirmar una compra real en producción y comprobar el kardex y el costo; restaurar el respaldo nocturno en local (plan de fases, definición de terminado). Cerrar la etapa como versión `0.3.0` (CHANGELOG, etiqueta `v0.3.0` y release en GitHub) y empezar la carga del inventario real (plan de fases §3)
+- [X] T072 **Después de integrar a `main` (dueño y asistente):** con el despliegue terminado, cargar la tasa del día, registrar y confirmar una compra real en producción y comprobar el kardex y el costo; restaurar el respaldo nocturno en local (plan de fases, definición de terminado). Cerrar la etapa como versión `0.3.0` (CHANGELOG, etiqueta `v0.3.0` y release en GitHub) y empezar la carga del inventario real (plan de fases §3)
 
 ---
 

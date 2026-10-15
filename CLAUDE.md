@@ -2,7 +2,7 @@
 
 Sistema web de inventario, compras, ventas multimoneda, caja y catálogo online (pedidos por WhatsApp) para un negocio pequeño de mangueras hidráulicas, conexiones, ferrules y ferretería en Venezuela.
 
-**Estado:** Fase 1. Etapas 1.0 (arquitectura, modelo de datos y despliegue base) y 1.1 (usuarios, permisos, productos e inventario; `specs/001-usuarios-autenticacion-permisos/` y `specs/002-productos-inventario/`) terminadas y en producción, publicadas como versiones 0.1.0 y 0.2.0. En curso: 1.2 (proveedores, compras y carga de la tasa BCV, adelantada de la 1.3; `specs/003-proveedores-compras/`, aclaraciones en el PRD v0.9).
+**Estado:** Fase 1. Etapas 1.0 (arquitectura, modelo de datos y despliegue base), 1.1 (usuarios, permisos, productos e inventario; `specs/001-usuarios-autenticacion-permisos/` y `specs/002-productos-inventario/`) y 1.2 (proveedores, compras y carga de la tasa BCV; `specs/003-proveedores-compras/`, aclaraciones en el PRD v0.9) terminadas y en producción, publicadas como versiones 0.1.0, 0.2.0 y 0.3.0. Siguiente: 1.3 (ventas multimoneda, pagos mixtos y descuentos); antes, responder sus preguntas abiertas (PRD §10): vender sin stock suficiente con conexión y descuentos sin conexión.
 
 **Stack:** backend FastAPI (Python) en Cloud Run · frontend Next.js (TypeScript, export estático, app instalable/PWA) en Cloudflare Pages · Supabase solo como Postgres y almacenamiento de fotos (sin Data API ni Supabase Auth). Detalle en `docs/arquitectura.md` y ADRs en `docs/decisiones/`.
 
