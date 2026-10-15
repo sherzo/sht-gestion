@@ -6,7 +6,7 @@
 
 Mangueras hidráulicas, conexiones, ferrules y ferretería ligera: todo bajo control, desde la computadora o el teléfono. 📱💻
 
-> 🚀 **Estado:** Fase 1, versión [`0.3.0`](https://github.com/sherzo/sht-gestion/releases/tag/v0.3.0). En producción: usuarios con roles y auditoría; productos e inventario (SKU automático, fotos, precios, kardex, ajustes con aprobación, conteo físico y búsqueda); proveedores y compras con gastos y costo promedio, y tasa BCV. Siguiente: etapa 1.3, ventas multimoneda.
+> 🚀 **Estado:** Fase 1, versión [`0.4.0`](https://github.com/sherzo/sht-gestion/releases/tag/v0.4.0). En producción: usuarios con roles y auditoría; productos e inventario (SKU automático, fotos, precios, kardex, ajustes con aprobación, conteo físico y búsqueda); proveedores y compras con gastos y costo promedio; tasa BCV; ventas multimoneda con pagos mixtos, vuelto, descuentos autorizados y anulación, y apertura de caja. Siguiente: etapa 1.4, cierre de caja.
 
 ---
 
@@ -30,8 +30,8 @@ Un negocio que está comenzando, sin sistema ni códigos de producto, que vende 
 | 📦 | Productos e inventario ✅ | SKU automático por categoría, atributos técnicos, fotos, venta por metro (con precisión de centímetro) o por unidad, kardex de movimientos, ajustes con aprobación del admin, conteo físico y alertas de stock bajo. |
 | 🚚 | Compras ✅ | Proveedores, compras en USD o Bs con gastos de importación, costo final por unidad y costo promedio ponderado. |
 | 💱 | Tasa BCV ✅ | Carga diaria de la tasa oficial con histórico. |
-| 🧾 | Ventas | Pagos mixtos (Efectivo Bs, Pago móvil, Punto de venta, Efectivo USD, Zelle, USDT), vuelto y descuentos autorizados por el admin. |
-| 💰 | Caja | Apertura, egresos, cierre y cuadre por método de pago. |
+| 🧾 | Ventas ✅ | Precios en USD y Bs, pagos mixtos (Efectivo Bs, Pago móvil, Punto de venta, Efectivo USD, Zelle, USDT), vuelto, descuentos autorizados por el admin y anulación. |
+| 💰 | Caja | Apertura ✅, egresos, cierre y cuadre por método de pago. |
 | 📴 | Modo sin conexión | El módulo de ventas sigue funcionando sin internet y sincroniza al reconectar. |
 | 🌐 | Catálogo online | Página pública con precios en USD y Bs, disponibilidad y pedido por WhatsApp. |
 | 👥 | Usuarios y roles ✅ | Administrador, Vendedor y Almacén, con auditoría de acciones sensibles. |
@@ -50,7 +50,7 @@ Un negocio que está comenzando, sin sistema ni códigos de producto, que vende 
 | 🧾 App interna (vendedor, almacén y admin) | https://sht-gestion-app.pages.dev |
 | 🛒 Catálogo público | https://sht-gestion-catalogo.pages.dev |
 
-La app interna ya tiene usuarios, productos, inventario, compras y tasa BCV; el catálogo público sigue siendo una página mínima hasta la etapa 1.6.
+La app interna ya tiene usuarios, productos, inventario, compras, tasa BCV, ventas y apertura de caja; el catálogo público sigue siendo una página mínima hasta la etapa 1.6.
 
 ## 🧱 Stack
 
