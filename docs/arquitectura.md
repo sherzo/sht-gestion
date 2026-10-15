@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.3 |
-| Fecha | 2026-10-13 |
+| Versión | 1.4 |
+| Fecha | 2026-10-15 |
 | Estado | Vigente (aprobada al cerrar la etapa 1.0) |
 | Documentos relacionados | `docs/PRD.md`, `docs/decisiones/`, `.specify/memory/constitution.md` |
 
@@ -70,21 +70,24 @@ flowchart LR
 backend/
   app/
     api/          endpoints (routers), dependencias de autenticación y roles
-    domain/       reglas de negocio puras: dinero, unidades, costo promedio, caja
-    services/     casos de uso transaccionales (registrar venta, confirmar compra…)
+    domain/       reglas de negocio puras: dinero, unidades, costo promedio,
+                  cálculo de la venta (sale_math), series y documentos de clientes
+    services/     casos de uso transaccionales: venta, anulación, apertura de caja,
+                  equipos, cola de salida (sync), descuentos, clientes, compras…
     db/           modelos SQLAlchemy, sesión, repositorios
     core/         configuración, seguridad, logging
   migrations/     Alembic
   tests/
 frontend/         app interna (Next.js, PWA)
   src/
-    app/          rutas (ventas, caja, productos, inventario, compras, reportes, admin)
-    lib/offline/  Dexie, cola de salida, sincronización
+    app/          rutas (vender, ventas, caja, productos, inventario, compras, admin)
+    lib/device/   identidad del equipo, token y correlativo en IndexedDB (Dexie)
+    lib/outbox/   cola de salida: envío en orden, reintentos e idempotencia
     lib/api/      cliente HTTP con tipos generados del OpenAPI
 catalog/          catálogo público (Next.js estático)
-packages/shared/  TypeScript compartido: dinero, formato es-VE, tipos generados;
-                  tema visual de Tailwind en styles/theme.css (ADR-0007)
-shared/
+packages/shared/  TypeScript compartido: dinero (money.ts), UUIDv7, formato es-VE,
+                  tipos generados; tema visual de Tailwind en styles/theme.css
+                  (ADR-0007)
   test-vectors/   casos JSON que ejecutan las pruebas de Python y de TypeScript
 docs/
   marca/          logo original (PDF) y SVG extraídos
@@ -100,19 +103,37 @@ las reglas críticas se prueben sin infraestructura (principio VII).
 
 ### 3.1 Venta en el mostrador (con o sin conexión)
 
-1. El vendedor busca productos en la copia local (IndexedDB). La búsqueda no depende de
-   la red (RNF-04).
-2. La app calcula totales en USD y Bs con la última tasa local, mostrando su fecha si no
-   es la del día (RF-18), usando `packages/shared/money` (ADR-0004).
-3. Al confirmar, la venta recibe su número `{serie}-{correlativo}` y un UUIDv7, y se
-   guarda en la cola de salida (ADR-0003).
-4. Si hay conexión, se envía de inmediato; si no, cuando vuelva.
-5. La API valida la sesión y el equipo, recalcula la venta, aplica en una sola
-   transacción la venta, los pagos, los movimientos de kardex y de caja, y la auditoría.
-6. Si el stock queda negativo, el precio no coincide o el total difiere, la venta se
-   registra igual y se crea una alerta para el admin (RN-10).
-7. La respuesta se guarda localmente y la operación sale de la cola. Un reintento de la
-   misma operación devuelve el mismo resultado sin duplicar.
+Desde la etapa 1.3 la venta funciona con conexión pero ya sigue este camino completo; la
+1.5 agrega la copia local de productos y el service worker sin cambiar la venta.
+
+0. **Equipo y caja** (research R3, R7 de la 1.3): el Admin registra el navegador del
+   mostrador (`POST /devices`) y recibe una serie (`A`, `B`…) y un token, que se guardan
+   en IndexedDB. El Vendedor abre la caja con su fondo por la cola (`cash_session.open`).
+1. El vendedor busca productos (en la 1.3, `GET /products`; en la 1.5, la copia local).
+2. La app calcula totales en USD y Bs con la tasa vigente al empezar la venta, mostrando
+   su fecha si no es la del día (RF-18), con `packages/shared/src/money.ts` (ADR-0004).
+   Si la tasa cambia mientras se arma y aún no hay pagos, pide actualizarla.
+3. Los descuentos del Vendedor se autorizan antes de confirmar: PIN del Admin validado en
+   el servidor o solicitud que el Admin aprueba (`discount_authorizations`). La
+   autorización queda atada a la venta, la línea, el valor y la base.
+4. Al confirmar, la venta recibe su número `{serie}-{correlativo}` del contador local y un
+   UUIDv7, y se guarda en la cola de salida (`lib/outbox`, ADR-0003).
+5. La cola la envía de inmediato (`POST /sync/operations` con `X-Device-Token`); si no hay
+   conexión, reintenta al volver, al abrir la app y cada 30 s con espera creciente.
+6. La API (`services/sync.py`) bloquea el id de la operación; si ya se procesó, devuelve
+   la respuesta guardada. Si no, `services/sales.py` valida lo estructural, recalcula con
+   `domain/sale_math.py` y aplica en una sola transacción la venta, los pagos y vueltos,
+   las salidas de kardex, el cliente, las alertas, la auditoría y la fila de la cola.
+7. Si el stock queda negativo, o el precio, el total o la tasa no coinciden, o un
+   descuento no tiene autorización válida, la venta se registra igual y se crea una
+   alerta para el Admin (RN-10, RN-07). Solo se rechaza lo estructural (contenido
+   inválido, caja de otro equipo, correlativo ocupado…); el rechazo también se guarda y
+   se repite en un reenvío.
+8. La respuesta se guarda localmente; la barra de la app muestra las operaciones
+   pendientes o rechazadas.
+
+Anular una venta (Admin, con conexión, `POST /sales/{id}/void`) genera el reverso de
+kardex por línea y el espejo de cada pago y vuelto en la caja de la venta.
 
 ### 3.2 Operaciones con conexión (administración, compras, inventario)
 
@@ -208,12 +229,18 @@ en ADR-0004.
   diferencia). En las compras (etapa 1.2), Admin y Almacén reciben los costos de factura,
   los gastos y el costo final de cada línea (excepción del principio IV); solo el Admin
   recibe el costo promedio antes y después (`cost_changes`) y la vista previa de
-  anulación, y el Vendedor no tiene acceso. Los campos no se filtran en el código: no existen en el esquema, que no
-  admite campos extra. La prueba `test_no_cost_leak.py` recorre esos endpoints con
+  anulación, y el Vendedor no tiene acceso. En las ventas (etapa 1.3), `SaleAdmin` agrega
+  el costo y el margen por línea y total; `SaleSeller` no los tiene, y el Vendedor solo
+  recibe sus ventas del día. Los campos no se filtran en el código: no existen en el
+  esquema, que no admite campos extra. La prueba `test_no_cost_leak.py` recorre esos endpoints con
   Vendedor y Almacén y falla si aparece una clave prohibida en cualquier nivel.
 - **Entradas estrictas:** los esquemas de entrada de la etapa 1.1b rechazan campos
   desconocidos (422): el SKU, el precio, el costo y la publicación no se pueden colar en
   la edición de un producto.
+- **Operaciones de mostrador (etapa 1.3):** `POST /sync/operations`,
+  `GET /devices/current` y `POST /discount-authorizations` exigen además el token del
+  equipo en `X-Device-Token`. La matriz por endpoint de la etapa está en
+  `specs/004-ventas-multimoneda/contracts/api.md`.
 - **Tipos en el frontend:** `pnpm api:types` genera `packages/shared/src/api/schema.d.ts`
   desde el OpenAPI de FastAPI; se regenera cuando cambia la API.
 - **Compatibilidad con equipos desactualizados:** un equipo sin conexión puede seguir
@@ -245,6 +272,10 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
   de PIN o de código de instalación.
 - Permisos por rol en cada endpoint y esquemas de respuesta por rol, sin campos de costo
   para Vendedor y Almacén.
+- Cada equipo de mostrador tiene un token propio (solo se guarda su SHA-256); un equipo
+  revocado no abre caja ni vende, salvo las operaciones creadas antes de revocarlo. Una
+  venta queda a nombre del usuario de la sesión que la envía, y el PIN del Admin nunca se
+  guarda en el equipo ni viaja en la venta.
 - La base de datos solo es accesible desde la API, con un rol de permisos mínimos; Data
   API de Supabase desactivada.
 - Catálogo construido solo con datos públicos.
@@ -333,6 +364,10 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 | Equipo de mostrador | `device` |
 | Serie / correlativo | `series` / `sequence_number` |
 | Operación en cola de salida | `outbox_operation` |
+| Autorización o solicitud de descuento | `discount_authorization` |
+| Marcada para revisión | `needs_review` |
+| Sobrepago (vuelto menor que el excedente) | `overpaid_usd` |
+| Devolución / vuelto recuperado por anulación | `void_refund` / `void_change` |
 | Auditoría | `audit_log` |
 | Alerta | `alert` |
 | Catálogo | `catalog` |
@@ -342,9 +377,10 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 **Preguntas de negocio** (registradas en PRD §10, se responden antes de la etapa
 indicada):
 
-- (1.3) Venta con stock insuficiente estando en línea: ¿advertir o bloquear?
-- (1.3/1.5) Descuentos sin conexión.
 - (1.4) Caja en la que se revierte una anulación de una caja ya cerrada.
+
+Las preguntas de la 1.3 (venta sin stock con conexión y descuentos sin conexión) se
+respondieron en el PRD v0.10 (RN-10, RN-07).
 
 **Técnicos:**
 

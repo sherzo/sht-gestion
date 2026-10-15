@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.3 |
-| Fecha | 2026-10-13 |
+| Versión | 1.4 |
+| Fecha | 2026-10-15 |
 | Estado | Vigente (aprobado al cerrar la etapa 1.0; cada etapa lo afina y aplica con migraciones) |
 | Documentos relacionados | `docs/PRD.md`, `docs/arquitectura.md`, `docs/decisiones/` |
 
@@ -49,12 +49,14 @@ Se definen como **dominios** de Postgres, para declarar la escala en un solo lug
 
 | Tablas | Regla |
 |---|---|
-| `stock_movement`, `sale`, `sale_item`, `payment`, `sale_void`, `discount_authorization`, `cash_outflow`, `cash_count`, `purchase_void`, `product_price`, `audit_log` | Solo inserción |
+| `stock_movement`, `sale`, `sale_item`, `payment`, `sale_void`, `outbox_operation`, `cash_outflow`, `cash_count`, `purchase_void`, `product_price`, `audit_log` | Solo inserción |
+| `discount_authorization` | Solo pasa de `pending` a `approved` (su valor puede bajar, nunca subir) o `rejected`; no se borra (RN-07) |
+| `device` | Solo se revoca una vez y su `last_sequence_number` solo avanza; no se borra |
+| `customer`, `payment_method` | No se borran |
 | `purchase`, `purchase_item`, `purchase_charge` | Editables y descartables en borrador; confirmadas, la compra solo pasa a `voided` sin cambiar ningún otro dato y sus líneas y gastos no cambian (RN-14, RN-20) |
 | `supplier`, `charge_template`, `exchange_rate` | No se borran; la tasa se corrige (RN-15) pero no cambia de tipo ni de fecha |
 | `alert` | Solo se marca como revisada (`resolved_at`, `resolved_by`); no se borra |
-| `cash_session` | Editable solo para cerrarla; inmutable una vez cerrada (RF-33) |
-| `outbox_operation` | Inmutable una vez procesada |
+| `cash_session` | Los datos de apertura no cambian y no se borra; en la 1.4 solo podrá cerrarse y quedará inmutable (RF-33) |
 | `adjustment_request` | Solo pasa de `pending` a un estado final (`approved`, `rejected`, `withdrawn`) sin cambiar sus datos (RN-19) |
 | `stock_count`, `stock_count_line` | Inmutables una vez `applied` o `cancelled`; las líneas se anotan solo con el conteo `open` |
 | `product` (columnas `stock` y `has_movements`) | Solo las cambia el trigger de `stock_movement` (RN-08) |
@@ -62,7 +64,8 @@ Se definen como **dominios** de Postgres, para declarar la escala en un solo lug
 La regla se impone **en la base de datos**, no solo en el código: el rol de la API no
 tiene permiso `DELETE` sobre estas tablas, y hay triggers que rechazan `UPDATE` (o lo
 permiten solo en el estado editable). Los de la etapa 1.1b están en la migración
-`0004_productos_e_inventario` y los de la 1.2 en `0005_proveedores_y_compras`.
+`0004_productos_e_inventario`, los de la 1.2 en `0005_proveedores_y_compras` y los de la
+1.3 en `0006_ventas_y_caja`.
 
 ## 2. Diagrama
 
@@ -128,18 +131,19 @@ El bloqueo de inicio de sesión (5 fallos, 15 minutos) no tiene columnas: se cal
 (ADR-0008). Invariantes del servicio: siempre hay al menos un admin activo y un admin no
 se desactiva a sí mismo.
 
-**`device`** (ADR-0003)
+**`device`** (ADR-0003; etapa 1.3, research R3)
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `name` | text | Ej. "Mostrador principal" |
-| `series` | text | Único y **nunca reutilizado**, incluso si el equipo se revoca (`A`, `B`, …) |
-| `last_sequence_number` | int | Último correlativo sincronizado de la serie |
-| `token_hash` | text | Token del equipo |
-| `registered_by`, `registered_at`, `revoked_at` | | |
+| `name` | text | 1–60 caracteres, ej. "Mostrador principal" |
+| `series` | text | `^[A-Z]{1,3}$`, único y **nunca reutilizado**, incluso si el equipo se revoca (`A`, `B`, … `AA`); sale del contador `device_series` |
+| `last_sequence_number` | int | Mayor correlativo registrado de la serie; solo avanza |
+| `token_hash` | text | SHA-256 del token del equipo (cabecera `X-Device-Token`), único |
+| `registered_by`, `registered_at` | | Admin que lo registró desde el navegador del equipo |
+| `revoked_at`, `revoked_by` | nulos | Juntos y una sola vez. Las operaciones creadas antes de la revocación se aceptan |
 
-**`user_session`** (ADR-0008): una jornada de trabajo. `user_id`, `device_id` (nulo hasta
-la etapa 1.3), `started_at`, `expires_at` (`started_at` + 12 h, RF-44), `revoked_at`,
+**`user_session`** (ADR-0008): una jornada de trabajo. `user_id`, `device_id` (FK a `device`;
+nulo en la 1.3, se usará para la sesión sin conexión de la 1.5), `started_at`, `expires_at` (`started_at` + 12 h, RF-44), `revoked_at`,
 `revoked_reason` (`logout`, `password_changed`, `password_reset`, `user_deactivated`,
 `token_reuse`), `last_seen_at`. La API la consulta en cada petición.
 
@@ -147,22 +151,25 @@ la etapa 1.3), `started_at`, `expires_at` (`started_at` + 12 h, RF-44), `revoked
 `created_at`, `rotated_at`, `replaced_by_id`. Rota en cada renovación; reutilizar uno ya
 rotado revoca la jornada.
 
-**`audit_log`** (RF-46): `occurred_at`, `user_id`, `device_id`, `action` (ej.
+**`audit_log`** (RF-46): `occurred_at`, `user_id`, `device_id` (FK a `device`), `action` (ej.
 `product.price_set`, `exchange_rate.corrected`, `sale.voided`), `entity_type`,
 `entity_id`, `before` jsonb, `after` jsonb, `reason`, `details` jsonb. Se escribe en la
 misma transacción que la acción y nunca guarda contraseñas ni PIN. Un trigger rechaza
 `UPDATE` y `DELETE`. Las acciones de la etapa 1.1a (instalación, sesión, PIN y usuarios)
 están en `specs/001-usuarios-autenticacion-permisos/data-model.md`, y las de la 1.1b
 (productos, inventario y configuración) en `specs/002-productos-inventario/research.md`
-R14.
+R14, y las de la 1.3 (equipos, caja, descuentos y anulaciones) en
+`specs/004-ventas-multimoneda/research.md` R15.
 
-**`alert`** (RN-10, RN-14, ADR-0003): `type` (`negative_stock`, `price_mismatch`,
-`total_mismatch`, `inactive_user_sync`, `purchase_void_cost`, `discount_review`, …),
-`entity_type`, `entity_id`, `details` jsonb, `created_at`, `resolved_at`, `resolved_by`
-(juntos). Creada en la etapa 1.2 con el tipo `purchase_void_cost`; el `CHECK` del tipo
-se amplía en cada etapa. Solo se marca como revisada.
+**`alert`** (RN-10, RN-14, ADR-0003): `type`, `entity_type`, `entity_id`, `details`
+jsonb, `created_at`, `resolved_at`, `resolved_by` (juntos). Solo se marca como revisada.
+Tipos: `purchase_void_cost` (1.2) y, de la venta (1.3, una por tipo y venta, con
+`entity_type = 'sale'`): `negative_stock`, `price_mismatch`, `total_mismatch`,
+`rate_mismatch`, `discount_review` e `inactive_user_sync`. Revisar una venta marcada para
+revisión es resolver su alerta `discount_review`: la venta no cambia.
 
-**`sequence_counter`** (FR-008 de la etapa 1.2): `name` (PK; `purchase`), `next_number`.
+**`sequence_counter`** (FR-008 de la etapa 1.2): `name` (PK; `purchase` y
+`device_series`), `next_number`.
 Correlativo sin huecos de documentos que numera el servidor: se lee con `FOR UPDATE`
 dentro de la transacción que confirma. Las ventas no lo usan: tienen series por equipo
 (RN-11).
@@ -326,13 +333,18 @@ Es la única tabla de valores monetarios que admite corrección (RN-15); cada co
 queda en `audit_log` con el valor anterior y el nuevo. Las ventas, pagos y compras
 **copian** el valor de la tasa, así que una corrección no las altera.
 
-### 3.6 Ventas (RF-20 a RF-28)
+### 3.6 Ventas (RF-20 a RF-28; etapa 1.3)
 
-**`customer`** (RF-28): `name`, `document_id` (cédula o RIF, único, nulo), `phone`. En
-la Fase 2 se agregan los datos de crédito.
+Detalle en `specs/004-ventas-multimoneda/data-model.md`. Las tablas marcadas "id del
+equipo" reciben el UUIDv7 generado en el navegador (ADR-0003).
 
-**`payment_method`** (RF-24): `code`, `name`, `currency` (`VES` \| `USD` \| `USDT`),
-`requires_reference`, `is_cash`, `is_active`. Datos iniciales:
+**`customer`** (RF-28; id del equipo): `name` (2–100), `document_id` (cédula
+`^[VE]-\d{6,8}$` o RIF `^[JGVEPC]-\d{8}-\d$`, único y opcional; con `V` o `E` sin guiones
+es siempre cédula), `phone` (hasta 30), `created_at`, `created_by`. Un documento repetido
+liga la venta al cliente existente. En la Fase 2 se agregan los datos de crédito.
+
+**`payment_method`** (RF-24): catálogo fijo con `code` como clave, `name`, `currency`
+(`VES` \| `USD` \| `USDT`), `requires_reference`, `is_cash`, `sort_order`.
 
 | `code` | Nombre | Moneda | Referencia | Efectivo |
 |---|---|---|:-:|:-:|
@@ -343,121 +355,113 @@ la Fase 2 se agregan los datos de crédito.
 | `zelle` | Zelle | USD | ✅ | ❌ |
 | `binance_usdt` | Binance USDT | USDT | ✅ | ❌ |
 
-**`sale`** (RF-26; solo inserción)
+**`sale`** (RF-26; id del equipo; solo inserción)
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `id` | uuid | Generado en el equipo |
 | `device_id`, `series`, `sequence_number` | | Único `(series, sequence_number)` (RN-11) |
-| `number` | text | `A-000123`, derivado de serie y correlativo |
+| `number` | text | `A-000123`, derivado de serie y correlativo; único |
 | `cash_session_id` | uuid | Caja abierta del equipo (RF-30, RN-16) |
-| `seller_id` | uuid → `app_user` | Quien hizo la venta |
+| `seller_id` | uuid → `app_user` | En la 1.3, el usuario de la sesión que la envía |
 | `customer_id` | uuid, nulo | |
-| `occurred_at` | timestamptz | Hora del equipo |
-| `synced_at` | timestamptz | Hora de llegada al servidor |
-| `business_date` | date | |
-| `exchange_rate` | `rate` | Copia de la tasa usada (RN-05) |
-| `exchange_rate_date` | date | Fecha de esa tasa; puede ser anterior al día (RF-18) |
-| `subtotal_usd` | `usd_amount` | Σ subtotales de línea − descuentos por ítem |
-| `discount_type`, `discount_value` | text, numeric, nulos | Descuento sobre el total: `amount` \| `percent` (RF-22) |
-| `discount_usd` | `usd_amount` | Descuento total en USD (0 si no hay) |
-| `total_usd` | `usd_amount` | |
-| `total_ves` | `ves_amount` | `total_usd × tasa`, redondeado (RN-02) |
+| `occurred_at`, `business_date`, `synced_at` | | Hora del equipo, día de negocio (Caracas) y llegada |
+| `exchange_rate`, `exchange_rate_date` | `rate`, date | Copia de la tasa usada (RN-05); si no coincide con la cargada, alerta `rate_mismatch` |
+| `subtotal_usd` | `usd_amount` | Σ (subtotal de línea − descuento propio) |
+| `discount_type`, `discount_value`, `discount_usd` | | Descuento sobre el total (RF-22) |
+| `discount_authorized_by`, `discount_authorization_method`, `discount_authorization_id` | nulos | `pin` \| `request` \| `admin_self`; la autorización es única |
+| `total_usd`, `total_ves` | | `total_ves = total_usd × tasa`, redondeado (RN-02) |
+| `paid_usd`, `change_usd` | `usd_amount` | Lo pagado y el vuelto en USD; el sobrepago es la diferencia |
 | `device_total_usd` | `usd_amount` | Total calculado en el equipo, para detectar diferencias |
-| `needs_review` | bool | Marcada para revisión del admin (ej. descuento sin conexión, si se permite) |
-| `outbox_operation_id` | uuid | Operación que la creó |
+| `needs_review` | bool | Descuento de Vendedor sin autorización válida (RN-07) |
+| `outbox_operation_id` | uuid | Operación de la cola que la creó (única) |
 
-**`sale_item`** (solo inserción)
+**`sale_item`** (id del equipo; solo inserción): `sale_id`, `line_number`, `product_id`
+(RN-13), `quantity` (> 0, en la unidad del producto; ya convertida de cm, RF-21),
+`entered_unit` (`m` \| `cm` \| `unit`), `unit_price_usd` (el del equipo),
+`server_price_usd` (el vigente si era distinto), `line_subtotal_usd`, descuento propio
+(`item_discount_type`, `item_discount_value`, `item_discount_usd`) con su autorizante,
+método y autorización única, `allocated_sale_discount_usd` (ADR-0004), `line_total_usd`
+(≥ 0) y `unit_cost_usd` (costo promedio al registrarse, solo Admin, RF-42).
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `sale_id`, `line_number` | | |
-| `product_id` | uuid | Un producto individual por línea (RN-13) |
-| `quantity` | `quantity` | En la unidad del producto; ya convertida de cm a m (RF-21) |
-| `unit_price_usd` | `usd_amount` | Precio con el que se vendió |
-| `line_subtotal_usd` | `usd_amount` | Precio × cantidad, redondeado |
-| `item_discount_type`, `item_discount_value` | nulos | Descuento del ítem: `amount` \| `percent` (RF-22) |
-| `item_discount_usd` | `usd_amount` | |
-| `allocated_sale_discount_usd` | `usd_amount` | Parte del descuento total asignada a la línea (ADR-0004) |
-| `line_total_usd` | `usd_amount` | Subtotal − descuento del ítem − descuento asignado |
-| `unit_cost_usd` | `usd_cost` | Costo promedio al registrarse la venta en el servidor (RF-42) |
-
-**`discount_authorization`** (RN-07, RF-22): `sale_id`, `sale_item_id` (nulo = descuento
-sobre el total), `authorized_by` (admin), `method` (`pin` \| `request` \| `self` cuando
-el admin vende), `authorized_at`.
-
-**`discount_request`**: solicitudes de descuento que el admin aprueba desde su sesión
-(solo con conexión): `requested_by`, `device_id`, `details` jsonb, `status` (`pending` \|
-`approved` \| `rejected`), `decided_by`, `decided_at`.
+**`discount_authorization`** (RN-07, RF-22): una sola tabla para las autorizaciones por
+PIN y las solicitudes (reemplaza a la `discount_request` prevista). `sale_id` y
+`sale_item_id` (ids del equipo de la venta en curso), `product_id`, `discount_type`,
+`requested_value`, `discount_value` (≤ pedido; el Admin puede aprobar uno menor),
+`base_usd`, `discount_usd`, `method` (`pin` \| `request`), `status` (`pending` \|
+`approved` \| `rejected`), `requested_by`, `requested_at`, `device_id`, `decided_by`,
+`decided_at`, `rejection_reason`.
 
 **`payment`** (RF-23 a RF-25; solo inserción)
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `sale_id` | uuid | |
-| `cash_session_id` | uuid | Caja donde entra o sale el dinero (puede diferir de la venta en una anulación) |
-| `kind` | text | `sale_payment` (entra) \| `change` (vuelto, sale) \| `void_refund` (devolución por anulación, sale) |
-| `payment_method_id` | uuid | |
-| `currency` | text | Moneda del método |
-| `amount` | `NUMERIC(16,2)` | Monto en la moneda del método, siempre positivo |
+| `sale_id`, `line_number` | | Único `(sale_id, kind, line_number)` |
+| `cash_session_id` | uuid | Caja donde entra o sale el dinero |
+| `kind` | text | `sale_payment` (entra) \| `change` (vuelto, sale) \| `void_refund` (sale) \| `void_change` (entra) |
+| `payment_method_code` | text → `payment_method` | |
+| `currency`, `amount` | | Moneda del método y monto positivo |
 | `exchange_rate` | `rate` | Copia de la tasa de la venta (RN-05) |
-| `amount_usd` | `usd_amount` | Equivalente en USD: Bs ÷ tasa (RN-06) o 1:1 (RN-04) |
-| `reference` | text, nulo | Obligatoria si el método la exige (RF-24) |
-| `sale_void_id` | uuid, nulo | Solo en `void_refund` |
+| `amount_usd` | `usd_amount` | Bs ÷ tasa (RN-06) o 1:1 (RN-04) |
+| `reference` | text, nulo | 1–60 caracteres; un trigger la exige si el método la requiere (RF-24) |
+| `sale_void_id` | uuid, nulo | Solo en `void_refund` y `void_change` |
 
-**`sale_void`** (RF-27): `sale_id` (único), `reason`, `voided_by`, `voided_at`. Genera
-movimientos de kardex `sale_void` y pagos `void_refund`. La caja de esos pagos depende de
-la pregunta abierta de la etapa 1.4 (PRD §10); el modelo admite cualquier respuesta
-porque cada pago indica su caja.
+**`sale_void`** (RF-27; solo inserción): `sale_id` (único), `reason` (5–500),
+`voided_by`, `voided_at`. Genera movimientos de kardex `sale_void` y el espejo de cada
+pago (`void_refund`) y vuelto (`void_change`) en la caja de la venta. En qué caja se
+revierte el dinero si la de la venta ya está cerrada se decide en la etapa 1.4 (PRD §10).
 
 ### 3.7 Caja (RF-29 a RF-33, RN-16)
 
-**`cash_session`**
+**`cash_session`** (id del equipo; apertura desde la etapa 1.3)
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `id` | uuid | Generado en el equipo (puede abrirse sin conexión) |
 | `device_id` | uuid | Como máximo una abierta por equipo (índice único parcial) |
 | `business_date` | date | |
 | `opened_by`, `opened_at` | | Quien la abre responde por ella (RN-16) |
-| `opening_float_ves`, `opening_float_usd` | | Fondo inicial (RF-29) |
-| `status` | text | `open` \| `closed` |
-| `closed_by`, `closed_at` | | |
+| `opening_float_ves`, `opening_float_usd` | | Fondo inicial ≥ 0 (RF-29) |
+| `status` | text | `open` (la 1.4 agrega `closed`, `closed_by`, `closed_at`) |
+| `outbox_operation_id` | uuid | Operación de la cola que la abrió |
 
-**`cash_outflow`** (RF-32): `cash_session_id`, `payment_method_id` (método en efectivo),
-`amount`, `reason`, `created_by`, `occurred_at`.
+**`cash_outflow`** (RF-32, etapa 1.4): `cash_session_id`, `payment_method_id` (método en
+efectivo), `amount`, `reason`, `created_by`, `occurred_at`.
 
-**`cash_count`** (RF-31): una fila por método al cerrar: `cash_session_id`,
+**`cash_count`** (RF-31, etapa 1.4): una fila por método al cerrar: `cash_session_id`,
 `payment_method_id`, `expected_amount`, `counted_amount`, `difference`.
 
 **Esperado por método** = fondo inicial (solo efectivo) + Σ `sale_payment` − Σ `change`
-− Σ `void_refund` − Σ `cash_outflow`, en la moneda del método. Lo calcula el equipo al
-cerrar y el servidor lo recalcula al sincronizar.
+− Σ `void_refund` + Σ `void_change` − Σ `cash_outflow`, en la moneda del método.
 
 ### 3.8 Sincronización (ADR-0003)
 
-**`outbox_operation`**: `id` (UUIDv7 del equipo = clave de idempotencia), `device_id`,
-`user_id` (quien creó la operación), `operation_type` (`cash_session.open`,
-`sale.create`, `cash_outflow.create`, `cash_session.close`), `schema_version`, `payload`
-jsonb, `received_at`, `processed_at`, `status` (`processed` \| `failed`), `result` jsonb,
-`error`.
+**`outbox_operation`** (solo inserción): `id` (UUIDv7 del equipo = clave de
+idempotencia), `device_id`, `user_id` (quien la envió), `operation_type`
+(`cash_session.open`, `sale.create`; la 1.4 y la 1.5 suman tipos), `schema_version`,
+`payload` jsonb, `created_at_device`, `received_at`, `processed_at`, `status`
+(`processed` \| `rejected`), `http_status`, `result` jsonb o `error` jsonb. La fila se
+inserta con su resultado en la misma transacción que la operación; un reenvío devuelve la
+respuesta guardada, también la de un rechazo.
 
 ## 4. Restricciones e índices clave
 
 - Únicos: `app_user.username`, `device.series`, `category.sku_prefix`, `product.sku`,
   `(sale.series, sale.sequence_number)`, `purchase.number`,
-  `(exchange_rate.rate_type, business_date)`, `sale_void.sale_id`,
-  `purchase_void.purchase_id`, `customer.document_id`, `supplier.rif`.
+  `(exchange_rate.rate_type, business_date)`, `sale.number`, `sale_void.sale_id`,
+  `purchase_void.purchase_id`, `customer.document_id`, `supplier.rif`,
+  `device.token_hash`, `sale.discount_authorization_id`,
+  `sale_item.item_discount_authorization_id`.
 - Único parcial: una `cash_session` con `status = 'open'` por `device_id`; una
   `stock_count_line` con `is_open` por producto (un producto en un solo conteo abierto);
   `lower(category.name)` entre categorías activas.
 - `CHECK`: cantidades positivas en ítems y compras; `adjustment_reason` obligatorio en
-  ajustes; `reference` obligatoria cuando el método la exige (validado en la API, porque
-  depende de otra tabla); porcentajes entre 0 y 100.
+  ajustes; porcentajes entre 0 y 100. La referencia obligatoria según el método la impone
+  un trigger sobre `payment` (depende de `payment_method`).
 - Decimales permitidos por unidad (`unit.decimals`): validados en la API.
 - Índices: `stock_movement (product_id, occurred_at DESC)`, `product (category_id,
   is_active)`, `product (is_active, stock)`, `adjustment_request (status, requested_at)`,
-  `sale (business_date)`, `sale (seller_id, business_date)`, `payment (cash_session_id)`,
+  `sale (business_date DESC, occurred_at DESC)`, `sale (seller_id, business_date)`,
+  `sale_item (product_id)`, `payment (cash_session_id)`,
+  `discount_authorization (requested_at) WHERE status = 'pending'`,
   `purchase (status, purchase_date DESC)`, `purchase (supplier_id, purchase_date DESC)`,
   `purchase_item (product_id)`, `exchange_rate (rate_type, business_date DESC)` y
   `alert (created_at DESC) WHERE resolved_at IS NULL`.

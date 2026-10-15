@@ -502,19 +502,19 @@ Los commits y las docstrings de las pruebas citan el RF/RN del PRD y el FR de la
 
 **Purpose**: documentación (RNF-09), validación final y revisión.
 
-- [ ] T070 [P] Actualizar `docs/modelo-de-datos.md` con los cambios listados en data-model.md ("Cambios a `docs/modelo-de-datos.md`"): §3.1, §3.6, §3.7 y §3.8
-- [ ] T071 [P] Actualizar `docs/arquitectura.md`:
+- [X] T070 [P] Actualizar `docs/modelo-de-datos.md` con los cambios listados en data-model.md ("Cambios a `docs/modelo-de-datos.md`"): §3.1, §3.6, §3.7 y §3.8
+- [X] T071 [P] Actualizar `docs/arquitectura.md`:
   - flujo 3.1 con la cola real, el token del equipo y la idempotencia (R3, R4);
   - servicios `devices`, `sync`, `cash_sessions`, `sales`, `discounts` y `customers`, y `domain/sale_math.py`, en la estructura del backend;
   - `lib/device` y `lib/outbox` en el frontend;
   - la matriz por endpoint;
   - el glosario: `device`, `series`, `outbox_operation`, `cash_session`, `discount_authorization`, `overpaid`;
   - en §8 Pendientes, quitar las dos preguntas de la 1.3.
-- [ ] T072 [P] Actualizar ADR-0003 ("Pendiente de definir": descuentos sin conexión resueltos con RN-07 y PRD v0.10) y ADR-0004 (ruta `packages/shared/test-vectors/money.json`; vuelto en varios métodos y sobrepago)
-- [ ] T073 [P] Actualizar `docs/guia-de-estilos.md` §9 con los componentes nuevos: pantalla de venta, panel de pagos y vuelto, diálogo de descuento y PIN, indicador de pendientes de envío y chips de estado de venta
-- [ ] T074 [P] Actualizar `CHANGELOG.md` en "Sin publicar" con la etapa 1.3 (RF-18, RF-20 a RF-30, RN-01 a RN-07, RN-10, RN-11, RN-16) y `docs/plan-de-fases.md` con su estado
-- [ ] T075 Ampliar `backend/tests/test_audit.py` (marca `db`) con las acciones de research R15: por cada una, provocarla por la API y comprobar en `audit_log` el usuario, el equipo (`device_id`), la entidad y el detalle (`device.registered`, `device.revoked`, `cash_session.opened`, `sale.discounted`, `discount_authorization.requested`, `discount_authorization.approved` con el valor pedido y el aprobado, `discount_authorization.rejected` y `sale.voided` con el motivo). Comprobar también que una venta sin descuento no audita nada y que `GET /audit` filtra por el grupo "Ventas y caja" (RF-46/FR-050)
-- [ ] T076 Ejecutar `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest` (con `DATABASE_URL`), la migración subir–bajar–subir, `pnpm test`, `pnpm typecheck` y `pnpm build`, y corregir lo que falle
+- [X] T072 [P] Actualizar ADR-0003 ("Pendiente de definir": descuentos sin conexión resueltos con RN-07 y PRD v0.10) y ADR-0004 (ruta `packages/shared/test-vectors/money.json`; vuelto en varios métodos y sobrepago)
+- [X] T073 [P] Actualizar `docs/guia-de-estilos.md` §9 con los componentes nuevos: pantalla de venta, panel de pagos y vuelto, diálogo de descuento y PIN, indicador de pendientes de envío y chips de estado de venta
+- [X] T074 [P] Actualizar `CHANGELOG.md` en "Sin publicar" con la etapa 1.3 (RF-18, RF-20 a RF-30, RN-01 a RN-07, RN-10, RN-11, RN-16) y `docs/plan-de-fases.md` con su estado
+- [X] T075 Ampliar `backend/tests/test_audit.py` (marca `db`) con las acciones de research R15: por cada una, provocarla por la API y comprobar en `audit_log` el usuario, el equipo (`device_id`), la entidad y el detalle (`device.registered`, `device.revoked`, `cash_session.opened`, `sale.discounted`, `discount_authorization.requested`, `discount_authorization.approved` con el valor pedido y el aprobado, `discount_authorization.rejected` y `sale.voided` con el motivo). Comprobar también que una venta sin descuento no audita nada y que `GET /audit` filtra por el grupo "Ventas y caja" (RF-46/FR-050)
+- [X] T076 Ejecutar `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest` (con `DATABASE_URL`), la migración subir–bajar–subir, `pnpm test`, `pnpm typecheck` y `pnpm build`, y corregir lo que falle
 - [ ] T077 Recorrer los escenarios manuales 1–10 de `quickstart.md` en local, en PC y con ancho de teléfono de 360 px; medir SC-001 (venta típica < 1 min) y SC-011 (PIN < 15 s); anotar cualquier desviación como tarea nueva
 - [ ] T078 Ejecutar `/security-review` y `/code-review` sobre la rama `004-ventas-multimoneda`, corregir los hallazgos confirmados y repetir T076. Es requisito para integrar a `main` (constitución, "Flujo de trabajo")
 - [ ] T079 **Después de integrar a `main` (dueño y asistente):**

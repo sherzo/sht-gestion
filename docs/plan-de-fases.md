@@ -94,6 +94,7 @@ La etapa 1.1 completa se publicó como versión `0.2.0`.
 | **Entregables** | Uso de la tasa en la venta y aviso de tasa faltante (RF-18); registro de equipos y series; pantalla de venta con totales en USD y Bs, cm→m, descuentos por ítem y total con autorización, pagos mixtos y vuelto; apertura de caja con fondo inicial y una caja abierta por equipo (adelantada de la 1.4, para que cada venta quede ligada a su caja desde el principio); anulación de ventas; módulo de dinero en Python y TypeScript con los casos compartidos |
 | **Nota** | Las ventas ya se envían por la **cola de salida** con clave de idempotencia (ADR-0003), aunque todavía se use solo con conexión. Así la etapa 1.5 no tiene que rehacer la venta |
 | **Terminada cuando** | Una venta típica (3–5 productos, pago mixto) se registra en menos de 1 minuto; Python y TypeScript dan el mismo resultado en todos los casos compartidos; reenviar una venta no la duplica |
+| **Estado** | En curso (`specs/004-ventas-multimoneda/`): implementada en la rama `004-ventas-multimoneda` con sus pruebas automatizadas (casos compartidos en Python y TypeScript, idempotencia y numeración concurrentes); faltan el recorrido de los escenarios del quickstart, la revisión de seguridad y de código, la integración a `main` y la validación en producción |
 
 ### 1.4 — Caja
 
