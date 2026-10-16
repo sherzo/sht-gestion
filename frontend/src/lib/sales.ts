@@ -114,13 +114,23 @@ function moneyInputs(entries: MoneyEntry[]) {
   });
 }
 
-export type DraftCalc = { result: SaleCalcResult; error: null } | { result: null; error: string };
+/**
+ * Resultado del cálculo. Con un vuelto inválido (por ejemplo, mayor que el excedente),
+ * `result` sigue siendo el de la venta sin vuelto, para que la pantalla conserve totales,
+ * saldo y excedente y el vendedor pueda corregirlo; el error queda en `changeError` y en
+ * `error`, y la venta no se puede confirmar.
+ */
+export type DraftCalc =
+  | { result: SaleCalcResult; error: null; changeError: null }
+  | { result: SaleCalcResult; error: string; changeError: string }
+  | { result: null; error: string; changeError: null };
 
 /** Totales, saldo y vuelto de la venta en curso con las reglas del servidor (ADR-0004). */
 export function calculate(draft: SaleDraft, options: { withChange?: boolean } = {}): DraftCalc {
   const lines = draft.lines.map((line) => ({ line, quantity: lineQuantity(line) }));
   const invalid = lines.find(({ quantity }) => quantity.error !== null);
-  if (invalid) return { result: null, error: `${invalid.line.product.name}: ${invalid.quantity.error}` };
+  if (invalid) return { result: null, error: `${invalid.line.product.name}: ${invalid.quantity.error}`, changeError: null };
+  const withChange = options.withChange !== false && moneyInputs(draft.change).length > 0;
   try {
     const result = computeSale({
       rate: draft.rate.rate,
@@ -132,12 +142,17 @@ export function calculate(draft: SaleDraft, options: { withChange?: boolean } = 
       })),
       discount: draft.discount ? { type: draft.discount.type, value: draft.discount.value } : null,
       payments: moneyInputs(draft.payments),
-      change: options.withChange === false ? [] : moneyInputs(draft.change),
+      change: withChange ? moneyInputs(draft.change) : [],
     });
-    return { result, error: null };
+    return { result, error: null, changeError: null };
   } catch (error) {
-    if (error instanceof MoneyError) return { result: null, error: error.message };
-    throw error;
+    if (!(error instanceof MoneyError)) throw error;
+    if (withChange) {
+      // El error viene del vuelto: se recalcula sin él para no perder los totales.
+      const base = calculate(draft, { withChange: false });
+      if (base.result) return { result: base.result, error: error.message, changeError: error.message };
+    }
+    return { result: null, error: error.message, changeError: null };
   }
 }
 
@@ -181,7 +196,7 @@ export async function confirmSale(
   context: { device: DeviceRecord; cashSessionId: string; sellerId: string },
 ): Promise<ConfirmOutcome> {
   const calc = calculate(draft);
-  if (!calc.result) return { status: "rejected", message: calc.error };
+  if (!calc.result || calc.error) return { status: "rejected", message: calc.error ?? "La venta tiene datos inválidos" };
   const sequence = await takeSequenceNumber();
   const number = `${context.device.series}-${String(sequence).padStart(6, "0")}`;
   const payload = {

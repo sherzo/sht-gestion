@@ -9,7 +9,7 @@
 // no hay pagos, se pide actualizarla antes del primer pago; con pagos, la venta conserva
 // la suya. Atajos en PC: F2 enfoca el buscador y F9 confirma.
 import { formatDate, formatPercent, formatRate, formatUsd, todayInCaracas } from "@sht/shared";
-import { Percent } from "lucide-react";
+import { AlertTriangle, Percent } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -273,12 +273,18 @@ function SellContent() {
               payments={draft.payments}
               change={draft.change}
               result={calc?.result ?? null}
+              changeError={calc?.changeError ?? null}
               rate={draft.rate.rate}
               disabled={rateLocked}
               onPayments={(payments) => update((current) => ({ ...current, payments }))}
               onChange={(change) => update((current) => ({ ...current, change }))}
             />
-            {problem && draft.lines.length > 0 && <p className="text-sm text-ink-muted">{problem}</p>}
+            {problem && draft.lines.length > 0 && (
+              <p role="status" className="flex items-start gap-2 rounded-lg bg-warning-soft p-3 font-medium text-warning">
+                <AlertTriangle aria-hidden className="mt-0.5 size-5 shrink-0" />
+                <span>No se puede confirmar todavía: {problem.replace(/\.$/, "")}.</span>
+              </p>
+            )}
             <Button variant="accent" className="min-h-14 text-lg" loading={saving} disabled={!canConfirm} onClick={() => void confirm()}>
               Confirmar venta (F9)
             </Button>

@@ -6,7 +6,7 @@
 // (por ejemplo, sin sencillo), la diferencia queda como sobrepago de la venta.
 import { formatUsd, formatVes, suggestedVes, uuidv7 } from "@sht/shared";
 import type { SaleCalcResult } from "@sht/shared";
-import { Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Plus, Trash2 } from "lucide-react";
 
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { SelectField, TextField } from "@/components/ui/field";
@@ -17,6 +17,8 @@ type Props = {
   payments: MoneyEntry[];
   change: MoneyEntry[];
   result: SaleCalcResult | null;
+  /** Error del vuelto (por ejemplo, mayor que el excedente): se muestra junto al vuelto. */
+  changeError?: string | null;
   rate: string;
   disabled?: boolean;
   onPayments: (entries: MoneyEntry[]) => void;
@@ -76,7 +78,7 @@ function EntryRow({
   );
 }
 
-export function PaymentsPanel({ payments, change, result, rate, disabled, onPayments, onChange }: Props) {
+export function PaymentsPanel({ payments, change, result, changeError = null, rate, disabled, onPayments, onChange }: Props) {
   const balance = result?.balance_usd ?? "0.00";
   const excess = result?.excess_usd ?? "0.00";
   const pending = Number(balance) > 0;
@@ -165,7 +167,15 @@ export function PaymentsPanel({ payments, change, result, rate, disabled, onPaym
               </button>
             ))}
           </div>
-          {result && Number(result.overpaid_usd) > 0 && change.length > 0 && (
+          {changeError && (
+            <p role="alert" className="flex items-start gap-2 rounded-lg bg-danger-soft p-3 font-semibold text-danger">
+              <AlertCircle aria-hidden className="mt-0.5 size-5 shrink-0" />
+              <span>
+                {changeError}. Como máximo: {formatUsd(excess)} USD o {formatVes(suggestedVes(excess, rate))}. Corrige el monto o quita el vuelto.
+              </span>
+            </p>
+          )}
+          {!changeError && result && Number(result.overpaid_usd) > 0 && change.length > 0 && (
             <p className="text-sm text-ink-muted">Sobrepago: {formatUsd(result.overpaid_usd)} USD (el cliente deja la diferencia).</p>
           )}
         </div>
