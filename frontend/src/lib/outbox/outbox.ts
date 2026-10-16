@@ -158,6 +158,32 @@ export function useOutboxAttention(): OutboxRecord[] {
   return records;
 }
 
+// Con conexión, una operación recién guardada se envía en menos de un segundo: el
+// indicador de la barra no la muestra hasta que falle un intento o pase este plazo.
+const INDICATOR_GRACE_MS = 5_000;
+
+/**
+ * Operaciones que el indicador de la barra debe mostrar: las rechazadas y las pendientes
+ * que ya fallaron un intento o llevan más de unos segundos en la cola. Así no aparece por
+ * un instante "Pendientes de envío: 1" en cada operación enviada con conexión.
+ */
+export function useOutboxIndicator(): OutboxRecord[] {
+  const records = useOutboxAttention();
+  const [now, setNow] = useState(() => Date.now());
+  const isVisible = (record: OutboxRecord) =>
+    record.status !== "pending" || record.attempts > 0 || now - Date.parse(record.createdAt) >= INDICATOR_GRACE_MS;
+  const hidden = records.filter((record) => !isVisible(record));
+  const nextDue = hidden.length
+    ? Math.min(...hidden.map((record) => Date.parse(record.createdAt) + INDICATOR_GRACE_MS))
+    : null;
+  useEffect(() => {
+    if (nextDue === null) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(nextDue - Date.now(), 0) + 50);
+    return () => clearTimeout(timer);
+  }, [nextDue]);
+  return records.filter(isVisible);
+}
+
 /**
  * Operaciones de una caja pendientes de envío o rechazadas sin descartar: mientras haya
  * alguna, la caja no se cierra (FR-014).

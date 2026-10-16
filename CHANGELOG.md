@@ -6,6 +6,12 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3
 
 ## [Sin publicar]
 
+### Corregido
+
+- El indicador "Pendientes de envío" de la barra ya no aparece por un instante al abrir
+  la caja, vender, registrar un egreso o cerrar con conexión: una operación pendiente se
+  muestra solo si falló un intento de envío o lleva más de 5 s en la cola (ADR-0003).
+
 ## [0.5.0] — 2026-10-16 — Etapa 1.4: egresos, cierre y cuadre de caja
 
 Escenarios del quickstart recorridos por el dueño, revisión de seguridad y de código
