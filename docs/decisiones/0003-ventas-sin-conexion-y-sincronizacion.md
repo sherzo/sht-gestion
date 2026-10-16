@@ -104,10 +104,28 @@ navegador no borre los datos locales por falta de espacio.
   solo envía las ventas del usuario con sesión y deja las demás esperando a su vendedor.
   La 1.5 define el caso de ventas sin conexión de un vendedor que no vuelve a ingresar.
 
-### Pendiente de definir (pregunta abierta en PRD §10)
+### Resuelto en la etapa 1.4 (PRD v0.11 y v0.12)
 
-- En qué caja se revierte el dinero cuando se anula una venta de una caja ya cerrada
-  (etapa 1.4). En la 1.3 la devolución va a la caja de la venta.
+- La cola suma los tipos `cash_outflow.create` (egreso) y `cash_session.close` (cierre
+  desde el equipo de la caja), con la misma idempotencia. Como la venta, quedan a nombre
+  del usuario de la sesión y la cola del equipo los deja esperando a su dueño. El equipo
+  no cierra mientras tenga operaciones de esa caja pendientes o rechazadas sin descartar.
+- El cierre envía el esperado que vio el equipo; el servidor recalcula y, si difiere,
+  guarda el suyo, conserva el del equipo y crea la alerta `expected_mismatch`, sin
+  rechazar el cierre.
+- Una caja huérfana la cierra el Admin con conexión (fuera de la cola). Una venta o un
+  egreso creados en el equipo antes de ese cierre (`created_at` u `occurred_at` <
+  `closed_at`) se registran en su caja con la alerta `post_close_operation`; los creados
+  después se rechazan con `cash_session_closed`. Lo que llegó después del cierre se
+  marca comparando horas del servidor (`closed_recorded_at`), nunca la del equipo.
+- Al anular una venta de una caja ya cerrada, el dinero se revierte en la caja abierta
+  del equipo desde el que anula el Admin y el cierre anterior no cambia (RF-27). En la
+  1.3 la devolución iba siempre a la caja de la venta.
+- Un equipo revocado nunca envía operaciones de caja (apertura, egreso, cierre), aunque
+  digan ser anteriores a la revocación: la hora la escribe el equipo. La regla vive en un
+  solo lugar, `STRICT_TYPES` de `services/sync.py`. Un egreso rechazado así avisa al Admin
+  con la alerta `revoked_device_operation`. Las ventas anteriores a la revocación se
+  siguen aceptando con alerta, para no perder ninguna (principio III).
 
 ## Alternativas consideradas
 

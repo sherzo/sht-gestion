@@ -49,14 +49,15 @@ Se definen como **dominios** de Postgres, para declarar la escala en un solo lug
 
 | Tablas | Regla |
 |---|---|
-| `stock_movement`, `sale`, `sale_item`, `payment`, `sale_void`, `outbox_operation`, `cash_outflow`, `cash_count`, `purchase_void`, `product_price`, `audit_log` | Solo inserción |
+| `stock_movement`, `sale`, `sale_item`, `payment`, `sale_void`, `outbox_operation`, `cash_count`, `purchase_void`, `product_price`, `audit_log` | Solo inserción (`cash_count`, además, solo en una caja cerrada) |
+| `cash_outflow` | No se borra; solo se anula (`voided_at`, `voided_by`, `void_reason`), una vez y con su caja abierta (RF-33) |
 | `discount_authorization` | Solo pasa de `pending` a `approved` (su valor puede bajar, nunca subir) o `rejected`; no se borra (RN-07) |
 | `device` | Solo se revoca una vez y su `last_sequence_number` solo avanza; no se borra |
 | `customer`, `payment_method` | No se borran |
 | `purchase`, `purchase_item`, `purchase_charge` | Editables y descartables en borrador; confirmadas, la compra solo pasa a `voided` sin cambiar ningún otro dato y sus líneas y gastos no cambian (RN-14, RN-20) |
 | `supplier`, `charge_template`, `exchange_rate` | No se borran; la tasa se corrige (RN-15) pero no cambia de tipo ni de fecha |
 | `alert` | Solo se marca como revisada (`resolved_at`, `resolved_by`); no se borra |
-| `cash_session` | Los datos de apertura no cambian y no se borra; en la 1.4 solo podrá cerrarse y quedará inmutable (RF-33) |
+| `cash_session` | Los datos de apertura no cambian y no se borra; solo pasa de `open` a `closed`, una vez, y cerrada no admite ningún cambio (RF-33). Al confirmar, una caja cerrada tiene un `cash_count` por cada método |
 | `adjustment_request` | Solo pasa de `pending` a un estado final (`approved`, `rejected`, `withdrawn`) sin cambiar sus datos (RN-19) |
 | `stock_count`, `stock_count_line` | Inmutables una vez `applied` o `cancelled`; las líneas se anotan solo con el conteo `open` |
 | `product` (columnas `stock` y `has_movements`) | Solo las cambia el trigger de `stock_movement` (RN-08) |
@@ -65,7 +66,7 @@ La regla se impone **en la base de datos**, no solo en el código: el rol de la 
 tiene permiso `DELETE` sobre estas tablas, y hay triggers que rechazan `UPDATE` (o lo
 permiten solo en el estado editable). Los de la etapa 1.1b están en la migración
 `0004_productos_e_inventario`, los de la 1.2 en `0005_proveedores_y_compras` y los de la
-1.3 en `0006_ventas_y_caja`.
+1.3 en `0006_ventas_y_caja` y los de la 1.4 en `0007_cierre_de_caja`.
 
 ## 2. Diagrama
 
@@ -158,15 +159,22 @@ misma transacción que la acción y nunca guarda contraseñas ni PIN. Un trigger
 `UPDATE` y `DELETE`. Las acciones de la etapa 1.1a (instalación, sesión, PIN y usuarios)
 están en `specs/001-usuarios-autenticacion-permisos/data-model.md`, y las de la 1.1b
 (productos, inventario y configuración) en `specs/002-productos-inventario/research.md`
-R14, y las de la 1.3 (equipos, caja, descuentos y anulaciones) en
-`specs/004-ventas-multimoneda/research.md` R15.
+R14, las de la 1.3 (equipos, caja, descuentos y anulaciones) en
+`specs/004-ventas-multimoneda/research.md` R15, y las de la 1.4 (`cash_outflow.created`,
+`cash_outflow.voided`, `cash_session.closed` y la caja de la devolución en `sale.voided`)
+en `specs/005-cierre-caja/research.md` R12.
 
 **`alert`** (RN-10, RN-14, ADR-0003): `type`, `entity_type`, `entity_id`, `details`
 jsonb, `created_at`, `resolved_at`, `resolved_by` (juntos). Solo se marca como revisada.
 Tipos: `purchase_void_cost` (1.2) y, de la venta (1.3, una por tipo y venta, con
 `entity_type = 'sale'`): `negative_stock`, `price_mismatch`, `total_mismatch`,
 `rate_mismatch`, `discount_review`, `inactive_user_sync` y `revoked_device_sync`. Revisar una venta marcada para
-revisión es resolver su alerta `discount_review`: la venta no cambia.
+revisión es resolver su alerta `discount_review`: la venta no cambia. De la caja (1.4, con
+`entity_type = 'cash_session'`; `details` lleva el equipo, quién abrió y quién cerró):
+`cash_difference` (cierre con diferencias), `expected_mismatch` (el esperado del servidor
+difiere del que vio el equipo), `post_close_operation` (venta o egreso creado en el
+equipo antes de un cierre hecho en otro lugar) y `revoked_device_operation` (egreso
+rechazado porque su equipo estaba revocado: el dinero pudo haber salido de la gaveta).
 
 **`sequence_counter`** (FR-008 de la etapa 1.2): `name` (PK; `purchase` y
 `device_series`), `next_number`.
@@ -408,8 +416,10 @@ PIN y las solicitudes (reemplaza a la `discount_request` prevista). `sale_id` y
 **`sale_void`** (RF-27; solo inserción): `sale_id` (único), `reason` (5–500),
 `voided_by`, `voided_at`. Genera movimientos de kardex `sale_void` y el espejo de cada
 pago (`void_refund`) y vuelto (`void_change`) en la caja de la venta. Si la caja de la
-venta ya está cerrada, el dinero se revierte en la caja abierta del equipo desde el que
-el admin anula (PRD v0.11, RF-27); el detalle llega con la etapa 1.4.
+venta ya está cerrada, el espejo se registra en la caja abierta del equipo desde el que
+el admin anula (PRD v0.11, RF-27): esos `payment` llevan el `cash_session_id` de esa caja
+y el cierre anterior no cambia. Sin columna nueva: la caja que recibió la devolución se
+deduce de esas filas.
 
 ### 3.7 Caja (RF-29 a RF-33, RN-16)
 
@@ -421,23 +431,43 @@ el admin anula (PRD v0.11, RF-27); el detalle llega con la etapa 1.4.
 | `business_date` | date | |
 | `opened_by`, `opened_at` | | Quien la abre responde por ella (RN-16) |
 | `opening_float_ves`, `opening_float_usd` | | Fondo inicial ≥ 0 (RF-29) |
-| `status` | text | `open` (la 1.4 agrega `closed`, `closed_by`, `closed_at`) |
+| `status` | text | `open` \| `closed` |
 | `outbox_operation_id` | uuid | Operación de la cola que la abrió |
+| `closed_at` | timestamptz, nulo | Hora del cierre en el equipo (`created_at` de la operación); decide si se acepta una operación tardía |
+| `closed_recorded_at` | timestamptz, nulo | Hora del servidor al cerrar; marca lo que llegó después del cierre (igual a `closed_at` en el cierre del admin) |
+| `closed_by` | uuid, nulo | Quien cerró; puede ser distinto de quien abrió (RN-16) |
+| `closed_from_device_id` | uuid, nulo | Equipo desde el que se cerró; nulo si el admin cerró desde un navegador que no es equipo |
+| `closed_outside_device` | bool, nulo | true si el admin la cerró fuera de su equipo (caja huérfana) |
+| `closing_note` | text, nulo | 5–500 caracteres; obligatoria con diferencias o fuera del equipo (la exige el servicio) |
+| `closing_operation_id` | uuid, nulo, único | Operación `cash_session.close`; nula en el cierre del admin |
 
-**`cash_outflow`** (RF-32, etapa 1.4): `cash_session_id`, `payment_method_id` (método en
-efectivo), `amount`, `reason`, `created_by`, `occurred_at`.
+Un `CHECK` exige las columnas de cierre completas si y solo si está cerrada; el trigger
+`cash_session_guard` permite solo la transición `open → closed`, una vez.
 
-**`cash_count`** (RF-31, etapa 1.4): una fila por método al cerrar: `cash_session_id`,
-`payment_method_id`, `expected_amount`, `counted_amount`, `difference`.
+**`cash_outflow`** (RF-32, PRD v0.12; id del equipo): `cash_session_id`, `device_id`,
+`payment_method_code` (cualquier método), `currency` (la del método), `amount` (> 0),
+`reason` (5–200), `reference` (1–60; obligatoria si el método la exige, con el mismo
+trigger de `payment`), `created_by`, `occurred_at`, `outbox_operation_id` (único) y la
+anulación: `voided_at`, `voided_by`, `void_reason` (5–200), juntas. Solo en efectivo el
+servicio impide superar el esperado del método.
+
+**`cash_count`** (RF-31; solo inserción): una fila por método al cerrar, único
+`(cash_session_id, payment_method_code)`: `currency`, `expected_amount` (del servidor;
+puede ser negativo), `device_expected_amount` (el que vio el equipo; nulo en el cierre
+del admin), `counted_amount` (≥ 0) y `difference` (`counted − expected`, `CHECK`).
 
 **Esperado por método** = fondo inicial (solo efectivo) + Σ `sale_payment` − Σ `change`
-− Σ `void_refund` + Σ `void_change` − Σ `cash_outflow`, en la moneda del método.
+− Σ `void_refund` + Σ `void_change` − Σ `cash_outflow` no anulados, en la moneda del
+método y sin convertir monedas. Lo calculan `backend/app/domain/cash_math.py` y
+`packages/shared/src/cash.ts` con los casos de `packages/shared/test-vectors/cash.json`.
+Las operaciones que el servidor registró después del cierre no cambian el `cash_count`.
 
 ### 3.8 Sincronización (ADR-0003)
 
 **`outbox_operation`** (solo inserción): `id` (UUIDv7 del equipo = clave de
 idempotencia), `device_id`, `user_id` (quien la envió), `operation_type`
-(`cash_session.open`, `sale.create`; la 1.4 y la 1.5 suman tipos), `schema_version`,
+(`cash_session.open`, `sale.create`, `cash_outflow.create`, `cash_session.close`; la 1.5
+suma tipos), `schema_version`,
 `payload` jsonb, `created_at_device`, `received_at`, `processed_at`, `status`
 (`processed` \| `rejected`), `http_status`, `result` jsonb o `error` jsonb. La fila se
 inserta con su resultado en la misma transacción que la operación; un reenvío devuelve la

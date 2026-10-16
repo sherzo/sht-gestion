@@ -31,6 +31,7 @@ from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from fastapi import APIRouter, Depends  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from httpx import Response  # noqa: E402
 from sqlalchemy import select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
@@ -118,6 +119,8 @@ TABLES = (
     "sale_item",
     "sale",
     "discount_authorization",
+    "cash_count",
+    "cash_outflow",
     "cash_session",
     "customer",
     "outbox_operation",
@@ -142,6 +145,13 @@ def _migrated() -> None:
     with get_sessionmaker()() as db:
         for table in SEEDED_TABLES:
             db.execute(text(f"DROP TABLE IF EXISTS test_seed_{table}"))
+        # Se vacían los datos de la sesión anterior antes de bajar: una migración puede
+        # negarse a bajar con datos que la versión anterior no representa (cajas cerradas,
+        # 0007).
+        db.execute(text("SET LOCAL session_replication_role = replica"))
+        for table in TABLES:
+            if db.scalar(text("SELECT to_regclass(:name)"), {"name": table}) is not None:
+                db.execute(text(f"DELETE FROM {table}"))
         db.commit()
     command.downgrade(config, "base")
     command.upgrade(config, "head")
@@ -516,6 +526,80 @@ def open_cash_session(client: TestClient) -> Callable[..., dict]:
         )
         assert response.status_code == 200, response.text
         return response.json()
+
+    return factory
+
+
+@pytest.fixture
+def register_outflow(client: TestClient) -> Callable[..., Response]:
+    """Envía un egreso por la cola (`cash_outflow.create`), como la pantalla de Caja, y
+    devuelve la respuesta sin verificar el estado (RF-32)."""
+
+    def factory(
+        headers: dict[str, str],
+        token: str,
+        cash_session_id: str,
+        method: str = "cash_usd",
+        amount: str = "5.00",
+        reason: str = "Compra de botellones de agua",
+        *,
+        reference: str | None = None,
+        outflow_id: str | None = None,
+        op_id: str | None = None,
+    ) -> Response:
+        payload = {
+            "id": outflow_id or str(uuid.uuid7()),
+            "cash_session_id": cash_session_id,
+            "method": method,
+            "amount": amount,
+            "reason": reason,
+            "reference": reference,
+        }
+        return client.post(
+            "/api/v1/sync/operations",
+            json=operation("cash_outflow.create", payload, op_id=op_id),
+            headers=device_headers(headers, token),
+        )
+
+    return factory
+
+
+@pytest.fixture
+def close_cash_session(client: TestClient) -> Callable[..., Response]:
+    """Cierra la caja por la cola (`cash_session.close`), como la pantalla de cierre: toma
+    el esperado de `GET /cash-sessions/{id}` como `device_expected` y como contado, salvo
+    los métodos de `counted`. `device_expected` reemplaza el esperado que "vio" el equipo
+    en los métodos indicados. Devuelve la respuesta sin verificar el estado (RF-31)."""
+
+    def factory(
+        headers: dict[str, str],
+        token: str,
+        cash_session_id: str,
+        *,
+        counted: dict[str, str] | None = None,
+        device_expected: dict[str, str] | None = None,
+        note: str | None = None,
+        op_id: str | None = None,
+    ) -> Response:
+        request_headers = device_headers(headers, token)
+        detail = client.get(f"/api/v1/cash-sessions/{cash_session_id}", headers=request_headers)
+        assert detail.status_code == 200, detail.text
+        counts = []
+        for row in detail.json()["reconciliation"]:
+            seen = (device_expected or {}).get(row["method"], row["expected"])
+            counts.append(
+                {
+                    "method": row["method"],
+                    "device_expected": seen,
+                    "counted": (counted or {}).get(row["method"], seen),
+                }
+            )
+        payload = {"cash_session_id": cash_session_id, "counts": counts, "note": note}
+        return client.post(
+            "/api/v1/sync/operations",
+            json=operation("cash_session.close", payload, op_id=op_id),
+            headers=request_headers,
+        )
 
     return factory
 

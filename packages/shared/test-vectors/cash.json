@@ -1,0 +1,211 @@
+{
+  "_description": "Casos compartidos del cuadre de caja (RF-31, FR-006, FR-007; research R1 de specs/005-cierre-caja). Los ejecutan backend/tests/test_cash_math.py y packages/shared/src/cash.test.ts: si una de las dos implementaciones difiere, la CI falla. Montos como cadenas, en la moneda de cada método; el cuadre no convierte monedas. Un método que falta en `counted` se toma como 0.00.",
+  "methods": [
+    {"code": "cash_ves", "currency": "VES"},
+    {"code": "mobile_payment", "currency": "VES"},
+    {"code": "pos_card", "currency": "VES"},
+    {"code": "cash_usd", "currency": "USD"},
+    {"code": "zelle", "currency": "USD"},
+    {"code": "binance_usdt", "currency": "USDT"}
+  ],
+  "reconciliations": [
+    {
+      "name": "escenario 1 de la US1: fondo, cobro con vuelto en Efectivo USD y Pago móvil, 1 USD de menos",
+      "input": {
+        "opening_float_ves": "500.00",
+        "opening_float_usd": "20.00",
+        "movements": [
+          {"method": "cash_usd", "currency": "USD", "kind": "sale_payment", "amount": "50.00"},
+          {"method": "cash_usd", "currency": "USD", "kind": "change", "amount": "2.30"},
+          {"method": "mobile_payment", "currency": "VES", "kind": "sale_payment", "amount": "730.00"}
+        ],
+        "outflows": [],
+        "counted": {"cash_ves": "500.00", "mobile_payment": "730.00", "pos_card": "0.00", "cash_usd": "66.70", "zelle": "0.00", "binance_usdt": "0.00"}
+      },
+      "expected": [
+        {"method": "cash_ves", "currency": "VES", "opening": "500.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "500.00", "counted": "500.00", "difference": "0.00"},
+        {"method": "mobile_payment", "currency": "VES", "opening": "0.00", "collected": "730.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "730.00", "counted": "730.00", "difference": "0.00"},
+        {"method": "pos_card", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": "0.00", "difference": "0.00"},
+        {"method": "cash_usd", "currency": "USD", "opening": "20.00", "collected": "50.00", "change_given": "2.30", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "67.70", "counted": "66.70", "difference": "-1.00"},
+        {"method": "zelle", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": "0.00", "difference": "0.00"},
+        {"method": "binance_usdt", "currency": "USDT", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": "0.00", "difference": "0.00"}
+      ]
+    },
+    {
+      "name": "vuelto entregado por Pago móvil resta de ese método",
+      "input": {
+        "opening_float_ves": "0.00",
+        "opening_float_usd": "0.00",
+        "movements": [
+          {"method": "mobile_payment", "currency": "VES", "kind": "sale_payment", "amount": "730.00"},
+          {"method": "mobile_payment", "currency": "VES", "kind": "change", "amount": "83.95"}
+        ],
+        "outflows": [],
+        "counted": null
+      },
+      "expected": [
+        {"method": "cash_ves", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "mobile_payment", "currency": "VES", "opening": "0.00", "collected": "730.00", "change_given": "83.95", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "646.05", "counted": null, "difference": null},
+        {"method": "pos_card", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "cash_usd", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "zelle", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "binance_usdt", "currency": "USDT", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null}
+      ]
+    },
+    {
+      "name": "anulación en la misma caja: la devolución resta y el vuelto devuelto suma (RF-27)",
+      "input": {
+        "opening_float_ves": "0.00",
+        "opening_float_usd": "20.00",
+        "movements": [
+          {"method": "cash_usd", "currency": "USD", "kind": "sale_payment", "amount": "50.00"},
+          {"method": "cash_usd", "currency": "USD", "kind": "change", "amount": "2.30"},
+          {"method": "cash_usd", "currency": "USD", "kind": "void_refund", "amount": "50.00"},
+          {"method": "cash_usd", "currency": "USD", "kind": "void_change", "amount": "2.30"}
+        ],
+        "outflows": [],
+        "counted": null
+      },
+      "expected": [
+        {"method": "cash_ves", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "mobile_payment", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "pos_card", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "cash_usd", "currency": "USD", "opening": "20.00", "collected": "50.00", "change_given": "2.30", "refunded": "50.00", "change_recovered": "2.30", "outflows": "0.00", "expected": "20.00", "counted": null, "difference": null},
+        {"method": "zelle", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "binance_usdt", "currency": "USDT", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null}
+      ]
+    },
+    {
+      "name": "devolución de una venta de otra caja ya cerrada: el esperado queda negativo (RF-27, PRD v0.11)",
+      "input": {
+        "opening_float_ves": "0.00",
+        "opening_float_usd": "10.00",
+        "movements": [
+          {"method": "cash_usd", "currency": "USD", "kind": "void_refund", "amount": "15.00"},
+          {"method": "zelle", "currency": "USD", "kind": "void_refund", "amount": "20.00"}
+        ],
+        "outflows": [],
+        "counted": null
+      },
+      "expected": [
+        {"method": "cash_ves", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "mobile_payment", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "pos_card", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "cash_usd", "currency": "USD", "opening": "10.00", "collected": "0.00", "change_given": "0.00", "refunded": "15.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "-5.00", "counted": null, "difference": null},
+        {"method": "zelle", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "20.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "-20.00", "counted": null, "difference": null},
+        {"method": "binance_usdt", "currency": "USDT", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null}
+      ]
+    },
+    {
+      "name": "egresos en efectivo y por Pago móvil; el anulado no resta (RF-32, RF-33)",
+      "input": {
+        "opening_float_ves": "500.00",
+        "opening_float_usd": "20.00",
+        "movements": [],
+        "outflows": [
+          {"method": "cash_usd", "amount": "5.00", "voided": false},
+          {"method": "cash_usd", "amount": "3.00", "voided": true},
+          {"method": "cash_ves", "amount": "120.50", "voided": false},
+          {"method": "mobile_payment", "amount": "300.00", "voided": false}
+        ],
+        "counted": null
+      },
+      "expected": [
+        {"method": "cash_ves", "currency": "VES", "opening": "500.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "120.50", "expected": "379.50", "counted": null, "difference": null},
+        {"method": "mobile_payment", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "300.00", "expected": "-300.00", "counted": null, "difference": null},
+        {"method": "pos_card", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "cash_usd", "currency": "USD", "opening": "20.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "5.00", "expected": "15.00", "counted": null, "difference": null},
+        {"method": "zelle", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "binance_usdt", "currency": "USDT", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null}
+      ]
+    },
+    {
+      "name": "caja sin movimientos: el esperado es el fondo",
+      "input": {
+        "opening_float_ves": "500.00",
+        "opening_float_usd": "20.00",
+        "movements": [],
+        "outflows": [],
+        "counted": null
+      },
+      "expected": [
+        {"method": "cash_ves", "currency": "VES", "opening": "500.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "500.00", "counted": null, "difference": null},
+        {"method": "mobile_payment", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "pos_card", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "cash_usd", "currency": "USD", "opening": "20.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "20.00", "counted": null, "difference": null},
+        {"method": "zelle", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "binance_usdt", "currency": "USDT", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null}
+      ]
+    },
+    {
+      "name": "contado en blanco se toma como 0,00",
+      "input": {
+        "opening_float_ves": "500.00",
+        "opening_float_usd": "20.00",
+        "movements": [],
+        "outflows": [],
+        "counted": {"cash_usd": "20.00"}
+      },
+      "expected": [
+        {"method": "cash_ves", "currency": "VES", "opening": "500.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "500.00", "counted": "0.00", "difference": "-500.00"},
+        {"method": "mobile_payment", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": "0.00", "difference": "0.00"},
+        {"method": "pos_card", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": "0.00", "difference": "0.00"},
+        {"method": "cash_usd", "currency": "USD", "opening": "20.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "20.00", "counted": "20.00", "difference": "0.00"},
+        {"method": "zelle", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": "0.00", "difference": "0.00"},
+        {"method": "binance_usdt", "currency": "USDT", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": "0.00", "difference": "0.00"}
+      ]
+    },
+    {
+      "name": "USDT se cuadra en su propia fila y moneda (RN-04)",
+      "input": {
+        "opening_float_ves": "0.00",
+        "opening_float_usd": "0.00",
+        "movements": [
+          {"method": "binance_usdt", "currency": "USDT", "kind": "sale_payment", "amount": "25.00"}
+        ],
+        "outflows": [],
+        "counted": null
+      },
+      "expected": [
+        {"method": "cash_ves", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "mobile_payment", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "pos_card", "currency": "VES", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "cash_usd", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "zelle", "currency": "USD", "opening": "0.00", "collected": "0.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "0.00", "counted": null, "difference": null},
+        {"method": "binance_usdt", "currency": "USDT", "opening": "0.00", "collected": "25.00", "change_given": "0.00", "refunded": "0.00", "change_recovered": "0.00", "outflows": "0.00", "expected": "25.00", "counted": null, "difference": null}
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "name": "tipo de movimiento desconocido",
+      "input": {"opening_float_ves": "0.00", "opening_float_usd": "0.00", "movements": [{"method": "cash_usd", "currency": "USD", "kind": "refund", "amount": "1.00"}], "outflows": [], "counted": null},
+      "error": "Tipo de movimiento de caja desconocido: refund"
+    },
+    {
+      "name": "movimiento en un método fuera del catálogo",
+      "input": {"opening_float_ves": "0.00", "opening_float_usd": "0.00", "movements": [{"method": "paypal", "currency": "USD", "kind": "sale_payment", "amount": "1.00"}], "outflows": [], "counted": null},
+      "error": "Método de pago desconocido: paypal"
+    },
+    {
+      "name": "movimiento en una moneda distinta de la de su método",
+      "input": {"opening_float_ves": "0.00", "opening_float_usd": "0.00", "movements": [{"method": "mobile_payment", "currency": "USD", "kind": "sale_payment", "amount": "1.00"}], "outflows": [], "counted": null},
+      "error": "El movimiento en mobile_payment debe estar en VES"
+    },
+    {
+      "name": "egreso en un método fuera del catálogo",
+      "input": {"opening_float_ves": "0.00", "opening_float_usd": "0.00", "movements": [], "outflows": [{"method": "paypal", "amount": "1.00", "voided": false}], "counted": null},
+      "error": "Método de pago desconocido: paypal"
+    },
+    {
+      "name": "contado de un método fuera del catálogo",
+      "input": {"opening_float_ves": "0.00", "opening_float_usd": "0.00", "movements": [], "outflows": [], "counted": {"paypal": "1.00"}},
+      "error": "Método de pago desconocido: paypal"
+    },
+    {
+      "name": "contado negativo",
+      "input": {"opening_float_ves": "0.00", "opening_float_usd": "0.00", "movements": [], "outflows": [], "counted": {"cash_usd": "-1.00"}},
+      "error": "El monto contado no puede ser negativo"
+    }
+  ]
+}

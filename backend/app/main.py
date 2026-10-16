@@ -8,6 +8,8 @@ from app.api import (
     alerts,
     audit,
     auth,
+    cash_outflows,
+    cash_sessions,
     catalog_config,
     charge_templates,
     customers,
@@ -62,6 +64,8 @@ def create_app() -> FastAPI:
     api_v1.include_router(customers.router)
     api_v1.include_router(discount_authorizations.router)
     api_v1.include_router(sales.router)
+    api_v1.include_router(cash_sessions.router)
+    api_v1.include_router(cash_outflows.router)
     api_v1.include_router(sync.router)
     app.include_router(api_v1)
 

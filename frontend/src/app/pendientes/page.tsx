@@ -1,7 +1,8 @@
 "use client";
 
 // Pendientes del Admin (RN-19/FR-019b): salidas del Almacén por aprobar, conteos listos
-// para revisión y alertas (RN-14: anulaciones de compras que conservaron el costo). Aprobar genera el movimiento con el stock de ese momento; rechazar exige
+// para revisión y alertas (RN-14: anulaciones de compras que conservaron el costo; de
+// venta, 1.3; de caja, 1.4). Aprobar genera el movimiento con el stock de ese momento; rechazar exige
 // un motivo que el Almacén verá.
 import { formatCost, formatDate, formatDateTime, formatPercent, formatQuantity, formatRate, formatUsd, parseDecimalInput } from "@sht/shared";
 import { Check, X } from "lucide-react";
@@ -21,6 +22,8 @@ import { TextAreaField } from "@/components/ui/field";
 import { ApiError, apiFetch } from "@/lib/api/client";
 import type { Schemas } from "@/lib/api/client";
 import { ADJUSTMENT_REASON_LABELS } from "@/lib/products";
+import { formatMethodAmount } from "@/lib/cash";
+import { methodLabel } from "@/lib/sales";
 import { scopeLabel } from "@/lib/stock-counts";
 import type { CountSummary } from "@/lib/stock-counts";
 
@@ -270,7 +273,51 @@ function saleAlertDetail(alert: AlertItem): string {
   }
 }
 
+// Alertas de la caja (research R11 de la etapa 1.4): el cierre se guardó igual.
+const CASH_ALERT_TITLES: Record<string, string> = {
+  cash_difference: "Cierre de caja con diferencias",
+  expected_mismatch: "Esperado distinto entre el equipo y el servidor",
+  post_close_operation: "Operación posterior al cierre",
+  revoked_device_operation: "Egreso rechazado de un equipo revocado",
+};
+
+type CashAlertMethod = { method: string; currency: string; expected: string; device_expected?: string | null; counted?: string; difference?: string };
+
+function cashAlertDetail(alert: AlertItem): string {
+  const details = alert.details as Record<string, unknown>;
+  const who = `Equipo ${String(details.device_name)}; abrió ${String(details.opened_by)}${details.closed_by ? `, cerró ${String(details.closed_by)}` : ""}.`;
+  switch (alert.type) {
+    case "cash_difference":
+      return `${who} ${((details.differences as CashAlertMethod[] | undefined) ?? [])
+        .map((item) => `${methodLabel(item.method)}: esperado ${formatMethodAmount(item.expected, item.currency)}, contado ${formatMethodAmount(item.counted ?? "0", item.currency)} (${item.difference?.startsWith("-") ? "faltante" : "sobrante"} ${formatMethodAmount((item.difference ?? "0").replace(/^-/, ""), item.currency)})`)
+        .join("; ")}.`;
+    case "expected_mismatch":
+      return `${who} ${((details.methods as CashAlertMethod[] | undefined) ?? [])
+        .map((item) => `${methodLabel(item.method)}: el equipo vio ${formatMethodAmount(item.device_expected ?? "0", item.currency)} y el servidor calculó ${formatMethodAmount(item.expected, item.currency)}`)
+        .join("; ")}. Llegó una operación que el equipo no tenía al cerrar; revisa el detalle de la caja.`;
+    case "revoked_device_operation":
+      return `${who} El equipo, ya revocado, envió un egreso${details.method ? ` de ${methodLabel(String(details.method))}` : ""} por ${details.currency ? formatMethodAmount(String(details.amount), String(details.currency)) : String(details.amount)} ("${String(details.reason)}"). No se registró: si el dinero salió de la gaveta, explica el faltante al cerrar la caja.`;
+    case "post_close_operation":
+      return `${who} Llegó ${details.operation === "sale" ? `la venta ${String(details.sale_number)}` : "un egreso"} de ${formatMethodAmount(String(details.amount), String(details.currency))}, creada en el equipo antes del cierre. Se registró en la caja sin cambiar el cierre.`;
+    default:
+      return who;
+  }
+}
+
 function AlertDescription({ alert }: { alert: AlertItem }) {
+  if (alert.entity_type === "cash_session") {
+    return (
+      <>
+        <span className="block font-medium">
+          {CASH_ALERT_TITLES[alert.type] ?? alert.type} en {alert.cash_session?.device_name ?? "una caja"}
+        </span>
+        <span className="block text-sm text-ink-muted">{cashAlertDetail(alert)}</span>
+        <Link href={`/cajas/detalle/?id=${alert.entity_id}`} className="text-sm text-primary underline-offset-2 hover:underline">
+          Ver la caja
+        </Link>
+      </>
+    );
+  }
   if (alert.entity_type === "sale") {
     return (
       <>

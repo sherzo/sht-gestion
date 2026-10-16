@@ -1,5 +1,6 @@
 // Código TypeScript compartido por la app interna y el catálogo.
 export * from "./audit-actions";
+export * from "./cash";
 export * from "./format";
 export * from "./money";
 export * from "./roles";

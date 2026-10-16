@@ -422,3 +422,90 @@ def test_acciones_de_ventas_y_caja(
     group = ",".join(sorted(expected))
     listed = client.get("/api/v1/audit-log", params={"action": group}, headers=admin).json()
     assert {item["action"] for item in listed["items"]} == expected
+
+
+def test_acciones_de_caja(
+    client,
+    make_user,
+    auth_headers,
+    make_device,
+    make_rate,
+    open_cash_session,
+    make_product,
+    make_sale,
+    register_outflow,
+    close_cash_session,
+    db,
+) -> None:
+    """RF-46/FR-027: egresos y su anulación, cierre por la cola y por el Admin desde otro
+    equipo, y anulación con devolución en otra caja quedan con usuario, equipo, entidad y
+    detalle; `GET /audit-log` las filtra juntas."""
+    from app.core.clock import utcnow
+    from app.domain.business_time import business_date
+    from tests.conftest import device_headers
+
+    make_rate(business_date(utcnow()), "36.50")
+    admin_user = make_user(Role.ADMIN, username="dueno")
+    admin = auth_headers(admin_user)
+    seller_user = make_user(Role.SELLER, username="vende")
+    seller = auth_headers(seller_user)
+    counter, token = make_device("Mostrador")
+    _, tablet_token = make_device("Tablet")
+    session = open_cash_session(seller, token, "0.00", "20.00")
+    product = make_product("CON", sale_price="10.00")
+    sale = make_sale(seller, token, session["id"], [(product, "1")])
+
+    outflow = register_outflow(seller, token, session["id"], amount="2.00").json()
+    client.post(
+        f"/api/v1/cash-outflows/{outflow['id']}/void",
+        json={"reason": "Registrado por error"},
+        headers=admin,
+    )
+    assert close_cash_session(seller, token, session["id"]).status_code == 200
+    open_cash_session(seller, token)
+    voided = client.post(
+        f"/api/v1/sales/{sale['id']}/void",
+        json={"reason": "Error de cobro"},
+        headers=device_headers(admin, token),
+    )
+    assert voided.status_code == 200, voided.text
+    orphan = open_cash_session(seller, tablet_token)
+    closed = client.post(
+        f"/api/v1/cash-sessions/{orphan['id']}/close",
+        json={
+            "counts": [
+                {"method": method, "counted": "0.00"}
+                for method in ("cash_ves", "mobile_payment", "pos_card")
+                + ("cash_usd", "zelle", "binance_usdt")
+            ],
+            "note": "La tablet se dañó",
+        },
+        headers=admin,
+    )
+    assert closed.status_code == 200, closed.text
+
+    entries: dict[str, list[AuditLog]] = {}
+    for entry in db.scalars(select(AuditLog).order_by(AuditLog.occurred_at)):
+        entries.setdefault(entry.action, []).append(entry)
+    created = entries["cash_outflow.created"][0]
+    assert (created.user_id, created.device_id) == (seller_user.id, counter.id)
+    assert (created.after["method"], created.after["amount"]) == ("cash_usd", "2.00")
+    assert created.after["reason"] == "Compra de botellones de agua"
+    voided_outflow = entries["cash_outflow.voided"][0]
+    assert voided_outflow.user_id == admin_user.id
+    assert voided_outflow.reason == "Registrado por error"
+    by_queue, by_admin = entries["cash_session.closed"]
+    assert (by_queue.user_id, by_queue.device_id) == (seller_user.id, counter.id)
+    assert by_queue.after["outside_device"] is False
+    assert len(by_queue.after["counts"]) == 6
+    assert by_admin.user_id == admin_user.id
+    assert by_admin.after["outside_device"] is True
+    assert by_admin.after["note"] == "La tablet se dañó"
+    sale_void = entries["sale.voided"][0]
+    assert sale_void.after["refund_cash_session_id"] != session["id"]
+    assert sale_void.after["refund_device_id"] == str(counter.id)
+
+    expected = {"cash_outflow.created", "cash_outflow.voided", "cash_session.closed"}
+    group = ",".join(sorted(expected))
+    listed = client.get("/api/v1/audit-log", params={"action": group}, headers=admin).json()
+    assert {item["action"] for item in listed["items"]} == expected

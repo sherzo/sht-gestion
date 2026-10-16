@@ -1237,8 +1237,88 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Void Sale */
+        /**
+         * Void Sale
+         * @description Si la caja de la venta ya está cerrada, la devolución va a la caja abierta del
+         *     equipo de `X-Device-Token` (RF-27, PRD v0.11); sin él, 409 `cash_session_required`.
+         */
         post: operations["void_sale_api_v1_sales__sale_id__void_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cash-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Cash Sessions
+         * @description Más recientes primero. El Vendedor recibe solo la caja abierta del equipo desde el
+         *     que consulta y las cajas que él cerró hoy: los filtros se ignoran (FR-025).
+         */
+        get: operations["list_cash_sessions_api_v1_cash_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cash-sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Cash Session */
+        get: operations["get_cash_session_api_v1_cash_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cash-sessions/{session_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Cash Session
+         * @description Cierre de una caja de otro equipo, vigente o revocado (caja huérfana, FR-018). La
+         *     observación es obligatoria y el cierre queda marcado como hecho fuera del equipo.
+         */
+        post: operations["close_cash_session_api_v1_cash_sessions__session_id__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cash-outflows/{outflow_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void Outflow */
+        post: operations["void_outflow_api_v1_cash_outflows__outflow_id__void_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1339,6 +1419,20 @@ export interface components {
             movement?: components["schemas"]["StockMovementAdmin"] | components["schemas"]["StockMovementWarehouse"] | null;
             request?: components["schemas"]["AdjustmentRequestOut"] | null;
         };
+        /** AdminCloseIn */
+        AdminCloseIn: {
+            /** Counts */
+            counts: components["schemas"]["AdminCountIn"][];
+            /** Note */
+            note: string;
+        };
+        /** AdminCountIn */
+        AdminCountIn: {
+            /** Method */
+            method: string;
+            /** Counted */
+            counted: number | string;
+        };
         /** AdminSummary */
         AdminSummary: {
             /** Low Stock */
@@ -1383,6 +1477,7 @@ export interface components {
             resolved_at: string | null;
             resolved_by: components["schemas"]["UserRef"] | null;
             sale?: components["schemas"]["SaleRef"] | null;
+            cash_session?: components["schemas"]["CashSessionAlertRef"] | null;
         };
         /** AlertPage */
         AlertPage: {
@@ -1586,6 +1681,168 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** CashMovementOut */
+        CashMovementOut: {
+            sale: components["schemas"]["SaleRefOut"];
+            /** Kind */
+            kind: string;
+            /** Method */
+            method: string;
+            /** Currency */
+            currency: string;
+            /** Amount */
+            amount: string;
+            /** Reference */
+            reference: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** After Close */
+            after_close: boolean;
+        };
+        /** CashOutflowOut */
+        CashOutflowOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Cash Session Id
+             * Format: uuid
+             */
+            cash_session_id: string;
+            /** Method */
+            method: string;
+            /** Currency */
+            currency: string;
+            /** Amount */
+            amount: string;
+            /** Reason */
+            reason: string;
+            /** Reference */
+            reference: string | null;
+            created_by: components["schemas"]["UserRef"];
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            void: components["schemas"]["OutflowVoidOut"] | null;
+        };
+        /** CashSessionAlertRef */
+        CashSessionAlertRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Device Name */
+            device_name: string;
+        };
+        /**
+         * CashSessionClosed
+         * @description Respuesta del cierre: el detalle de la caja cerrada y las alertas creadas.
+         */
+        CashSessionClosed: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            device: components["schemas"]["DeviceBrief"];
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            /** Status */
+            status: string;
+            opened_by: components["schemas"]["UserRef"];
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            closed_by: components["schemas"]["UserRef"] | null;
+            /** Closed At */
+            closed_at: string | null;
+            /** Closed Outside Device */
+            closed_outside_device: boolean | null;
+            /** Has Differences */
+            has_differences: boolean;
+            /** Opened On Previous Day */
+            opened_on_previous_day: boolean;
+            /** Opening Float Ves */
+            opening_float_ves: string;
+            /** Opening Float Usd */
+            opening_float_usd: string;
+            closed_from_device: components["schemas"]["DeviceName"] | null;
+            /** Closing Note */
+            closing_note: string | null;
+            /** Reconciliation */
+            reconciliation: components["schemas"]["ReconciliationRowOut"][];
+            /** Movements */
+            movements: components["schemas"]["CashMovementOut"][];
+            /** Outflows */
+            outflows: components["schemas"]["CashOutflowOut"][];
+            /** Voided After Close */
+            voided_after_close: components["schemas"]["VoidedAfterCloseOut"][];
+            /** Post Close Operations */
+            post_close_operations: components["schemas"]["PostCloseOperationOut"][];
+            /** Alerts Created */
+            alerts_created: string[];
+        };
+        /** CashSessionDetail */
+        CashSessionDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            device: components["schemas"]["DeviceBrief"];
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            /** Status */
+            status: string;
+            opened_by: components["schemas"]["UserRef"];
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            closed_by: components["schemas"]["UserRef"] | null;
+            /** Closed At */
+            closed_at: string | null;
+            /** Closed Outside Device */
+            closed_outside_device: boolean | null;
+            /** Has Differences */
+            has_differences: boolean;
+            /** Opened On Previous Day */
+            opened_on_previous_day: boolean;
+            /** Opening Float Ves */
+            opening_float_ves: string;
+            /** Opening Float Usd */
+            opening_float_usd: string;
+            closed_from_device: components["schemas"]["DeviceName"] | null;
+            /** Closing Note */
+            closing_note: string | null;
+            /** Reconciliation */
+            reconciliation: components["schemas"]["ReconciliationRowOut"][];
+            /** Movements */
+            movements: components["schemas"]["CashMovementOut"][];
+            /** Outflows */
+            outflows: components["schemas"]["CashOutflowOut"][];
+            /** Voided After Close */
+            voided_after_close: components["schemas"]["VoidedAfterCloseOut"][];
+            /** Post Close Operations */
+            post_close_operations: components["schemas"]["PostCloseOperationOut"][];
+        };
         /** CashSessionOut */
         CashSessionOut: {
             /**
@@ -1615,6 +1872,48 @@ export interface components {
             opening_float_usd: string;
             /** Status */
             status: string;
+        };
+        /** CashSessionPage */
+        CashSessionPage: {
+            /** Items */
+            items: components["schemas"]["CashSessionSummary"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** CashSessionSummary */
+        CashSessionSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            device: components["schemas"]["DeviceBrief"];
+            /**
+             * Business Date
+             * Format: date
+             */
+            business_date: string;
+            /** Status */
+            status: string;
+            opened_by: components["schemas"]["UserRef"];
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            closed_by: components["schemas"]["UserRef"] | null;
+            /** Closed At */
+            closed_at: string | null;
+            /** Closed Outside Device */
+            closed_outside_device: boolean | null;
+            /** Has Differences */
+            has_differences: boolean;
+            /** Opened On Previous Day */
+            opened_on_previous_day: boolean;
         };
         /** CategoryOut */
         CategoryOut: {
@@ -1815,8 +2114,30 @@ export interface components {
             /** Phone */
             phone: string | null;
         };
+        /** DeviceBrief */
+        DeviceBrief: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Series */
+            series: string;
+        };
         /** DeviceCreate */
         DeviceCreate: {
+            /** Name */
+            name: string;
+        };
+        /** DeviceName */
+        DeviceName: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Name */
             name: string;
         };
@@ -2087,6 +2408,12 @@ export interface components {
              * Format: date
              */
             business_date: string;
+            /** Opening Float Ves */
+            opening_float_ves: string;
+            /** Opening Float Usd */
+            opening_float_usd: string;
+            /** Opened On Previous Day */
+            opened_on_previous_day: boolean;
         };
         /** OpenCountRequest */
         OpenCountRequest: {
@@ -2118,6 +2445,22 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** OutflowVoidIn */
+        OutflowVoidIn: {
+            /** Reason */
+            reason: string;
+        };
+        /** OutflowVoidOut */
+        OutflowVoidOut: {
+            /** Reason */
+            reason: string;
+            voided_by: components["schemas"]["UserRef"];
+            /**
+             * Voided At
+             * Format: date-time
+             */
+            voided_at: string;
+        };
         /** PaymentOut */
         PaymentOut: {
             /** Kind */
@@ -2148,6 +2491,27 @@ export interface components {
             width: number;
             /** Height */
             height: number;
+        };
+        /** PostCloseOperationOut */
+        PostCloseOperationOut: {
+            /** Type */
+            type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number?: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Method */
+            method?: string | null;
+            /** Amount */
+            amount?: string | null;
         };
         /** PriceOut */
         PriceOut: {
@@ -2731,10 +3095,71 @@ export interface components {
             /** Rate */
             rate: number | string;
         };
+        /** ReconciliationRowOut */
+        ReconciliationRowOut: {
+            /** Method */
+            method: string;
+            /** Method Name */
+            method_name: string;
+            /** Currency */
+            currency: string;
+            /** Opening */
+            opening: string;
+            /** Collected */
+            collected: string;
+            /** Change Given */
+            change_given: string;
+            /** Refunded */
+            refunded: string;
+            /** Change Recovered */
+            change_recovered: string;
+            /** Outflows */
+            outflows: string;
+            /** Expected */
+            expected: string;
+            /** Device Expected */
+            device_expected: string | null;
+            /** Counted */
+            counted: string | null;
+            /** Difference */
+            difference: string | null;
+        };
         /** RecordLineRequest */
         RecordLineRequest: {
             /** Counted Quantity */
             counted_quantity: number | string;
+        };
+        /**
+         * RefundCashSessionRef
+         * @description Caja que recibió la devolución: la de la venta, o la abierta del equipo desde el que
+         *     se anuló si la de la venta ya estaba cerrada (RF-27, FR-023).
+         */
+        RefundCashSessionRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            device: components["schemas"]["RefundDeviceRef"];
+        };
+        /** RefundDeviceRef */
+        RefundDeviceRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** RefundSessionOut */
+        RefundSessionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            device: components["schemas"]["DeviceName"];
         };
         /** RejectBody */
         RejectBody: {
@@ -2918,6 +3343,16 @@ export interface components {
             /** Number */
             number: string;
         };
+        /** SaleRefOut */
+        SaleRefOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+        };
         /** SaleSeller */
         SaleSeller: {
             /**
@@ -3027,6 +3462,7 @@ export interface components {
              * Format: date-time
              */
             voided_at: string;
+            refund_cash_session?: components["schemas"]["RefundCashSessionRef"] | null;
         };
         /** Scope */
         Scope: {
@@ -3605,6 +4041,16 @@ export interface components {
             cost_after_usd: string | null;
             /** Keeps Cost */
             keeps_cost: boolean;
+        };
+        /** VoidedAfterCloseOut */
+        VoidedAfterCloseOut: {
+            sale: components["schemas"]["SaleRefOut"];
+            /**
+             * Voided At
+             * Format: date-time
+             */
+            voided_at: string;
+            refund_cash_session: components["schemas"]["RefundSessionOut"] | null;
         };
         /** WarehouseSummary */
         WarehouseSummary: {
@@ -6360,6 +6806,146 @@ export interface operations {
             };
         };
     };
+    list_cash_sessions_api_v1_cash_sessions_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                device_id?: string | null;
+                opened_by?: string | null;
+                closed_by?: string | null;
+                status?: ("open" | "closed") | null;
+                with_differences?: boolean | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashSessionPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cash_session_api_v1_cash_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashSessionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_cash_session_api_v1_cash_sessions__session_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCloseIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashSessionClosed"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    void_outflow_api_v1_cash_outflows__outflow_id__void_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                outflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutflowVoidIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashOutflowOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     post_operation_api_v1_sync_operations_post: {
         parameters: {
             query?: never;
@@ -6379,7 +6965,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SaleAdmin"] | components["schemas"]["SaleSeller"] | components["schemas"]["CashSessionOut"];
+                    "application/json": components["schemas"]["SaleAdmin"] | components["schemas"]["SaleSeller"] | components["schemas"]["CashSessionOut"] | components["schemas"]["CashOutflowOut"] | components["schemas"]["CashSessionClosed"];
                 };
             };
             /** @description Validation Error */

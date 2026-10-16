@@ -133,6 +133,11 @@ def _current_device(request: Request, db: DbSession) -> Device:
     return device_from_token(db, request.headers.get(DEVICE_HEADER))
 
 
+def _optional_device(request: Request, db: DbSession) -> Device | None:
+    token = request.headers.get(DEVICE_HEADER)
+    return None if token is None else device_from_token(db, token)
+
+
 def _active_device(request: Request, db: DbSession) -> Device:
     device = device_from_token(db, request.headers.get(DEVICE_HEADER))
     ensure_active(device)
@@ -143,3 +148,6 @@ def _active_device(request: Request, db: DbSession) -> Device:
 CurrentDevice = Annotated[Device, Depends(_current_device)]
 # Equipo vigente: `/devices/current` y las autorizaciones de descuento.
 ActiveDevice = Annotated[Device, Depends(_active_device)]
+# Equipo del token si la petición lo trae (aunque esté revocado; el servicio decide), o None:
+# anulación de ventas, cierre del Admin y consulta de cajas (etapa 1.4, research R6, R8, R9).
+OptionalDevice = Annotated[Device | None, Depends(_optional_device)]

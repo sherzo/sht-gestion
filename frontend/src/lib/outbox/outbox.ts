@@ -1,5 +1,5 @@
 // Cola de salida del mostrador (FR-017; ADR-0003, research R4 de la etapa 1.3). Toda
-// operación (abrir caja, vender) se guarda primero en IndexedDB y después se envía, haya o
+// operación (abrir caja, vender, registrar un egreso, cerrar caja) se guarda primero en IndexedDB y después se envía, haya o
 // no conexión: un solo camino de código. Cada operación lleva un UUIDv7 que el servidor
 // usa como clave de idempotencia, así que reintentar nunca duplica una venta.
 import { uuidv7 } from "@sht/shared";
@@ -76,13 +76,17 @@ async function sendOne(record: OutboxRecord, token: string): Promise<"done" | "s
   }
 }
 
+// Operaciones que quedan a nombre de quien las envía (R17 de la 1.3; R3 y R4 de la 1.4).
+const OWNED_TYPES = new Set(["sale.create", "cash_outflow.create", "cash_session.close"]);
+
 /**
- * Una venta queda a nombre del usuario que la envía (R17): la de otro vendedor espera a
- * que su dueño vuelva a ingresar, en lugar de rechazarse y perderse. La apertura de caja
- * se envía con cualquier sesión, porque las ventas de esa caja dependen de ella.
+ * Una venta, un egreso o un cierre quedan a nombre del usuario que los envía (R17): los de
+ * otro usuario esperan a que su dueño vuelva a ingresar, en lugar de rechazarse y perderse.
+ * La apertura de caja se envía con cualquier sesión, porque lo demás de esa caja depende
+ * de ella.
  */
 export function waitsForOwner(record: OutboxRecord): boolean {
-  return record.type === "sale.create" && record.userId !== currentUserId;
+  return OWNED_TYPES.has(record.type) && record.userId !== currentUserId;
 }
 
 /** Envía en orden las operaciones pendientes; devuelve false si hay que reintentar. */
@@ -152,6 +156,15 @@ export function useOutboxAttention(): OutboxRecord[] {
     return () => subscription.unsubscribe();
   }, []);
   return records;
+}
+
+/**
+ * Operaciones de una caja pendientes de envío o rechazadas sin descartar: mientras haya
+ * alguna, la caja no se cierra (FR-014).
+ */
+export function useCashSessionAttention(cashSessionId: string | null): OutboxRecord[] {
+  const records = useOutboxAttention();
+  return cashSessionId ? records.filter((record) => record.payload.cash_session_id === cashSessionId) : [];
 }
 
 /** Cuántas operaciones están pendientes de envío o rechazadas. */

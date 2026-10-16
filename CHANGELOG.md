@@ -6,12 +6,49 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Etapa 1.4: egresos, cierre y cuadre de caja** (RF-27, RF-31 a RF-33, RN-12, RN-16;
+  especificación en `specs/005-cierre-caja/`):
+  - Esperado por método idéntico en el equipo y en el servidor
+    (`domain/cash_math.py` y `packages/shared/src/cash.ts`) con los mismos casos en
+    `packages/shared/test-vectors/cash.json`: fondo, cobros, vuelto, devoluciones y
+    egresos, cada método en su moneda y sin convertir.
+  - Egresos por la cola desde cualquier método, con motivo y referencia si no es
+    efectivo; en efectivo no superan el esperado. Sin autorización; el Admin los anula
+    con la caja abierta.
+  - Cierre por la cola desde el equipo de la caja: contado o verificado por método,
+    diferencia en vivo, observación obligatoria con diferencias y lista de pagos
+    electrónicos con su referencia para cotejar con el banco. El servidor recalcula y
+    alerta al Admin por diferencias (`cash_difference`) o por un esperado distinto al del
+    equipo (`expected_mismatch`). No se cierra con operaciones de la caja pendientes.
+  - Caja cerrada, conteos y egresos inmutables también ante SQL directo (migración
+    `0007_cierre_de_caja`).
+  - Cierre del Admin de la caja de otro equipo (caja huérfana), con observación
+    obligatoria; las ventas y egresos creados antes de ese cierre se registran con la
+    alerta `post_close_operation`.
+  - Anulación de una venta de una caja cerrada: la devolución va a la caja abierta del
+    equipo desde el que anula el Admin y el cierre anterior no cambia (PRD v0.11).
+  - Un equipo revocado no registra egresos ni cierra su caja por la cola, aunque la
+    operación diga ser anterior a la revocación (revisión de seguridad); su caja la
+    cierra el Admin desde otro equipo. Un egreso rechazado así avisa al Admin con la
+    alerta `revoked_device_operation`.
+  - Pantallas: Caja con esperado y egresos, Cierre de caja, Cajas (Admin, con filtros) y
+    detalle de la caja; aviso de caja abierta desde otro día en Caja y Vender; alertas de
+    caja en Pendientes.
+
 ### Cambiado
 
 - PRD v0.11, antes de especificar la etapa 1.4: al anular una venta cuya caja ya está
   cerrada, el dinero se revierte en la caja abierta del equipo desde el que el admin
   anula, sin tocar el cierre anterior (RF-27, RF-33). También en `docs/plan-de-fases.md`,
   `docs/arquitectura.md` y `docs/modelo-de-datos.md`.
+- PRD v0.12, al planificar la etapa 1.4: los egresos de caja pueden salir de cualquier
+  método de pago, con referencia en los que no son en efectivo; en efectivo no superan el
+  efectivo esperado; no requieren autorización del admin y solo el admin los anula con la
+  caja abierta; no hay ingresos de caja distintos de las ventas (RF-32). La
+  matriz de permisos suma registrar y anular egresos y cerrar la caja de otro equipo
+  (RF-31).
 
 ## [0.4.0] — 2026-10-15 — Etapa 1.3: ventas multimoneda, pagos mixtos, descuentos y apertura de caja
 

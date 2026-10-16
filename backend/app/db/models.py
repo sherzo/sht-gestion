@@ -11,6 +11,8 @@
 - Equipos, caja, ventas, pagos y descuentos (RF-18, RF-20 a RF-30):
   specs/004-ventas-multimoneda/data-model.md y docs/modelo-de-datos.md §3.1 y §3.6 a
   §3.8; los crea la migración 0006, con sus reglas.
+- Egresos, cierre y cuadre de caja (RF-27, RF-31 a RF-33): specs/005-cierre-caja/
+  data-model.md y docs/modelo-de-datos.md §3.7; los crea la migración 0007, con sus reglas.
 """
 
 import uuid
@@ -620,7 +622,7 @@ SALE_ALERT_TYPES = (
 )
 PAYMENT_KINDS = ("sale_payment", "change", "void_refund", "void_change")
 AUTHORIZATION_METHODS = ("pin", "request", "admin_self")
-OPERATION_TYPES = ("cash_session.open", "sale.create")
+OPERATION_TYPES = ("cash_session.open", "sale.create", "cash_outflow.create", "cash_session.close")
 
 
 class Device(Base):
@@ -662,8 +664,12 @@ class OutboxOperation(Base):
 
 
 class CashSession(Base):
-    """Caja abierta en un equipo con su fondo inicial (RF-29, RF-30, RN-16; R7). El cierre
-    llega en la etapa 1.4."""
+    """Caja de un equipo, de la apertura con su fondo inicial (RF-29, RF-30, RN-16) al
+    cierre con su cuadre (RF-31, RF-33; research R2 de la etapa 1.4). Al cerrarse queda
+    inmutable (trigger `cash_session_guard`).
+
+    `closed_at` es la hora del cierre en el equipo (decide si se acepta una operación
+    tardía, R7); `closed_recorded_at` es la del servidor y marca lo que llegó después."""
 
     __tablename__ = "cash_session"
 
@@ -674,8 +680,17 @@ class CashSession(Base):
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     opening_float_ves: Mapped[Decimal] = mapped_column(VesAmount)
     opening_float_usd: Mapped[Decimal] = mapped_column(UsdAmount)
-    status: Mapped[str] = mapped_column(Text, default="open")
+    status: Mapped[str] = mapped_column(Text, default="open")  # "open" | "closed"
     outbox_operation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("outbox_operation.id"), unique=True
+    )
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    closed_from_device_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("device.id"))
+    closed_outside_device: Mapped[bool | None] = mapped_column(Boolean)
+    closing_note: Mapped[str | None] = mapped_column(Text)  # 5–500 caracteres
+    closing_operation_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("outbox_operation.id"), unique=True
     )
 
@@ -832,3 +847,60 @@ class Payment(Base):
     amount_usd: Mapped[Decimal] = mapped_column(UsdAmount)
     reference: Mapped[str | None] = mapped_column(Text)
     sale_void_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("sale_void.id"))
+
+
+# --- Egresos, cierre y cuadre de caja (etapa 1.4) ------------------------------------
+# specs/005-cierre-caja/data-model.md; migración 0007, que impone los CHECK y la
+# inmutabilidad del cierre, de sus conteos y de los egresos (RF-33, RN-12, research R2).
+
+CASH_SESSION_ALERT_TYPES = (
+    "cash_difference",
+    "expected_mismatch",
+    "post_close_operation",
+    "revoked_device_operation",
+)
+
+
+class CashOutflow(Base):
+    """Egreso de caja: dinero que sale sin ser vuelto ni devolución (RF-32; research R3).
+    Id generado en el equipo. Puede salir de cualquier método; los que no son en efectivo
+    exigen referencia (RF-24). Solo cambian sus columnas de anulación, una vez y con la
+    caja abierta."""
+
+    __tablename__ = "cash_outflow"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    cash_session_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("cash_session.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("device.id"))
+    payment_method_code: Mapped[str] = mapped_column(Text, ForeignKey("payment_method.code"))
+    currency: Mapped[str] = mapped_column(Text)
+    amount: Mapped[Decimal] = mapped_column(Numeric(16, 2))  # > 0, en la moneda del método
+    reason: Mapped[str] = mapped_column(Text)  # 5–200 caracteres
+    reference: Mapped[str | None] = mapped_column(Text)  # 1–60 caracteres
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    outbox_operation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("outbox_operation.id"), unique=True
+    )
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    voided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("app_user.id"))
+    void_reason: Mapped[str | None] = mapped_column(Text)  # 5–200 caracteres
+
+
+class CashCount(Base):
+    """Conteo del cierre: una fila por método de la caja cerrada, de solo inserción
+    (RF-31, RF-33; research R2)."""
+
+    __tablename__ = "cash_count"
+    __table_args__ = (UniqueConstraint("cash_session_id", "payment_method_code"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid7)
+    cash_session_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("cash_session.id"))
+    payment_method_code: Mapped[str] = mapped_column(Text, ForeignKey("payment_method.code"))
+    currency: Mapped[str] = mapped_column(Text)
+    # Esperado según el servidor (puede ser negativo) y el que vio el equipo (nulo en el
+    # cierre del Admin desde otro equipo, R6).
+    expected_amount: Mapped[Decimal] = mapped_column(Numeric(16, 2))
+    device_expected_amount: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))
+    counted_amount: Mapped[Decimal] = mapped_column(Numeric(16, 2))  # ≥ 0
+    difference: Mapped[Decimal] = mapped_column(Numeric(16, 2))  # contado − esperado

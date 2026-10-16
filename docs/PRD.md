@@ -3,8 +3,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.11 |
-| Fecha | 2026-10-15 |
+| Versión | 0.12 |
+| Fecha | 2026-10-16 |
 | Estado | Aprobado por el dueño |
 | Documentos relacionados | `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `docs/plan-de-fases.md`, `CLAUDE.md` |
 
@@ -64,6 +64,9 @@ Sistema web para gestionar el inventario, las compras, las ventas multimoneda y 
 | Anular venta | ✅ | ❌ | ❌ |
 | Anular compra | ✅ | ❌ | ❌ |
 | Abrir/cerrar caja | ✅ | ✅ | ❌ |
+| Registrar egreso de caja | ✅ | ✅ | ❌ |
+| Anular egreso de caja | ✅ | ❌ | ❌ |
+| Cerrar la caja de otro equipo | ✅ | ❌ | ❌ |
 | Registrar y confirmar compras | ✅ | ❌ | ✅ |
 | Ajustes de inventario | ✅ | ❌ | ✅ (con motivo obligatorio; los negativos requieren aprobación del admin, RN-19) |
 | Conteo físico | ✅ | ❌ | Abre y anota; solo el admin lo aplica (RN-19) |
@@ -167,7 +170,7 @@ Cada requisito tiene un identificador (`RF-XX`) para poder referenciarlo en tare
 - **RF-29** **Apertura de caja**: el vendedor indica el fondo inicial por moneda (Bs y USD en efectivo).
 - **RF-30** Una venta solo puede registrarse con una caja abierta.
 - **RF-31** **Cierre de caja**: el sistema muestra lo esperado por método de pago, el vendedor ingresa lo contado o verificado, y el sistema calcula las diferencias.
-- **RF-32** Registrar egresos de caja (gastos menores, retiros) con motivo.
+- **RF-32** Registrar egresos de caja (gastos menores, retiros) con motivo. Pueden salir de cualquier método de pago; los que no son en efectivo exigen la referencia de la operación (como los cobros, RF-24). Un egreso en efectivo no supera el efectivo esperado de ese método en la caja. El vendedor los registra sin autorización del admin; quedan auditados y visibles en el cierre. Solo el admin los anula, y solo con la caja abierta. No hay ingresos de caja distintos de las ventas: un cambio de moneda o una reposición de sencillo dentro de la gaveta se explica en la observación del cierre.
 - **RF-33** El cierre queda guardado y no se puede editar; las correcciones se hacen con movimientos nuevos.
 
 ### 6.7 Catálogo online
@@ -328,3 +331,4 @@ El detalle va en `docs/plan-de-fases.md`.
 | 0.9 | 2026-10-13 | Aclaraciones de la etapa 1.2: si al confirmar una compra el stock previo es cero o negativo, o el producto no tiene costo, el costo pasa a ser el costo final por unidad de la compra, sin promediar (RN-09; respondida la pregunta abierta). El Almacén registra y confirma compras y ve los costos de factura que escribe, pero no el costo promedio ni márgenes (matriz de permisos). La carga de la tasa BCV (RF-17, RN-15) se adelanta a la etapa 1.2 y se confirma el supuesto 2 (§9, §11). Gastos de las compras (importaciones): por porcentaje de la factura o monto fijo, lista de gastos frecuentes y costo final por unidad repartido por valor (RF-14, RN-20, RN-09, matriz de permisos, §5.4). |
 | 0.10 | 2026-10-15 | Respondidas las preguntas abiertas de la etapa 1.3: con conexión se permite vender sin stock suficiente, con advertencia y alerta al admin por el stock negativo (RN-10); sin conexión se permiten descuentos, con la venta marcada para revisión del admin (RN-07). La apertura de caja (RF-29, RF-30, RN-16) se adelanta de la etapa 1.4 a la 1.3 (§11). Aclaraciones de la etapa 1.3: tasa de cada venta al empezarla (RF-18), aprobación de descuentos con un valor menor (RF-22), vuelto menor o igual que el excedente con sobrepago (RF-25) y anulación solo completa (RF-27). |
 | 0.11 | 2026-10-15 | Respondida la pregunta abierta de la etapa 1.4: al anular una venta cuya caja ya está cerrada, el dinero se revierte en la caja abierta del equipo desde el que el admin anula, sin tocar el cierre anterior (RF-27, RF-33). |
+| 0.12 | 2026-10-16 | Aclaraciones de la etapa 1.4: egresos desde cualquier método de pago, con referencia en los que no son en efectivo y tope en el efectivo esperado solo en efectivo, sin autorización del admin y anulables solo por el admin con la caja abierta; sin ingresos de caja distintos de las ventas (RF-32, matriz de permisos). El admin puede cerrar la caja de otro equipo (RF-31, matriz de permisos). |

@@ -57,6 +57,8 @@ class LeakCase:
     # Operación de mostrador: el cuerpo lo arma la función del contexto con ese nombre y se
     # envía el token del equipo (etapa 1.3).
     counter_body: str | None = None
+    # Consulta de mostrador: se envía el token del equipo sin cuerpo (etapa 1.4).
+    device: bool = False
 
     @property
     def id(self) -> str:
@@ -108,6 +110,11 @@ LEAK_CASES: list[LeakCase] = [
     # Consulta de ventas (US7)
     LeakCase("GET", "/api/v1/sales", (SELLER,)),
     LeakCase("GET", "/api/v1/sales/{sale_id}", (SELLER,)),
+    # Caja (etapa 1.4): el cuadre no tiene costos; se cubre igual (principio IV, SC-007).
+    LeakCase("GET", "/api/v1/cash-sessions", (SELLER,), device=True),
+    LeakCase("GET", "/api/v1/cash-sessions/{cash_session_id}", (SELLER,), device=True),
+    LeakCase("POST", "/api/v1/sync/operations", (SELLER,), counter_body="outflow_operation"),
+    LeakCase("POST", "/api/v1/sync/operations", (SELLER,), counter_body="close_operation"),
     # Conteos físicos (US5): el Almacén tampoco recibe el stock esperado ni la diferencia
     LeakCase("GET", "/api/v1/stock-counts", (WAREHOUSE,)),
     LeakCase("GET", "/api/v1/stock-counts/{count_id}", (WAREHOUSE,)),
@@ -284,6 +291,29 @@ def leak_context(
         }
         return operation("sale.create", payload)
 
+    def outflow_operation() -> dict[str, Any]:
+        payload = {
+            "id": str(uuid.uuid7()),
+            "cash_session_id": session["id"],
+            "method": "mobile_payment",
+            "amount": "100.00",
+            "reason": "Pago de un delivery",
+            "reference": "000123",
+        }
+        return operation("cash_outflow.create", payload)
+
+    def close_operation() -> dict[str, Any]:
+        detail = client.get(
+            f"/api/v1/cash-sessions/{session['id']}",
+            headers={**headers[SELLER], "X-Device-Token": token},
+        ).json()
+        counts = [
+            {"method": row["method"], "device_expected": row["expected"], "counted": "0.00"}
+            for row in detail["reconciliation"]
+        ]
+        payload = {"cash_session_id": session["id"], "counts": counts, "note": "Cierre de fuga"}
+        return operation("cash_session.close", payload)
+
     # Una venta ya registrada del Vendedor, para su consulta y el kardex del Almacén.
     sold = client.post(
         "/api/v1/sync/operations",
@@ -307,6 +337,9 @@ def leak_context(
         "frt_category_id": str(category_id("FRT")),
         "device_token": token,
         "sale_operation": sale_operation,
+        "outflow_operation": outflow_operation,
+        "close_operation": close_operation,
+        "cash_session_id": session["id"],
     }
 
 
@@ -320,6 +353,11 @@ def test_sin_costos_para_vendedor_ni_precio_para_almacen(
         kwargs: dict[str, Any] = {"headers": leak_context["headers"][role]}
         if case.counter_body is not None:
             kwargs["json"] = leak_context[case.counter_body]()
+            kwargs["headers"] = {
+                **kwargs["headers"],
+                "X-Device-Token": leak_context["device_token"],
+            }
+        elif case.device:
             kwargs["headers"] = {
                 **kwargs["headers"],
                 "X-Device-Token": leak_context["device_token"],

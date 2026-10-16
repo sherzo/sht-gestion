@@ -68,9 +68,11 @@ exactamente el mismo resultado. El principio I prohíbe el punto flotante.
 
 ### Un solo punto de implementación
 
-- Backend: `backend/app/domain/money.py` (helpers de redondeo y conversión) y
-  `backend/app/domain/sale_math.py` (cálculo completo de la venta).
-- Frontend: `packages/shared/src/money.ts`, usado por la app interna y por el catálogo.
+- Backend: `backend/app/domain/money.py` (helpers de redondeo y conversión),
+  `backend/app/domain/sale_math.py` (cálculo completo de la venta) y
+  `backend/app/domain/cash_math.py` (cuadre de caja, etapa 1.4).
+- Frontend: `packages/shared/src/money.ts`, usado por la app interna y por el catálogo, y
+  `packages/shared/src/cash.ts` (cuadre de caja).
   Usa decimal.js con `ROUND_HALF_UP`; sus pruebas corren con `node --test` (`pnpm test`).
 - Ningún otro código multiplica, divide ni redondea montos por su cuenta.
 
@@ -79,6 +81,10 @@ exactamente el mismo resultado. El principio I prohíbe el punto flotante.
 - `packages/shared/test-vectors/money.json` contiene casos con entradas y resultados esperados:
   líneas por metro y por unidad, ingreso en cm, conversión a Bs, pagos mixtos, vuelto y
   casos borde de redondeo.
+- `packages/shared/test-vectors/cash.json` (etapa 1.4) contiene los casos del cuadre de
+  caja: esperado por método con fondo, cobros, vuelto, devoluciones y egresos, contado en
+  blanco como 0,00 y esperado negativo. El cuadre solo suma y resta montos de 2 decimales
+  en la moneda de cada método: no convierte monedas ni usa la tasa del día.
 - La suite de Python y la de TypeScript ejecutan **los mismos casos**. Si una de las dos
   difiere, la CI falla.
 
