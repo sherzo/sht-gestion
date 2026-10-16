@@ -280,7 +280,8 @@ En `frontend/src/components/sales/`:
   algo, con el motivo debajo en texto secundario.
 - En la barra de la app, "Pendientes de envío: N" en `accent` cuando la cola tiene
   operaciones pendientes o rechazadas (ventas, aperturas, egresos y cierres); abre la
-  lista con su estado.
+  lista con su estado. Una operación pendiente se cuenta solo si falló un intento de envío
+  o lleva más de 5 s en la cola, para no mostrarlo por un instante en cada envío con conexión.
 
 ### 7.1.4 Componentes de caja (etapa 1.4)
 

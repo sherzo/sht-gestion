@@ -36,7 +36,7 @@ import type { ReactNode } from "react";
 
 import { Dialog } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth/use-auth";
-import { dismissRejected, hasPending, startOutbox, useOutboxAttention, waitsForOwner } from "@/lib/outbox/outbox";
+import { dismissRejected, hasPending, startOutbox, useOutboxIndicator, waitsForOwner } from "@/lib/outbox/outbox";
 
 // `section`: prefijo de las rutas de la opción cuando no coincide con `href` (por ejemplo,
 // todas las páginas de Configuración).
@@ -135,7 +135,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [outboxOpen, setOutboxOpen] = useState(false);
-  const attention = useOutboxAttention();
+  const attention = useOutboxIndicator();
 
   // La cola de salida se reintenta mientras la app esté abierta (ADR-0003).
   useEffect(() => {
