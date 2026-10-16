@@ -10,6 +10,13 @@
 
 **Requisitos del PRD**: RF-27 (reversión con la caja cerrada, PRD v0.11), RF-31 a RF-33, RN-12, RN-16 (también RF-29 y RF-30 ya entregados en la 1.3, RF-46 para la auditoría, RNF-02, RNF-05 y RNF-07; objetivo 3 y métrica "cierre de caja diario en menos de 10 minutos" del PRD §2). Decisiones técnicas previas: ADR-0003 (cola de salida e idempotencia) y ADR-0004 (dinero, cantidades y redondeo). Principios de la constitución: I (integridad monetaria), II (inmutabilidad de los cierres), III (las operaciones de caja viajan por la cola de salida para funcionar sin conexión en la 1.5), IV (permisos en el servidor, sin costos para el Vendedor) y VII (pruebas del cuadre de caja).
 
+## Clarifications
+
+### Session 2026-10-15
+
+- Q: ¿Los egresos que registra el Vendedor deben requerir autorización del Admin, como los descuentos? → A: No; el Vendedor registra el egreso directamente, queda auditado y visible en el cierre, y solo el Admin lo anula.
+- Q: ¿Hace falta registrar dinero que entra a la caja sin ser una venta (cambio de USD por Bs en la gaveta, reposición de sencillo)? → A: No; solo egresos. Cualquier diferencia por cambio de moneda o reposición se explica en la observación del cierre.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Cierre de caja con cuadre por método de pago (Priority: P1)
@@ -213,6 +220,9 @@ desde dónde.
   la caja; el esperado lo incluye.
 - **Equipo revocado con caja abierta**: no registra egresos ni cierra desde ese equipo;
   el Admin la cierra desde otro equipo (User Story 5).
+- **Cambio de moneda o reposición de sencillo en la gaveta**: no se registra; genera
+  diferencias opuestas en Efectivo Bs y Efectivo USD (o un sobrante) que el vendedor
+  explica en la observación obligatoria del cierre (FR-010).
 - **Corrección después del cierre**: el cierre no se edita; un error se corrige con un
   movimiento nuevo en la caja abierta (por ejemplo, un egreso) o se explica en la
   observación (RF-33).
@@ -225,7 +235,9 @@ desde dónde.
 
 - **FR-001**: Admin y Vendedor MUST poder registrar un egreso en la caja abierta de su
   equipo, con método en efectivo (Efectivo Bs o Efectivo USD), monto mayor que cero en
-  la moneda del método y motivo obligatorio de 5 a 200 caracteres (RF-32).
+  la moneda del método y motivo obligatorio de 5 a 200 caracteres (RF-32). El egreso del
+  Vendedor MUST NOT requerir autorización del Admin; queda auditado y visible en el
+  cierre.
 - **FR-002**: Un egreso MUST NOT superar el efectivo esperado de ese método en la caja
   en ese momento.
 - **FR-003**: Los egresos MUST ser inmutables. El Admin MUST poder anular un egreso con
@@ -362,8 +374,10 @@ desde dónde.
   proveedor por transferencia no es un egreso de caja.
 - Los egresos del Vendedor no requieren autorización del Admin; quedan auditados y
   visibles en el cierre. Solo el Admin anula egresos.
-- No hay ingresos de caja distintos de las ventas (por ejemplo, reponer sencillo a mitad
-  del día) porque el PRD no los contempla; el fondo se fija al abrir.
+- No hay ingresos de caja distintos de las ventas ni cambios de moneda dentro de la
+  gaveta (por ejemplo, reponer sencillo o cambiar USD por Bs a mitad del día) porque el
+  PRD no los contempla; el fondo se fija al abrir y la diferencia que eso cause se
+  explica en la observación del cierre (confirmado en Clarifications).
 - No hay categorías de egreso en esta etapa: el motivo es texto libre.
 - Una caja puede quedar abierta más de un día; no se cierra automáticamente.
 - El cierre no convierte monedas: cada método se cuadra en su propia moneda (USDT se
