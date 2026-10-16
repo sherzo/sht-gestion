@@ -12,8 +12,8 @@ entrega la etapa:
 - **Esperado por método** idéntico en el equipo y en el servidor:
   `domain/cash_math.py` y `packages/shared/src/cash.ts`, con los mismos casos en JSON
   (R1).
-- **Egresos** en efectivo con motivo, por la cola de salida, con tope en el efectivo
-  esperado y sin autorización. Solo el Admin los anula, y solo con la caja abierta (R3).
+- **Egresos** desde cualquier método, con motivo y referencia si no es efectivo, por la
+  cola de salida, con tope en el esperado solo en efectivo y sin autorización. Solo el Admin los anula, y solo con la caja abierta (R3).
 - **Cierre** por la cola desde el equipo de la caja: contado o verificado por método,
   diferencias, observación obligatoria con diferencias, recálculo en el servidor y
   alertas (R4).
@@ -84,7 +84,7 @@ Decisiones en [research.md](research.md).
 | 2 | Kardex e inmutabilidad (II) | Sin cambios de stock nuevos: la anulación reutiliza `post_movement` (1.3). Caja cerrada, `cash_count` y egresos protegidos con triggers, también ante SQL directo; correcciones solo con movimientos nuevos: anulación de egreso con la caja abierta, egreso nuevo, devolución en la caja abierta (R2, R3, R8; RF-33, RN-12). Auditoría en la misma transacción (R12) | ✅ |
 | 3 | Ventas sin conexión sin duplicar (III) | Egreso y cierre viajan por la cola con UUIDv7 e idempotencia de la 1.3 (R3, R4). El esperado se calcula igual en el equipo (R1), listo para la 1.5. Una venta creada antes de un cierre hecho en otro lugar se registra con alerta, nunca se pierde (R7). El modo sin conexión completo sigue en la 1.5, como fija el plan de fases | ✅ |
 | 4 | Permisos en el servidor, sin costos filtrados (IV) | Matriz por endpoint y operación (R10, contrato); el Vendedor limitado a la caja de su equipo y sus cierres de hoy en el servidor (R9); Almacén sin acceso; la caja no contiene costos y `test_no_cost_leak.py` se amplía | ✅ |
-| 5 | Alcance de la fase y respaldo del PRD (V) | RF-27 (PRD v0.11), RF-31 a RF-33, RN-12, RN-16; decisiones de `/speckit-clarify` dentro del PRD (RF-32 solo egresos). Fuera: ingresos o cambios de moneda en la gaveta (Clarifications), reporte de ventas por método (RF-39, etapa 1.7), impresión del cierre (Fase 2), modo sin conexión (1.5) | ✅ |
+| 5 | Alcance de la fase y respaldo del PRD (V) | RF-27 (PRD v0.11), RF-31 a RF-33, RN-12, RN-16; decisiones de `/speckit-clarify` y del análisis registradas en el PRD v0.12 (RF-32: egresos desde cualquier método, con referencia si no es efectivo, tope solo en efectivo, sin autorización y anulados solo por el Admin; sin ingresos de caja; filas de la matriz para egresos y el cierre de otro equipo). Fuera: ingresos o cambios de moneda en la gaveta (Clarifications), reporte de ventas por método (RF-39, etapa 1.7), impresión del cierre (Fase 2), modo sin conexión (1.5) | ✅ |
 | 6 | Presupuesto y simplicidad (VI) | Sin servicios ni dependencias nuevas. Dos tablas y columnas en `cash_session`; reutiliza la cola, el espejo de pagos y las alertas. El cierre del Admin es un endpoint directo y no pasa por la cola (R6). Sin categorías de egreso ni cierre automático | ✅ |
 | 7 | Pruebas de las reglas críticas (VII) | Cuadre de caja con casos compartidos en las dos suites (R1); idempotencia del egreso y del cierre; inmutabilidad en la base; permisos por rol; anulación con la caja cerrada (quickstart, tabla de pruebas) | ✅ |
 

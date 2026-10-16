@@ -8,13 +8,14 @@
 
 **Input**: User description: "Etapa 1.4 — Caja: egresos de caja con motivo (RF-32), cierre de caja con esperado por método de pago, contado o verificado y diferencias (RF-31), cierres inmutables y correcciones con movimientos nuevos (RF-33, RN-12), y reversión de anulaciones de ventas con la caja ya cerrada en la caja abierta del equipo desde el que el admin anula (RF-27, PRD v0.11). La apertura de caja (RF-29, RF-30, RN-16) ya se entregó en la 1.3. Terminada cuando el cierre de un día de prueba se completa en menos de 10 minutos y cuadra con las ventas, el vuelto, las anulaciones y los egresos (docs/plan-de-fases.md §1.4)."
 
-**Requisitos del PRD**: RF-27 (reversión con la caja cerrada, PRD v0.11), RF-31 a RF-33, RN-12, RN-16 (también RF-29 y RF-30 ya entregados en la 1.3, RF-46 para la auditoría, RNF-02, RNF-05 y RNF-07; objetivo 3 y métrica "cierre de caja diario en menos de 10 minutos" del PRD §2). Decisiones técnicas previas: ADR-0003 (cola de salida e idempotencia) y ADR-0004 (dinero, cantidades y redondeo). Principios de la constitución: I (integridad monetaria), II (inmutabilidad de los cierres), III (las operaciones de caja viajan por la cola de salida para funcionar sin conexión en la 1.5), IV (permisos en el servidor, sin costos para el Vendedor) y VII (pruebas del cuadre de caja).
+**Requisitos del PRD**: RF-27 (reversión con la caja cerrada, PRD v0.11), RF-31 a RF-33 (RF-32 y la matriz de permisos con las aclaraciones del PRD v0.12), RN-12, RN-16 (también RF-29 y RF-30 ya entregados en la 1.3, RF-46 para la auditoría, RNF-02, RNF-05 y RNF-07; objetivo 3 y métrica "cierre de caja diario en menos de 10 minutos" del PRD §2). Decisiones técnicas previas: ADR-0003 (cola de salida e idempotencia) y ADR-0004 (dinero, cantidades y redondeo). Principios de la constitución: I (integridad monetaria), II (inmutabilidad de los cierres), III (las operaciones de caja viajan por la cola de salida para funcionar sin conexión en la 1.5), IV (permisos en el servidor, sin costos para el Vendedor) y VII (pruebas del cuadre de caja).
 
 ## Clarifications
 
 ### Session 2026-10-15
 
 - Q: ¿Los egresos que registra el Vendedor deben requerir autorización del Admin, como los descuentos? → A: No; el Vendedor registra el egreso directamente, queda auditado y visible en el cierre, y solo el Admin lo anula.
+- Q: ¿De qué métodos puede salir un egreso? → A: De cualquier método de pago (por ejemplo, un delivery pagado por pago móvil o Binance desde la cuenta del negocio). Los que no son en efectivo exigen referencia, como los cobros (RF-24); el tope del esperado aplica solo al efectivo, porque las cuentas pueden tener dinero de otros días (PRD v0.12, sesión 2026-10-16).
 - Q: ¿Hace falta registrar dinero que entra a la caja sin ser una venta (cambio de USD por Bs en la gaveta, reposición de sencillo)? → A: No; solo egresos. Cualquier diferencia por cambio de moneda o reposición se explica en la observación del cierre.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -69,8 +70,8 @@ Intentar vender después del cierre y ver que pide abrir una caja nueva.
 
 Durante el día sale dinero de la caja que no es vuelto: compra de agua o artículos de
 limpieza, pago de un delivery, retiro del dueño. El vendedor registra cada egreso con el
-método en efectivo del que sale (Efectivo Bs o Efectivo USD), el monto y el motivo. El
-egreso resta del esperado de ese método al cerrar.
+método del que sale (efectivo, pago móvil, Binance u otro), el monto, el motivo y, si no
+es efectivo, la referencia. El egreso resta del esperado de ese método al cerrar.
 
 **Why this priority**: sin egresos registrados la caja nunca cuadra; son frecuentes en
 un negocio pequeño.
@@ -78,7 +79,9 @@ un negocio pequeño.
 **Independent Test**: con caja abierta y 20,00 USD de fondo, registrar un egreso de
 5,00 USD en Efectivo USD con el motivo "Compra de botellones de agua"; comprobar que el
 esperado de Efectivo USD baja a 15,00 y que el egreso aparece en el cierre y en la
-auditoría. Intentar un egreso sin motivo y ver que se rechaza.
+auditoría. Registrar un egreso de 300,00 Bs por Pago móvil con referencia y ver que resta
+de ese método. Intentar un egreso sin motivo, o por Pago móvil sin referencia, y ver que
+se rechaza.
 
 **Acceptance Scenarios**:
 
@@ -86,9 +89,11 @@ auditoría. Intentar un egreso sin motivo y ver que se rechaza.
    Efectivo USD con motivo, **Then** queda registrado con quién, cuándo, el método, el
    monto y el motivo, y resta 5,00 del esperado de Efectivo USD (RF-32).
 2. **Given** un egreso sin motivo, con monto cero o negativo, o en un método que no es
-   efectivo, **When** se intenta registrar, **Then** se rechaza.
-3. **Given** un egreso mayor que el efectivo esperado en ese método en ese momento,
-   **When** se intenta registrar, **Then** se rechaza indicando el efectivo disponible.
+   efectivo y sin referencia, **When** se intenta registrar, **Then** se rechaza.
+3. **Given** un egreso en efectivo mayor que el efectivo esperado en ese método en ese
+   momento, **When** se intenta registrar, **Then** se rechaza indicando el efectivo
+   disponible. En los demás métodos no hay tope: la cuenta puede tener dinero de otros
+   días.
 4. **Given** un egreso registrado por error, **When** el Admin lo anula con motivo
    mientras la caja sigue abierta, **Then** el egreso no se borra: queda anulado, deja
    de restar del esperado y la anulación queda en la auditoría (RF-33).
@@ -183,7 +188,7 @@ desde dónde.
 3. **Given** una caja cerrada por el Admin desde otro equipo, **When** llega al
    servidor una venta de esa caja creada antes del cierre (por ejemplo, desde la cola
    del equipo), **Then** la venta se registra igual en su caja, el cierre no cambia y se
-   genera una alerta "Venta posterior al cierre" para el Admin.
+   genera una alerta "Operación posterior al cierre" para el Admin.
 
 ---
 
@@ -192,10 +197,14 @@ desde dónde.
 - **Operaciones pendientes de envío en el equipo**: el cierre no se permite mientras el
   equipo tenga ventas, egresos u otras operaciones de esa caja sin enviar o rechazadas
   sin resolver; se indica cuáles son.
-- **Venta a medio hacer al cerrar**: el sistema avisa antes de cerrar; si el usuario
-  confirma, la venta a medio hacer se descarta (nunca se registra en la caja cerrada).
-- **Solicitud de descuento pendiente al cerrar**: se avisa; la solicitud deja de valer
-  porque la venta no se registró.
+- **Venta a medio hacer al cerrar**: el borrador vive solo en la pantalla de venta; al
+  ir a cerrar ya no existe y nunca se registra en la caja cerrada.
+- **Solicitud de descuento pendiente al cerrar**: queda sin uso porque su venta no se
+  registró; el Admin la ve en Pendientes y la rechaza.
+- **Operaciones pendientes de otro vendedor**: una venta o un egreso de otro usuario
+  espera en la cola a que ese usuario vuelva a ingresar en el equipo y bloquea el
+  cierre; la pantalla indica quién debe ingresar. Si no puede, el Admin cierra la caja
+  desde otro equipo (User Story 5).
 - **Caja abierta de un día anterior**: se puede vender y cerrar normalmente; el sistema
   avisa que la caja está abierta desde otro día. El cierre muestra la fecha de apertura
   y la de cierre.
@@ -234,12 +243,14 @@ desde dónde.
 **Egresos**
 
 - **FR-001**: Admin y Vendedor MUST poder registrar un egreso en la caja abierta de su
-  equipo, con método en efectivo (Efectivo Bs o Efectivo USD), monto mayor que cero en
-  la moneda del método y motivo obligatorio de 5 a 200 caracteres (RF-32). El egreso del
+  equipo, con cualquier método de pago, monto mayor que cero en la moneda del método y
+  motivo obligatorio de 5 a 200 caracteres (RF-32). Los métodos que no son en efectivo
+  MUST exigir la referencia de la operación (1 a 60 caracteres), como los cobros (RF-24). El egreso del
   Vendedor MUST NOT requerir autorización del Admin; queda auditado y visible en el
   cierre.
-- **FR-002**: Un egreso MUST NOT superar el efectivo esperado de ese método en la caja
-  en ese momento.
+- **FR-002**: Un egreso en efectivo (Efectivo Bs o Efectivo USD) MUST NOT superar el
+  efectivo esperado de ese método en la caja en ese momento. Los demás métodos no tienen
+  tope.
 - **FR-003**: Los egresos MUST ser inmutables. El Admin MUST poder anular un egreso con
   motivo mientras su caja esté abierta; la anulación deja el egreso visible como anulado
   y lo excluye del esperado (RF-33, RN-12). Con la caja cerrada, el egreso ya no se
@@ -263,8 +274,10 @@ desde dónde.
   antes de confirmar.
 - **FR-009**: Para ayudar a verificar, el cierre MUST mostrar por cada método
   electrónico la lista de cobros, vueltos y devoluciones con su referencia y venta.
-- **FR-010**: Si algún método tiene diferencia distinta de cero, el cierre MUST exigir
-  una observación (5 a 500 caracteres); sin diferencias, la observación es opcional.
+- **FR-010**: Si algún método tiene diferencia distinta de cero según el esperado que ve
+  el usuario, el cierre MUST exigir una observación (5 a 500 caracteres); sin
+  diferencias, la observación es opcional. Si el servidor recalcula otro esperado
+  (FR-012), el cierre se guarda igual y la alerta avisa al Admin.
 - **FR-011**: El cierre MUST guardar quién lo hizo, cuándo, desde qué equipo, y por cada
   método el esperado, lo contado y la diferencia; la caja pasa a cerrada en la misma
   operación (RF-31).
@@ -275,8 +288,7 @@ desde dónde.
 - **FR-013**: El cierre MUST viajar por la cola de salida con su identificador del
   equipo; reenviarlo MUST NOT duplicarlo ni cerrar otra caja (ADR-0003).
 - **FR-014**: El equipo MUST NOT permitir cerrar mientras tenga operaciones de esa caja
-  pendientes de envío o rechazadas sin resolver, y MUST avisar si hay una venta a medio
-  hacer (que se descarta al confirmar el cierre) o una solicitud de descuento pendiente.
+  pendientes de envío o rechazadas sin resolver, y MUST indicar cuáles son.
 - **FR-015**: Una caja cerrada y su cierre MUST ser inmutables, también ante cambios
   directos en la base de datos; no admite ventas, egresos ni un segundo cierre (RF-33,
   RN-12).
@@ -327,7 +339,8 @@ desde dónde.
 
 - **Caja**: la de la etapa 1.3 (equipo, quién abrió, cuándo, fondo inicial en Bs y USD)
   más estado cerrada, quién cerró, cuándo, desde qué equipo y observación.
-- **Egreso**: caja, método en efectivo, monto en su moneda, motivo, quién y cuándo; con
+- **Egreso**: caja, método de pago, monto en su moneda, motivo, referencia (si no es
+  efectivo), quién y cuándo; con
   su anulación (quién, cuándo y motivo) si la tiene.
 - **Conteo del cierre**: una fila por método de pago de la caja cerrada: esperado según
   el servidor, esperado que vio el equipo, contado o verificado y diferencia.
@@ -370,8 +383,8 @@ desde dónde.
   cola de salida para no rehacerlos en la 1.5, igual que la venta y la apertura.
 - El cierre no es "a ciegas": el PRD indica que el sistema muestra lo esperado y el
   vendedor escribe lo contado (RF-31).
-- Los egresos salen solo de efectivo (Efectivo Bs o Efectivo USD); un pago a un
-  proveedor por transferencia no es un egreso de caja.
+- Los egresos pueden salir de cualquier método de pago (Clarifications). Un pago a un
+  proveedor por una compra no es un egreso de caja: es parte de las compras.
 - Los egresos del Vendedor no requieren autorización del Admin; quedan auditados y
   visibles en el cierre. Solo el Admin anula egresos.
 - No hay ingresos de caja distintos de las ventas ni cambios de moneda dentro de la

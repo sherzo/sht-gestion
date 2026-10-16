@@ -12,6 +12,12 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3
   cerrada, el dinero se revierte en la caja abierta del equipo desde el que el admin
   anula, sin tocar el cierre anterior (RF-27, RF-33). También en `docs/plan-de-fases.md`,
   `docs/arquitectura.md` y `docs/modelo-de-datos.md`.
+- PRD v0.12, al planificar la etapa 1.4: los egresos de caja pueden salir de cualquier
+  método de pago, con referencia en los que no son en efectivo; en efectivo no superan el
+  efectivo esperado; no requieren autorización del admin y solo el admin los anula con la
+  caja abierta; no hay ingresos de caja distintos de las ventas (RF-32). La
+  matriz de permisos suma registrar y anular egresos y cerrar la caja de otro equipo
+  (RF-31).
 
 ## [0.4.0] — 2026-10-15 — Etapa 1.3: ventas multimoneda, pagos mixtos, descuentos y apertura de caja
 

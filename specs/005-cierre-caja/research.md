@@ -16,7 +16,7 @@ No quedan `NEEDS CLARIFICATION`: las dos decisiones de negocio abiertas se respo
   red.
 - Entrada: fondo inicial en Bs y USD, la lista de movimientos de dinero de la caja
   (`{method, currency, kind, amount}`, con `kind` ∈ `sale_payment`, `change`,
-  `void_refund`, `void_change`), los egresos vigentes (`{method, amount}`) y, si los hay,
+  `void_refund`, `void_change`), los egresos (`{method, amount, voided}`; los anulados no restan) y, si los hay,
   los montos contados por método.
 - Salida: una fila por cada uno de los seis métodos, en el orden del catálogo, con
   `opening`, `collected`, `change_given`, `refunded`, `change_recovered`, `outflows`,
@@ -46,8 +46,12 @@ la 1.5 y contradice FR-007); una vista SQL (duplica la regla en un tercer lengua
 
 - `cash_session` suma `closed_at`, `closed_by`, `closed_from_device_id` (nulo si el Admin
   cierra desde un navegador que no es equipo), `closed_outside_device` (true si no se
-  cerró desde el equipo de la caja), `closing_note` y `closing_operation_id` (operación
-  de la cola, nula en el cierre del Admin desde otro lugar). El CHECK de `status` admite
+  cerró desde el equipo de la caja), `closing_note`, `closing_operation_id` (operación
+  de la cola, nula en el cierre del Admin desde otro lugar) y `closed_recorded_at` (hora
+  del servidor en la transacción del cierre; en el cierre del Admin es igual a
+  `closed_at`). `closed_at` es la hora del equipo y decide si se acepta una operación
+  tardía (R7); `closed_recorded_at` es la del servidor y marca qué llegó después del
+  cierre, sin mezclar relojes. El CHECK de `status` admite
   `open` y `closed`, y un CHECK exige que las columnas de cierre estén completas si y solo
   si `status = 'closed'`.
 - El trigger `cash_session_guard` se amplía: los datos de apertura nunca cambian; la
@@ -72,18 +76,22 @@ un estado de la caja, como ya prevé el modelo de datos); guardar los conteos en
 **Decisión**:
 
 - Tabla `cash_outflow` con id generado en el equipo. Columnas: `cash_session_id`,
-  `device_id`, `payment_method_code` (CHECK `IN ('cash_ves', 'cash_usd')`), `currency`,
-  `amount > 0`, `reason` (5–200), `created_by`, `occurred_at`, `outbox_operation_id`
+  `device_id`, `payment_method_code` (cualquier método del catálogo), `currency` (la del
+  método), `amount > 0`, `reason` (5–200), `reference` (1–60; obligatoria si el método la
+  exige, con el mismo trigger `payment_reference_check()` de los pagos, RF-24), `created_by`, `occurred_at`, `outbox_operation_id`
   (único, diferida como en la venta) y la anulación: `voided_at`, `voided_by`,
   `void_reason` (5–200).
 - Llega por la cola: operación `cash_outflow.create` con `{id, cash_session_id, method,
-  amount, reason}`. El servidor bloquea la caja y rechaza (permanente, se guarda en la
+  amount, reason, reference}`. El servidor bloquea la caja y rechaza (permanente, se guarda en la
   cola):
   - 409 `cash_session_unavailable` si la caja no existe o no es del equipo, y 409
     `cash_session_closed` si está cerrada (salvo el caso de R7);
-  - 422 si el método no es efectivo, el monto no es positivo o el motivo no cumple;
-  - 409 `insufficient_cash` si el monto supera el esperado actual de ese método,
-    calculado con R1 dentro de la misma transacción. Trae `available` y `currency`.
+  - 422 si el método no existe, el monto no es positivo, el motivo no cumple o falta la
+    referencia en un método que la exige;
+  - solo en efectivo (`payment_method.is_cash`), 409 `insufficient_cash` si el monto
+    supera el esperado actual de ese método, calculado con R1 dentro de la misma
+    transacción. Trae `available` y `currency`. Los demás métodos no tienen tope: el
+    banco o Binance pueden tener dinero de otros días (Clarifications).
 - Queda a nombre del usuario de la sesión que la envía, como la venta (R17 de la 1.3).
   La cola del equipo la trata igual: espera a su dueño (`waitsForOwner`).
 - Sin autorización del Admin (Clarifications). Audita `cash_outflow.created`.
@@ -124,9 +132,10 @@ dinero de ventas con gastos); borrar el egreso erróneo (prohibido por RN-12).
   2. Exige que la caja sea del equipo y esté abierta: 409 `cash_session_unavailable` o
      409 `cash_session_closed`.
   3. Valida los seis métodos (422 si falta o se repite alguno, o si un contado es
-     negativo o no tiene 2 decimales).
-  4. Recalcula el esperado con R1 y la observación según las diferencias que vio el
-     equipo (422 si falta).
+     negativo o tiene más de 2 decimales).
+  4. Recalcula el esperado con R1 y exige la observación según las diferencias que vio
+     el equipo (422 si falta). Si con el esperado del servidor aparece otra diferencia,
+     el cierre se guarda igual y la avisa `expected_mismatch` (FR-010, FR-012).
   5. Guarda `cash_count` con el esperado del servidor, el del equipo y la diferencia
      contra el del servidor; pasa la caja a `closed` con quién, cuándo
      (`created_at` de la operación), desde qué equipo y la observación.
@@ -192,7 +201,10 @@ del equipo de la caja.
   abrir caja (RF-30).
 - El egreso tardío no se valida contra el efectivo disponible: la caja ya está cerrada y
   el dinero ya salió.
-- El detalle de la caja muestra aparte las operaciones posteriores al cierre.
+- El detalle de la caja muestra aparte las operaciones posteriores al cierre: las que el
+  servidor registró después de `closed_recorded_at` (`sale.synced_at` de la venta o
+  `received_at` de la operación de cola del egreso). Así se comparan solo horas del
+  servidor y un reloj atrasado en el equipo no marca como tardía una venta normal.
 
 **Razón**: el principio III prohíbe perder una venta. En la práctica solo ocurre si el
 Admin cierra una caja huérfana (R6) mientras el equipo tenía operaciones en su cola.
@@ -244,7 +256,8 @@ sale de donde está).
   los pagos de la caja con venta, número, tipo, método, monto y referencia), `outflows`
   (con anulación), `reconciliation` (las filas de R1, calculadas en el servidor; si está
   cerrada, las de `cash_count` con el esperado del equipo), `voided_after_close`
-  (ventas de esta caja anuladas después del cierre, con la caja de la devolución) y
+  (ventas de esta caja con `sale_void.voided_at` posterior a `closed_recorded_at`, con
+  la caja de la devolución) y
   `post_close_operations`. Para el Vendedor solo es visible la caja abierta de su equipo
   o una que él cerró hoy; si no, 404.
 - La caja no contiene costos ni márgenes; no hay esquema por rol. `test_no_cost_leak.py`
@@ -297,7 +310,8 @@ La anulación de una venta con devolución en otra caja amplía `sale.voided` (R
 ## R13. Pantallas (FR-028; RNF-02, RNF-07)
 
 - **Caja** (`/caja/`): estado de la caja, esperado actual por método, botón "Registrar
-  egreso" (diálogo con método en efectivo, monto y motivo; muestra el disponible), lista
+  egreso" (diálogo con método, monto, motivo y referencia si no es efectivo; en efectivo
+  muestra el disponible), lista
   de egresos del día y botón "Cerrar caja". Tras cerrar, muestra el resumen del cierre y
   el formulario de apertura.
 - **Cierre** (`/caja/cierre/`): R4. En teléfono, una tarjeta por método; en PC, una

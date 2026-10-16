@@ -16,9 +16,9 @@ paginación y la cabecera `X-Device-Token`) son las de
 | 409 | `cash_session_unavailable` | La caja indicada no existe o no es del equipo que envía la operación |
 | 409 | `cash_session_closed` | La caja ya está cerrada: segundo cierre, egreso o venta creados después del cierre (R7), o anulación de un egreso con la caja cerrada |
 | 409 | `cash_session_required` | Anular una venta cuya caja está cerrada sin estar en un equipo registrado, vigente y con caja abierta (R8) |
-| 409 | `insufficient_cash` | El egreso supera el efectivo esperado del método; incluye `available` y `currency` |
+| 409 | `insufficient_cash` | El egreso en efectivo supera el esperado del método; incluye `available` y `currency`. Los demás métodos no tienen tope |
 | 409 | `invalid_state` | Anular un egreso ya anulado |
-| 422 | `validation_error` | Método que no es efectivo, monto ≤ 0, motivo u observación fuera de longitud, conteos incompletos, repetidos o negativos, observación faltante con diferencias o en el cierre fuera del equipo |
+| 422 | `validation_error` | Método inexistente, referencia faltante en un método que la exige, monto ≤ 0, motivo u observación fuera de longitud, conteos incompletos, repetidos o negativos, observación faltante con diferencias o en el cierre fuera del equipo |
 
 Las operaciones de cola rechazadas guardan su respuesta y la repiten en un reenvío (R4
 de la 1.3).
@@ -33,9 +33,14 @@ de la 1.3).
   "cash_session_id": "…",
   "method": "cash_usd",
   "amount": "5.00",
-  "reason": "Compra de botellones de agua"
+  "reason": "Compra de botellones de agua",
+  "reference": null
 }
 ```
+
+- `method`: cualquier método del catálogo. `reference` (1–60) es obligatoria en los que la
+  exigen (todos excepto el efectivo, RF-24).
+- Solo en efectivo el monto no puede superar el esperado del método (`insufficient_cash`).
 
 Respuesta: `CashOutflow`. Queda a nombre del usuario de la sesión, con `occurred_at` =
 `created_at` de la operación.
@@ -58,7 +63,10 @@ Respuesta: `CashOutflow`. Queda a nombre del usuario de la sesión, con `occurre
 ```
 
 - `counts` debe traer exactamente los seis métodos del catálogo, sin repetir. `counted`
-  ≥ 0 con 2 decimales.
+  ≥ 0 con como máximo 2 decimales.
+- `note` se exige según las diferencias que vio el equipo (`counted − device_expected`);
+  si el esperado del servidor da otra diferencia, el cierre se guarda igual con la alerta
+  `expected_mismatch`.
 - `note` es obligatoria (5–500) si algún `counted − device_expected` es distinto de cero.
 - Respuesta: `CashSessionDetail` de la caja cerrada, más `alerts_created: [type]`.
 
@@ -70,7 +78,7 @@ Respuesta: `CashOutflow`. Queda a nombre del usuario de la sesión, con `occurre
 {
   "id": "…", "cash_session_id": "…",
   "method": "cash_usd", "currency": "USD", "amount": "5.00",
-  "reason": "Compra de botellones de agua",
+  "reason": "Compra de botellones de agua", "reference": null,
   "created_by": {"id": "…", "full_name": "…"}, "occurred_at": "…",
   "void": null
 }
@@ -142,7 +150,10 @@ Extiende `CashSessionSummary` con:
 - `movements` incluye todos los pagos con `cash_session_id` = la caja. Eso cubre las
   devoluciones de ventas de otras cajas anuladas aquí: su `sale` es la venta original.
   El equipo los usa para calcular el cuadre con `computeReconciliation` (FR-007).
-- `after_close = true` en los movimientos de operaciones posteriores al cierre (R7).
+- `after_close = true` en los movimientos de operaciones posteriores al cierre (R7): las
+  que el servidor registró después de `closed_recorded_at`.
+- `voided_after_close`: ventas de esta caja con `sale_void.voided_at` posterior a
+  `closed_recorded_at`.
 - La caja no tiene costos ni márgenes: el mismo esquema sirve para todos los roles.
 
 ### Cambios en esquemas existentes

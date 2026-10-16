@@ -17,7 +17,7 @@ erDiagram
     cash_session ||--o{ payment : "pagos, vueltos y devoluciones"
     cash_session ||--o{ cash_outflow : egresos
     cash_session ||--o{ cash_count : "cuadre al cerrar"
-    payment_method ||--o{ cash_outflow : "efectivo"
+    payment_method ||--o{ cash_outflow : "método"
     payment_method ||--o{ cash_count : "una fila por método"
     app_user ||--o{ cash_outflow : registra
     app_user ||--o{ cash_session : "abre y cierra"
@@ -38,12 +38,13 @@ erDiagram
 | `closed_outside_device` | boolean, nulo | true si no se cerró desde el equipo de la caja (US5) |
 | `closing_note` | text, nulo | 5–500 caracteres; obligatoria con diferencias o fuera del equipo (lo exige el servicio) |
 | `closing_operation_id` | uuid → `outbox_operation`, nulo, único | Operación `cash_session.close`; diferida como `outbox_operation_id`; nula en el cierre del Admin (R6) |
+| `closed_recorded_at` | timestamptz, nulo | Hora del servidor en la transacción del cierre (igual a `closed_at` en el cierre del Admin). Marca qué operaciones y anulaciones llegaron después del cierre comparando solo horas del servidor (R7) |
 
 **Restricciones**:
 
 - `ck_cash_session_status_valid`: `status IN ('open', 'closed')`.
-- `ck_cash_session_closing`: si `status = 'closed'`, `closed_at`, `closed_by` y
-  `closed_outside_device` no son nulos; si `status = 'open'`, todas las columnas de
+- `ck_cash_session_closing`: si `status = 'closed'`, `closed_at`, `closed_recorded_at`,
+  `closed_by` y `closed_outside_device` no son nulos; si `status = 'open'`, todas las columnas de
   cierre son nulas.
 - `ck_cash_session_note_length`: `closing_note` es nula o tiene entre 5 y 500
   caracteres.
@@ -72,19 +73,24 @@ exactamente una fila de `cash_count` por cada método de `payment_method`.
 | `id` | uuid | Generado en el equipo |
 | `cash_session_id` | uuid → `cash_session` | Caja de la que sale el dinero |
 | `device_id` | uuid → `device` | Equipo que lo registró |
-| `payment_method_code` | text → `payment_method` | `CHECK IN ('cash_ves', 'cash_usd')` |
-| `currency` | text | `VES` o `USD`, la del método (`CHECK` con el método) |
+| `payment_method_code` | text → `payment_method` | Cualquier método del catálogo |
+| `currency` | text | `VES`, `USD` o `USDT`, la del método (la fija el servicio) |
 | `amount` | numeric(16, 2) | > 0, en la moneda del método |
 | `reason` | text | 5–200 caracteres |
+| `reference` | text, nulo | 1–60 caracteres; obligatoria si el método la exige (RF-24) |
 | `created_by` | uuid → `app_user` | Usuario de la sesión que lo envió |
 | `occurred_at` | timestamptz | `created_at` de la operación en el equipo |
 | `outbox_operation_id` | uuid → `outbox_operation`, único | Diferida, como en la venta |
 | `voided_at`, `voided_by`, `void_reason` | nulos | Anulación del Admin; las tres juntas; motivo 5–200 |
 
-**Restricciones e índices**: `ck_cash_outflow_method` (método y moneda coherentes:
-`cash_ves`/`VES` o `cash_usd`/`USD`), `ck_cash_outflow_amount_positive`,
-`ck_cash_outflow_reason_length`, `ck_cash_outflow_void` (las tres columnas de anulación
+**Restricciones e índices**: `ck_cash_outflow_currency_valid` (`VES`, `USD` o `USDT`),
+`ck_cash_outflow_amount_positive`, `ck_cash_outflow_reason_length`,
+`ck_cash_outflow_reference_length` (nula o 1–60), `ck_cash_outflow_void` (las tres columnas de anulación
 nulas o completas, motivo 5–200), `ix_cash_outflow_cash_session (cash_session_id)`.
+
+**Trigger `cash_outflow_reference`** (`BEFORE INSERT`): reutiliza la función
+`payment_reference_check()` de la 1.3, que rechaza la fila si el método exige referencia
+y `reference` es nula.
 
 **Trigger `cash_outflow_guard`** (`BEFORE UPDATE OR DELETE`):
 
@@ -93,8 +99,9 @@ nulas o completas, motivo 5–200), `ix_cash_outflow_cash_session (cash_session_
   completas).
 - Solo si la caja del egreso está `open` (R3).
 
-El servicio valida que la caja esté abierta al insertar (o el caso de R7) y que el monto
-no supere el efectivo esperado. La base no lo impone porque depende del cálculo de R1.
+El servicio fija la moneda del método, valida que la caja esté abierta al insertar (o el
+caso de R7) y, solo en efectivo (`payment_method.is_cash`), que el monto no supere el
+esperado. La base no impone el tope porque depende del cálculo de R1.
 
 ## `cash_count` (nueva; RF-31; R2)
 
@@ -154,7 +161,8 @@ expected(método) = fondo (solo cash_ves y cash_usd)
   método.
 - Las ventas registradas después del cierre (R7) y sus pagos tienen la caja cerrada como
   `cash_session_id`, pero no alteran el `cash_count` guardado. El detalle las muestra
-  aparte.
+  aparte: son las que el servidor registró después de `closed_recorded_at`
+  (`sale.synced_at` o `outbox_operation.received_at` del egreso).
 
 ## Reglas transversales
 
@@ -170,8 +178,8 @@ expected(método) = fondo (solo cash_ves y cash_usd)
 
 - §3.7:
   - `cash_session` con `closed`, sus columnas de cierre y el trigger ampliado;
-  - `cash_outflow` con `payment_method_code`, `currency`, `device_id`,
-    `outbox_operation_id` y la anulación;
+  - `cash_outflow` con `payment_method_code` (cualquier método), `currency`,
+    `reference`, `device_id`, `outbox_operation_id` y la anulación;
   - `cash_count` con `payment_method_code`, `currency` y `device_expected_amount`;
   - la devolución de una anulación en otra caja.
 - §1.4: `cash_session` inmutable al cerrarse; `cash_outflow` y `cash_count`.

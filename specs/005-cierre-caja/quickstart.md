@@ -43,7 +43,7 @@ Pruebas clave de la etapa (todas referencian su FR o RF):
 | Prueba | Verifica |
 |---|---|
 | `test_cash_math.py` y `cash.test.ts` | Los mismos casos de `packages/shared/test-vectors/cash.json`: escenario de la US1, vuelto electrónico, anulación en la misma caja, devolución de otra caja, egreso anulado, caja vacía, contado en blanco y esperado negativo (FR-006, FR-007, SC-002, SC-003; sin base de datos) |
-| `test_cash_outflows.py` | Egreso por la cola en Efectivo Bs y USD; rechazos por método electrónico, monto ≤ 0, motivo, caja cerrada o ajena y `insufficient_cash`; reenvío sin duplicar; anulación del Admin con caja abierta y rechazo con la caja cerrada; auditoría (FR-001 a FR-004, SC-004) |
+| `test_cash_outflows.py` | Egreso por la cola en Efectivo Bs y USD y por Pago móvil y Binance USDT con referencia; sin tope en los electrónicos; rechazos por referencia faltante, monto ≤ 0, motivo, caja cerrada o ajena y `insufficient_cash`; reenvío sin duplicar; anulación del Admin con caja abierta y rechazo con la caja cerrada; auditoría (FR-001 a FR-004, SC-004) |
 | `test_cash_close.py` | Cierre por la cola: esperado del servidor, conteos y diferencias, observación obligatoria con diferencias, alertas `cash_difference` y `expected_mismatch`, segundo cierre rechazado, reenvío sin duplicar, apertura de una caja nueva tras el cierre, venta rechazada en la caja cerrada (FR-005 a FR-017, SC-004, SC-008) |
 | `test_cash_close_admin.py` | Cierre del Admin desde otro navegador o de un equipo revocado, observación obligatoria, marca `closed_outside_device`, Vendedor rechazado; venta y egreso creados antes del cierre registrados con alerta `post_close_operation` y los creados después rechazados (FR-018, FR-019) |
 | `test_sale_void_closed_session.py` | Anulación con la caja abierta (devolución en esa caja) y con la caja cerrada (devolución en la caja abierta del equipo del Admin, cierre intacto); `cash_session_required` sin equipo o sin caja abierta; detalle de la venta y de la caja original (FR-020 a FR-023, SC-006) |
@@ -66,8 +66,11 @@ Pruebas clave de la etapa (todas referencian su FR o RF):
 2. **Egresos (US2)**:
    - Registrar un egreso de 5,00 USD en Efectivo USD con el motivo "Compra de
      botellones de agua": el esperado baja a 62,70.
-   - Intentar un egreso sin motivo y otro de 100,00 USD: el primero no deja confirmar;
-     el segundo se rechaza indicando el disponible.
+   - Intentar un egreso sin motivo y otro de 100,00 USD en Efectivo USD: el primero no
+     deja confirmar; el segundo se rechaza indicando el disponible.
+   - Registrar un egreso de 300,00 Bs por Pago móvil con referencia (sin cobros por Pago
+     móvil): se acepta y el esperado de Pago móvil queda en −300,00. Sin referencia, no
+     deja confirmar.
    - Como Admin, anular el egreso con motivo: queda tachado como anulado, el esperado
      vuelve a 67,70 y la auditoría registra las dos acciones.
 3. **Cierre con diferencia (US1)**:
