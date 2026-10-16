@@ -38,58 +38,94 @@ import { Dialog } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth/use-auth";
 import { dismissRejected, hasPending, startOutbox, useOutboxAttention, waitsForOwner } from "@/lib/outbox/outbox";
 
-type NavItem = { href: string; label: string; icon: LucideIcon; roles: Role[] };
+// `section`: prefijo de las rutas de la opción cuando no coincide con `href` (por ejemplo,
+// todas las páginas de Configuración).
+type NavItem = { href: string; label: string; icon: LucideIcon; roles: Role[]; section?: string };
+type NavGroup = { label: string | null; items: NavItem[] };
 
 const ALL_ROLES: Role[] = ["admin", "seller", "warehouse"];
 
-export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Inicio", icon: Home, roles: ALL_ROLES },
-  { href: "/vender/", label: "Vender", icon: ShoppingBag, roles: ["admin", "seller"] },
-  { href: "/ventas/", label: "Ventas", icon: ReceiptText, roles: ["admin", "seller"] },
-  { href: "/caja/", label: "Caja", icon: Wallet, roles: ["admin", "seller"] },
-  { href: "/cajas/", label: "Cajas", icon: Vault, roles: ["admin"] },
-  { href: "/productos/", label: "Productos", icon: Package, roles: ALL_ROLES },
-  { href: "/inventario/ajuste/", label: "Ajuste de inventario", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
-  { href: "/inventario/stock-bajo/", label: "Stock bajo", icon: AlertTriangle, roles: ["admin", "warehouse"] },
-  { href: "/inventario/conteos/", label: "Conteos", icon: ClipboardCheck, roles: ["admin", "warehouse"] },
-  { href: "/inventario/mis-solicitudes/", label: "Mis solicitudes", icon: ClipboardList, roles: ["warehouse"] },
-  { href: "/compras/", label: "Compras", icon: ShoppingCart, roles: ["admin", "warehouse"] },
-  { href: "/proveedores/", label: "Proveedores", icon: Truck, roles: ["admin", "warehouse"] },
-  { href: "/pendientes/", label: "Pendientes", icon: Inbox, roles: ["admin"] },
-  { href: "/tasas/", label: "Tasa BCV", icon: Landmark, roles: ["admin"] },
-  { href: "/configuracion/categorias/", label: "Configuración", icon: Settings, roles: ["admin"] },
-  { href: "/usuarios/", label: "Usuarios", icon: Users, roles: ["admin"] },
-  { href: "/auditoria/", label: "Auditoría", icon: History, roles: ["admin"] },
-  { href: "/mi-cuenta/", label: "Mi cuenta", icon: UserCog, roles: ALL_ROLES },
+// Menú por secciones con título, sin desplegables: lo frecuente del mostrador queda a un
+// clic. Cada rol ve solo sus opciones y las secciones vacías no se muestran.
+export const NAV_GROUPS: NavGroup[] = [
+  { label: null, items: [{ href: "/", label: "Inicio", icon: Home, roles: ALL_ROLES }] },
+  {
+    label: "Ventas y caja",
+    items: [
+      { href: "/vender/", label: "Vender", icon: ShoppingBag, roles: ["admin", "seller"] },
+      { href: "/ventas/", label: "Ventas", icon: ReceiptText, roles: ["admin", "seller"] },
+      { href: "/caja/", label: "Caja", icon: Wallet, roles: ["admin", "seller"] },
+      { href: "/cajas/", label: "Cajas", icon: Vault, roles: ["admin"] },
+    ],
+  },
+  {
+    label: "Inventario",
+    items: [
+      { href: "/productos/", label: "Productos", icon: Package, roles: ALL_ROLES },
+      { href: "/inventario/ajuste/", label: "Ajuste de inventario", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
+      { href: "/inventario/stock-bajo/", label: "Stock bajo", icon: AlertTriangle, roles: ["admin", "warehouse"] },
+      { href: "/inventario/conteos/", label: "Conteos", icon: ClipboardCheck, roles: ["admin", "warehouse"] },
+      { href: "/inventario/mis-solicitudes/", label: "Mis solicitudes", icon: ClipboardList, roles: ["warehouse"] },
+    ],
+  },
+  {
+    label: "Compras",
+    items: [
+      { href: "/compras/", label: "Compras", icon: ShoppingCart, roles: ["admin", "warehouse"] },
+      { href: "/proveedores/", label: "Proveedores", icon: Truck, roles: ["admin", "warehouse"] },
+    ],
+  },
+  {
+    label: "Administración",
+    items: [
+      { href: "/pendientes/", label: "Pendientes", icon: Inbox, roles: ["admin"] },
+      { href: "/tasas/", label: "Tasa BCV", icon: Landmark, roles: ["admin"] },
+      { href: "/usuarios/", label: "Usuarios", icon: Users, roles: ["admin"] },
+      { href: "/auditoria/", label: "Auditoría", icon: History, roles: ["admin"] },
+      { href: "/configuracion/categorias/", label: "Configuración", icon: Settings, roles: ["admin"], section: "/configuracion/" },
+    ],
+  },
+  { label: null, items: [{ href: "/mi-cuenta/", label: "Mi cuenta", icon: UserCog, roles: ALL_ROLES }] },
 ];
 
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  return pathname.startsWith(href.replace(/\/$/, ""));
+/** Activa si la ruta es la de la opción o una de sus subpáginas, segmento completo:
+ * `/cajas/` no activa `/caja/`. */
+function isActive(pathname: string, item: NavItem): boolean {
+  if (item.href === "/") return pathname === "/";
+  const base = (item.section ?? item.href).replace(/\/$/, "");
+  return pathname === base || pathname.startsWith(`${base}/`);
 }
 
-function NavLinks({ items, pathname, onNavigate }: { items: NavItem[]; pathname: string; onNavigate?: () => void }) {
+function NavLinks({ groups, pathname, onNavigate }: { groups: NavGroup[]; pathname: string; onNavigate?: () => void }) {
   return (
-    <ul className="flex flex-col gap-1">
-      {items.map(({ href, label, icon: Icon }) => {
-        const active = isActive(pathname, href);
-        return (
-          <li key={href}>
-            <Link
-              href={href}
-              onClick={onNavigate}
-              aria-current={active ? "page" : undefined}
-              className={`flex min-h-11 items-center gap-3 rounded-lg px-3 font-medium ${
-                active ? "bg-accent text-on-accent" : "text-ink hover:bg-neutral-100"
-              }`}
-            >
-              <Icon aria-hidden className="size-5" />
-              {label}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="flex flex-col gap-3">
+      {groups.map((group, index) => (
+        <div key={group.label ?? `grupo-${index}`} className="flex flex-col gap-1">
+          {group.label && <p className="px-3 pt-1 text-xs font-semibold tracking-wide text-ink-muted uppercase">{group.label}</p>}
+          <ul className="flex flex-col gap-1">
+            {group.items.map((item) => {
+              const active = isActive(pathname, item);
+              const Icon = item.icon;
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={onNavigate}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex min-h-11 items-center gap-3 rounded-lg px-3 font-medium ${
+                      active ? "bg-accent text-on-accent" : "text-ink hover:bg-neutral-100"
+                    }`}
+                  >
+                    <Icon aria-hidden className="size-5" />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -107,7 +143,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [user]);
 
   if (!user) return null;
-  const items = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
+  const groups = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter((item) => item.roles.includes(user.role)) })).filter(
+    (group) => group.items.length > 0,
+  );
 
   async function onLogout() {
     if (
@@ -178,13 +216,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {menuOpen && (
         <nav id="menu-movil" aria-label="Menú principal" className="border-b border-line bg-surface p-2 md:hidden">
-          <NavLinks items={items} pathname={pathname} onNavigate={() => setMenuOpen(false)} />
+          <NavLinks groups={groups} pathname={pathname} onNavigate={() => setMenuOpen(false)} />
         </nav>
       )}
 
       <div className="flex flex-1">
         <nav aria-label="Menú principal" className="hidden w-56 shrink-0 border-r border-line bg-surface p-3 md:block">
-          <NavLinks items={items} pathname={pathname} />
+          <NavLinks groups={groups} pathname={pathname} />
         </nav>
         <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
       </div>

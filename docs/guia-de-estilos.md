@@ -192,8 +192,12 @@ escribir estilos propios.
 Otros elementos comunes en `frontend/src/components/`:
 
 - `AppShell`: barra superior `bg-primary` con el logo negativo, nombre y rol del usuario y
-  "Cerrar sesión"; menú lateral en PC y desplegable en el teléfono. El menú muestra solo
-  las secciones del rol (`NAV_ITEMS`); el elemento activo usa `bg-accent text-on-accent`.
+  "Cerrar sesión"; menú lateral en PC y desplegable en el teléfono. El menú se agrupa en
+  secciones con título (Ventas y caja, Inventario, Compras, Administración; `NAV_GROUPS`),
+  sin desplegables, para que lo frecuente quede a un clic; cada rol ve solo sus opciones y
+  una sección vacía no se muestra. El título va en `text-xs` mayúsculas `text-ink-muted`;
+  el elemento activo usa `bg-accent text-on-accent` y se marca por segmento completo de la
+  ruta (`/cajas/` no activa `/caja/`).
 - `AuthCard`: tarjeta centrada con el logo para las pantallas sin sesión.
 - `ReauthDialog`: si la sesión termina durante un trabajo, pide la contraseña sobre la
   página actual sin perder lo escrito.
