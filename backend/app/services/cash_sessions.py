@@ -465,8 +465,14 @@ def close_cash_session(
     Por la cola (`outside_device = False`), la caja debe ser del equipo. El Admin desde
     otro equipo (`outside_device = True`) cierra cualquier caja abierta, con observación
     siempre obligatoria. Devuelve la caja y los tipos de alerta creados."""
+    # Por la cola, un equipo revocado no cierra su caja aunque la operación diga ser
+    # anterior a la revocación: la hora la escribe el equipo (revisión de seguridad de la
+    # 1.4). La cierra el Admin desde otro equipo (FR-018). Se lee con el equipo bloqueado,
+    # para ver una revocación confirmada mientras llegaba la operación.
     if device is not None:
-        db.execute(select(Device.id).where(Device.id == device.id).with_for_update())
+        device = db.get(Device, device.id, with_for_update=True, populate_existing=True)
+    if not outside_device and device is not None and device.revoked_at is not None:
+        raise device_revoked()
     session = db.get(CashSession, session_id, with_for_update=True, populate_existing=True)
     if session is None:
         if outside_device:

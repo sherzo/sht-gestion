@@ -307,7 +307,10 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 - Permisos por rol en cada endpoint y esquemas de respuesta por rol, sin campos de costo
   para Vendedor y Almacén.
 - Cada equipo de mostrador tiene un token propio (solo se guarda su SHA-256); un equipo
-  revocado no abre caja ni vende, salvo las operaciones creadas antes de revocarlo. Una
+  revocado no abre caja, no registra egresos ni cierra su caja por la cola, aunque la
+  operación diga ser anterior a la revocación (la hora la escribe el equipo); su caja la
+  cierra el Admin desde otro equipo. Solo sus ventas creadas antes de revocarlo se aceptan,
+  con alerta, para no perderlas. Una
   venta queda a nombre del usuario de la sesión que la envía, y el PIN del Admin nunca se
   guarda en el equipo ni viaja en la venta.
 - La base de datos solo es accesible desde la API, con un rol de permisos mínimos; Data

@@ -14,7 +14,6 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
@@ -23,6 +22,7 @@ from app.db.models import AppUser, CashOutflow, CashSession, Device, PaymentMeth
 from app.services.alerts import create_cash_session_alert
 from app.services.audit import record_audit
 from app.services.cash_sessions import expected_for
+from app.services.devices import device_revoked
 
 
 def register_outflow(
@@ -41,8 +41,14 @@ def register_outflow(
 ) -> CashOutflow:
     """Registra el egreso en la caja del equipo. Rechazos permanentes: 409
     `cash_session_unavailable` (caja ajena o inexistente), 409 `cash_session_closed`, 409
-    `insufficient_cash` (efectivo) y 422 (método o referencia)."""
-    db.execute(select(Device.id).where(Device.id == device.id).with_for_update())
+    `insufficient_cash` (efectivo), 422 (método o referencia) y 403 `device_revoked`."""
+    # Un equipo revocado no registra egresos, aunque la operación diga ser anterior a la
+    # revocación: la hora la escribe el equipo (revisión de seguridad de la 1.4). Su caja la
+    # cierra el Admin desde otro equipo (FR-018). Se lee con el equipo bloqueado, para ver
+    # una revocación confirmada mientras llegaba la operación.
+    device = db.get(Device, device.id, with_for_update=True, populate_existing=True)
+    if device.revoked_at is not None:
+        raise device_revoked()
     session = db.get(CashSession, cash_session_id, with_for_update=True, populate_existing=True)
     if session is None or session.device_id != device.id:
         raise ApiError(

@@ -257,3 +257,48 @@ def test_reloj_del_equipo_atrasado_no_marca_una_venta_normal(client, orphan) -> 
     assert data["post_close_operations"] == []
     assert all(not movement["after_close"] for movement in data["movements"])
     assert {r["method"]: r for r in data["reconciliation"]}["cash_usd"]["expected"] == "44.00"
+
+
+def test_equipo_revocado_no_registra_egresos_ni_cierra(client, orphan) -> None:
+    """Revisión de seguridad de la 1.4: un equipo revocado no registra egresos ni cierra su
+    caja por la cola, aunque la operación diga ser anterior a la revocación (la hora la
+    escribe el equipo). Su caja la cierra el Admin desde otro equipo (FR-018)."""
+    before = clock.utcnow() - timedelta(minutes=5)
+    revoke = client.post(f"/api/v1/devices/{orphan['tablet'].id}/revoke", headers=orphan["admin"])
+    assert revoke.status_code == 200, revoke.text
+    headers = device_headers(orphan["seller"], orphan["token"])
+    outflow = client.post(URL, json=outflow_operation(orphan, before), headers=headers)
+    assert outflow.status_code == 403
+    assert outflow.json()["detail"]["code"] == "device_revoked"
+    close = {
+        "id": str(uuid.uuid7()),
+        "operation_type": "cash_session.close",
+        "schema_version": 1,
+        "created_at": before.isoformat(),
+        "payload": {
+            "cash_session_id": orphan["session_id"],
+            "counts": [
+                {"method": method, "device_expected": "0.00", "counted": "0.00"}
+                for method in METHODS
+            ],
+            "note": NOTE,
+        },
+    }
+    closed = client.post(URL, json=close, headers=headers)
+    assert closed.status_code == 403
+    assert closed.json()["detail"]["code"] == "device_revoked"
+
+
+def test_admin_cierra_con_el_token_del_equipo_revocado(client, orphan) -> None:
+    """FR-018: el cierre del Admin desde fuera del equipo funciona aunque el navegador
+    traiga el token del propio equipo revocado (no pasa por la regla de la cola)."""
+    revoke = client.post(f"/api/v1/devices/{orphan['tablet'].id}/revoke", headers=orphan["admin"])
+    assert revoke.status_code == 200, revoke.text
+    response = admin_close(
+        client,
+        orphan,
+        headers=device_headers(orphan["admin"], orphan["token"]),
+        counted={"cash_usd": "32.00"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["closed_outside_device"] is True
