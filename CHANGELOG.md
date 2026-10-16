@@ -2,9 +2,14 @@
 
 Cambios por funcionalidad terminada (RNF-09). Formato basado en
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Cada etapa terminada de la
-Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3.0`, la 1.3 es `0.4.0`, y así sucesivamente.
+Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3.0`, la 1.3 es `0.4.0`, la 1.4 es `0.5.0`, y así sucesivamente.
 
 ## [Sin publicar]
+
+## [0.5.0] — 2026-10-16 — Etapa 1.4: egresos, cierre y cuadre de caja
+
+Escenarios del quickstart recorridos por el dueño, revisión de seguridad y de código
+corregidas, e integrada a `main` y desplegada.
 
 ### Añadido
 

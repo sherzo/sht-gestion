@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.3 |
-| Fecha | 2026-10-15 |
-| Estado | Vigente (etapas 1.0 a 1.3 terminadas; 1.4 en curso) |
+| Versión | 1.4 |
+| Fecha | 2026-10-16 |
+| Estado | Vigente (etapas 1.0 a 1.4 terminadas; siguiente: 1.5) |
 | Documentos relacionados | `docs/PRD.md` §11, `docs/arquitectura.md`, `docs/modelo-de-datos.md`, `.specify/memory/constitution.md` |
 
 > Detalla el orden de construcción resumido en el PRD (§11): qué entra en cada etapa,
@@ -103,7 +103,7 @@ La etapa 1.1 completa se publicó como versión `0.2.0`.
 | **Requisitos** | RF-31 a RF-33, RN-12 (la apertura, RF-29, RF-30 y RN-16, llega en la 1.3) |
 | **Entregables** | Egresos; cierre con esperado por método, contado y diferencias; cierres inmutables |
 | **Terminada cuando** | El cierre de un día de prueba se completa en menos de 10 minutos y cuadra con las ventas, el vuelto, las anulaciones y los egresos |
-| **Estado** | En curso (`specs/005-cierre-caja/`, PRD v0.12): implementada con pruebas automatizadas (casos compartidos del cuadre en Python y TypeScript, idempotencia, inmutabilidad en la base, permisos por rol y detalle de una caja con 100 ventas en < 1 s). Falta recorrer el quickstart con el día de prueba, la revisión de seguridad y de código, y la validación en producción |
+| **Estado** | ✅ Terminada el 2026-10-16 (`specs/005-cierre-caja/`, PRD v0.12): pruebas automatizadas (casos compartidos del cuadre en Python y TypeScript, idempotencia, inmutabilidad en la base, permisos por rol y detalle de una caja con 100 ventas en < 1 s), escenarios del quickstart recorridos por el dueño, revisión de seguridad y de código, e integración a `main` con despliegue. Publicada como versión `0.5.0` |
 
 ### 1.5 — Funcionamiento sin conexión
 
