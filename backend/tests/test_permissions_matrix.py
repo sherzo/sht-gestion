@@ -274,6 +274,53 @@ MATRIX: list[Row] = [
     Row("GET", "/api/v1/sales", ADMIN_SELLER),
     Row("GET", "/api/v1/sales/{sale_id}", ADMIN_SELLER),
     Row("POST", "/api/v1/sales/{sale_id}/void", ADMIN_ONLY, {"reason": "Prueba de la matriz"}),
+    # Caja: egresos, cierre y consulta (etapa 1.4; specs/005-cierre-caja/contracts/api.md)
+    Row(
+        "POST",
+        "/api/v1/sync/operations",
+        ADMIN_SELLER,
+        {
+            "id": "{op_id}",
+            "operation_type": "cash_outflow.create",
+            "schema_version": 1,
+            "created_at": "{now}",
+            "payload": {
+                "id": "{outflow_id}",
+                "cash_session_id": "{open_session_id}",
+                "method": "cash_usd",
+                "amount": "1.00",
+                "reason": "Prueba de la matriz",
+            },
+        },
+        device=True,
+    ),
+    Row(
+        "POST",
+        "/api/v1/sync/operations",
+        ADMIN_SELLER,
+        {
+            "id": "{op_id}",
+            "operation_type": "cash_session.close",
+            "schema_version": 1,
+            "created_at": "{now}",
+            "payload": {"cash_session_id": "{open_session_id}", "counts": []},
+        },
+        device=True,
+    ),
+    Row("GET", "/api/v1/cash-sessions", ADMIN_SELLER, device=True),
+    Row("GET", "/api/v1/cash-sessions/{open_session_id}", ADMIN_SELLER, device=True),
+    Row(
+        "POST",
+        "/api/v1/cash-sessions/{open_session_id}/close",
+        ADMIN_ONLY,
+        {"counts": [], "note": "Prueba de la matriz"},
+    ),
+    Row(
+        "POST",
+        "/api/v1/cash-outflows/{outflow_id}/void",
+        ADMIN_ONLY,
+        {"reason": "Prueba de la matriz"},
+    ),
 ]
 
 
@@ -393,6 +440,8 @@ def actor_headers(
         "device_token": device_token,
         "op_id": str(uuid.uuid7()),
         "session_id": str(uuid.uuid7()),
+        "open_session_id": session["id"],
+        "outflow_id": str(uuid.uuid7()),
         "now": utcnow().isoformat(),
     }
 

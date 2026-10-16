@@ -78,6 +78,17 @@ function SaleDetail() {
       {sale.void && (
         <Alert variant="danger">
           Anulada por {sale.void.voided_by.full_name} el {formatDateTime(sale.void.voided_at)}: {sale.void.reason}
+          {sale.void.refund_cash_session && (
+            <span className="block">
+              Devolución registrada en la caja de {sale.void.refund_cash_session.device.name}
+              {sale.void.refund_cash_session.id !== sale.cash_session_id && " (la caja de la venta ya estaba cerrada)"}.{" "}
+              {user?.role === "admin" && (
+                <Link href={`/cajas/detalle/?id=${sale.void.refund_cash_session.id}`} className="font-semibold underline">
+                  Ver la caja
+                </Link>
+              )}
+            </span>
+          )}
         </Alert>
       )}
       {sale.customer && (

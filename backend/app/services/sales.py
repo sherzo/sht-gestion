@@ -57,7 +57,7 @@ from app.domain.sale_math import (
     compute_sale,
 )
 from app.domain.units import validate_quantity
-from app.services.alerts import create_sale_alert
+from app.services.alerts import create_cash_session_alert, create_sale_alert
 from app.services.audit import record_audit
 from app.services.customers import CustomerData, resolve_customer
 from app.services.devices import device_revoked
@@ -135,13 +135,22 @@ def _lock_device(db: Session, device: Device) -> None:
     db.execute(select(Device.id).where(Device.id == device.id).with_for_update())
 
 
-def _cash_session(db: Session, device: Device, session_id: uuid.UUID) -> CashSession:
-    session = db.get(CashSession, session_id, with_for_update=True)
-    if session is None or session.device_id != device.id or session.status != "open":
+def _cash_session(
+    db: Session, device: Device, session_id: uuid.UUID, occurred_at: datetime
+) -> CashSession:
+    """Caja de la venta. Una caja ya cerrada solo acepta una venta creada en el equipo
+    antes del cierre (cerrada por el Admin desde otro lugar mientras la venta esperaba en
+    la cola): se registra igual, con alerta (FR-019, research R7 de la etapa 1.4)."""
+    session = db.get(CashSession, session_id, with_for_update=True, populate_existing=True)
+    if session is None or session.device_id != device.id:
         raise ApiError(
             409,
             "cash_session_unavailable",
             "La caja de la venta no está abierta en este equipo",
+        )
+    if session.status == "closed" and not occurred_at < session.closed_at:
+        raise ApiError(
+            409, "cash_session_closed", "La caja de la venta ya está cerrada: abre una caja nueva"
         )
     return session
 
@@ -348,7 +357,7 @@ def create_sale(
         raise _field_error("exchange_rate", str(exc)) from exc
     if not data.items:
         raise _field_error("items", "La venta no tiene productos")
-    session = _cash_session(db, device, data.cash_session_id)
+    session = _cash_session(db, device, data.cash_session_id, data.occurred_at)
     if device.revoked_at is not None and session.opened_at >= device.revoked_at:
         raise device_revoked()
     _check_sequence(db, device, data.sequence_number)
@@ -547,6 +556,20 @@ def create_sale(
         }
     for alert_type, details in outcome_alerts.items():
         create_sale_alert(db, type=alert_type, sale=sale, details=details)
+    alert_types = list(outcome_alerts)
+    if session.status == "closed":
+        create_cash_session_alert(
+            db,
+            type="post_close_operation",
+            session=session,
+            details={
+                "operation": "sale",
+                "sale_number": number,
+                "amount": str(result.total_usd),
+                "currency": "USD",
+            },
+        )
+        alert_types.append("post_close_operation")
 
     if data.discount is not None or discount_details:
         record_audit(
@@ -571,7 +594,7 @@ def create_sale(
                 "needs_review": needs_review,
             },
         )
-    return SaleOutcome(sale=sale, alerts=list(outcome_alerts), warnings=warnings)
+    return SaleOutcome(sale=sale, alerts=alert_types, warnings=warnings)
 
 
 # --- Consulta (FR-045, FR-046; research R12) -------------------------------------------
@@ -677,15 +700,45 @@ def get_sale(db: Session, sale_id: uuid.UUID, *, for_update: bool = False) -> Sa
     return sale
 
 
-def void_sale(db: Session, *, actor: AppUser, sale_id: uuid.UUID, reason: str) -> Sale:
-    """Anula la venta completa en una transacción: reverso de kardex por línea y espejo de
-    cada pago y vuelto en la caja de la venta. Una venta se anula una sola vez.
+def _refund_session(db: Session, sale: Sale, device: Device | None) -> CashSession:
+    """Caja que recibe la devolución (RF-27, PRD v0.11; research R8 de la etapa 1.4): la de
+    la venta si sigue abierta; si ya está cerrada, la caja abierta del equipo desde el que
+    anula el Admin, porque de ahí sale físicamente el dinero. El cierre anterior no cambia."""
+    session = db.get(CashSession, sale.cash_session_id, with_for_update=True)
+    if session.status == "open":
+        return session
+    refund = None
+    if device is not None and device.revoked_at is None:
+        refund = db.scalar(
+            select(CashSession)
+            .where(CashSession.device_id == device.id, CashSession.status == "open")
+            .with_for_update()
+        )
+    if refund is None:
+        raise ApiError(
+            409,
+            "cash_session_required",
+            "La caja de esta venta ya está cerrada: anúlala desde un equipo registrado con la "
+            "caja abierta (ábrela si hace falta)",
+        )
+    return refund
 
-    La caja que recibe la devolución si la de la venta ya estuviera cerrada se decide en
-    la etapa 1.4 (PRD §10); en esta etapa las cajas no se cierran."""
+
+def void_sale(
+    db: Session,
+    *,
+    actor: AppUser,
+    sale_id: uuid.UUID,
+    reason: str,
+    device: Device | None = None,
+) -> Sale:
+    """Anula la venta completa en una transacción: reverso de kardex por línea y espejo de
+    cada pago y vuelto en la caja que recibe la devolución (`_refund_session`). Una venta
+    se anula una sola vez."""
     sale = get_sale(db, sale_id, for_update=True)
     if db.scalar(select(SaleVoid.id).where(SaleVoid.sale_id == sale.id)) is not None:
         raise ApiError(409, "invalid_state", "La venta ya estaba anulada")
+    refund_session = _refund_session(db, sale, device)
     sale_void = SaleVoid(
         id=uuid.uuid7(), sale_id=sale.id, reason=reason, voided_by=actor.id, voided_at=utcnow()
     )
@@ -718,7 +771,7 @@ def void_sale(db: Session, *, actor: AppUser, sale_id: uuid.UUID, reason: str) -
                 id=uuid.uuid7(),
                 sale_id=sale.id,
                 line_number=payment.line_number,
-                cash_session_id=sale.cash_session_id,
+                cash_session_id=refund_session.id,
                 kind=VOID_KIND[payment.kind],
                 payment_method_code=payment.payment_method_code,
                 currency=payment.currency,
@@ -738,7 +791,11 @@ def void_sale(db: Session, *, actor: AppUser, sale_id: uuid.UUID, reason: str) -
         entity_type="sale",
         entity_id=sale.id,
         before={"number": sale.number, "total_usd": str(sale.total_usd), "status": "registered"},
-        after={"status": "voided"},
+        after={
+            "status": "voided",
+            "refund_cash_session_id": str(refund_session.id),
+            "refund_device_id": str(refund_session.device_id),
+        },
         reason=reason,
     )
     return sale

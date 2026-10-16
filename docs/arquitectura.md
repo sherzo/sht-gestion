@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.4 |
-| Fecha | 2026-10-15 |
+| Versión | 1.5 |
+| Fecha | 2026-10-16 |
 | Estado | Vigente (aprobada al cerrar la etapa 1.0) |
 | Documentos relacionados | `docs/PRD.md`, `docs/decisiones/`, `.specify/memory/constitution.md` |
 
@@ -71,8 +71,10 @@ backend/
   app/
     api/          endpoints (routers), dependencias de autenticación y roles
     domain/       reglas de negocio puras: dinero, unidades, costo promedio,
-                  cálculo de la venta (sale_math), series y documentos de clientes
-    services/     casos de uso transaccionales: venta, anulación, apertura de caja,
+                  cálculo de la venta (sale_math), cuadre de caja (cash_math), series
+                  y documentos de clientes
+    services/     casos de uso transaccionales: venta, anulación, caja (apertura,
+                  cuadre, cierre y consulta: cash_sessions), egresos (cash_outflows),
                   equipos, cola de salida (sync), descuentos, clientes, compras…
     db/           modelos SQLAlchemy, sesión, repositorios
     core/         configuración, seguridad, logging
@@ -83,9 +85,11 @@ frontend/         app interna (Next.js, PWA)
     app/          rutas (vender, ventas, caja, productos, inventario, compras, admin)
     lib/device/   identidad del equipo, token y correlativo en IndexedDB (Dexie)
     lib/outbox/   cola de salida: envío en orden, reintentos e idempotencia
+    lib/cash.ts   cuadre en el equipo, egreso y cierre por la cola
+    components/cash/  tabla del cuadre, diálogo y lista de egresos
     lib/api/      cliente HTTP con tipos generados del OpenAPI
 catalog/          catálogo público (Next.js estático)
-packages/shared/  TypeScript compartido: dinero (money.ts), UUIDv7, formato es-VE,
+packages/shared/  TypeScript compartido: dinero (money.ts), cuadre (cash.ts), UUIDv7, formato es-VE,
                   tipos generados; tema visual de Tailwind en styles/theme.css
                   (ADR-0007)
   test-vectors/   casos JSON que ejecutan las pruebas de Python y de TypeScript
@@ -133,7 +137,31 @@ Desde la etapa 1.3 la venta funciona con conexión pero ya sigue este camino com
    pendientes o rechazadas.
 
 Anular una venta (Admin, con conexión, `POST /sales/{id}/void`) genera el reverso de
-kardex por línea y el espejo de cada pago y vuelto en la caja de la venta.
+kardex por línea y el espejo de cada pago y vuelto en la caja de la venta. Si esa caja
+ya está cerrada, el espejo va a la caja abierta del equipo desde el que anula el Admin
+(`X-Device-Token`); sin equipo con caja abierta se rechaza con `cash_session_required` y
+el cierre anterior nunca cambia (PRD v0.11, RF-27).
+
+### 3.1.1 Egresos y cierre de caja (etapa 1.4)
+
+- **Esperado por método** (RF-31): fondo (solo efectivo) + cobros − vuelto − devoluciones
+  + vuelto recuperado − egresos no anulados, en la moneda de cada método y sin convertir.
+  Lo calcula igual el equipo (`packages/shared/src/cash.ts`) y el servidor
+  (`domain/cash_math.py`), con los casos de `test-vectors/cash.json`.
+- **Egreso** (RF-32, PRD v0.12): por la cola (`cash_outflow.create`) desde cualquier
+  método, con referencia si no es efectivo y tope en el esperado solo en efectivo. Sin
+  autorización; solo el Admin lo anula, con conexión y con la caja abierta.
+- **Cierre** (RF-31, RF-33): la pantalla no deja cerrar con operaciones de la caja
+  pendientes o rechazadas; el usuario escribe lo contado o verificado por método y la
+  operación `cash_session.close` viaja con el esperado que vio. El servidor bloquea equipo
+  y caja, recalcula, guarda un `cash_count` por método, pasa la caja a `closed` y crea las
+  alertas `cash_difference` y `expected_mismatch`, todo en una transacción. La caja
+  cerrada es inmutable (triggers de `0007_cierre_de_caja`).
+- **Caja huérfana**: el Admin cierra con conexión la caja de otro equipo
+  (`POST /cash-sessions/{id}/close`), con observación obligatoria. Una venta o un egreso
+  creados en el equipo antes de ese cierre se registran igual con la alerta
+  `post_close_operation`; lo que el servidor registró después del cierre
+  (`closed_recorded_at`) no cambia el cuadre guardado.
 
 ### 3.2 Operaciones con conexión (administración, compras, inventario)
 
@@ -240,7 +268,13 @@ en ADR-0004.
 - **Operaciones de mostrador (etapa 1.3):** `POST /sync/operations`,
   `GET /devices/current` y `POST /discount-authorizations` exigen además el token del
   equipo en `X-Device-Token`. La matriz por endpoint de la etapa está en
-  `specs/004-ventas-multimoneda/contracts/api.md`.
+  `specs/004-ventas-multimoneda/contracts/api.md`. En la 1.4, `GET /cash-sessions`,
+  `GET /cash-sessions/{id}`, `POST /cash-sessions/{id}/close` y `POST /sales/{id}/void`
+  aceptan el token como opcional (`OptionalDevice`): el Vendedor ve la caja abierta de su
+  equipo y sus cierres de hoy; el Admin cierra cajas de otro equipo y anula ventas de cajas
+  cerradas desde un equipo con caja abierta. La matriz de la etapa está en
+  `specs/005-cierre-caja/contracts/api.md`; la caja no tiene costos y usa un solo esquema
+  para todos los roles.
 - **Tipos en el frontend:** `pnpm api:types` genera `packages/shared/src/api/schema.d.ts`
   desde el OpenAPI de FastAPI; se regenera cuando cambia la API.
 - **Compatibilidad con equipos desactualizados:** un equipo sin conexión puede seguir
@@ -353,6 +387,11 @@ autoalojadas con `next/font`. Reglas en `docs/guia-de-estilos.md` (ADR-0007).
 | Fondo inicial | `opening_float` |
 | Egreso de caja | `cash_outflow` |
 | Cuadre | `reconciliation` |
+| Conteo del cierre (por método) | `cash_count` |
+| Esperado / contado / diferencia | `expected_amount` / `counted_amount` / `difference` |
+| Cerrada fuera de su equipo | `closed_outside_device` |
+| Esperado distinto entre equipo y servidor | `expected_mismatch` |
+| Operación posterior al cierre | `post_close_operation` |
 | Cliente | `customer` |
 | Usuario | `user` (tabla `app_user`, porque `user` es palabra reservada en Postgres) |
 | Sesión (jornada de trabajo) | `user_session` |

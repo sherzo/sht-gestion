@@ -269,11 +269,37 @@ En `frontend/src/components/sales/`:
   espera en `info`.
 - `CustomerPicker`: buscar cliente por documento o nombre, o escribir uno nuevo.
 - `VoidSaleDialog`: motivo obligatorio y resumen de lo que vuelve al inventario y a la
-  caja; botón en `danger`.
+  caja; botón en `danger`. Desde la 1.4 dice en qué caja se registra la devolución
+  (`info` si va a la caja abierta del equipo porque la de la venta está cerrada, `warning`
+  si esa caja no tiene efectivo suficiente o si hay que anular desde un equipo con caja).
 - Botón "Confirmar venta (F9)" en `accent` de 56 px de alto, deshabilitado mientras falte
   algo, con el motivo debajo en texto secundario.
-- En la barra de la app, "Ventas pendientes de envío: N" en `accent` cuando la cola tiene
-  operaciones pendientes o rechazadas; abre la lista con su estado.
+- En la barra de la app, "Pendientes de envío: N" en `accent` cuando la cola tiene
+  operaciones pendientes o rechazadas (ventas, aperturas, egresos y cierres); abre la
+  lista con su estado.
+
+### 7.1.4 Componentes de caja (etapa 1.4)
+
+En `frontend/src/components/cash/`:
+
+- `ReconciliationTable`: cuadre por método con fondo, cobrado, vuelto, devuelto, vuelto
+  recuperado, egresos y esperado, cada monto en su moneda (`Bs 1.234,56`, `12,50 USD`,
+  `12,50 USDT`). En el cierre agrega un campo "Contado" (efectivo) o "Verificado"
+  (electrónicos) y la diferencia en vivo como texto con signo: "Faltante −" en `danger`,
+  "Sobrante +" en `success` o "Sin diferencia" en texto secundario, nunca solo color.
+  Tabla en PC y una tarjeta por método a menos de 640 px (`DataTable`).
+- `OutflowDialog`: método, monto en su moneda, referencia cuando el método la exige y
+  motivo con contador; en efectivo muestra el disponible como ayuda y el exceso como
+  error.
+- `OutflowList`: egresos con hora, método, monto, motivo, referencia y quién; los
+  anulados tachados en texto secundario con el chip `voided` ("Anulado") y quién y por
+  qué se anularon; botón "Anular" en `secondary` para el Admin con la caja abierta.
+- Chips de caja con `StatusChip`: "Abierta" (`pending`), "Cerrada" (`confirmed`), "Con
+  diferencias" (`needs_review`), "Cerrada fuera del equipo" (`inactive`) y "Abierta desde
+  el dd/mm/aaaa" (`low_stock`).
+- Botones de Caja: "Ir a vender" en `accent`, "Registrar egreso" en `secondary` y "Cerrar
+  caja" en `primary`. En el cierre, "Confirmar cierre" en `primary`, deshabilitado mientras
+  haya operaciones de la caja pendientes o falte la observación con diferencias.
 
 ### 7.2 Íconos
 
@@ -296,5 +322,6 @@ texto que ya dice lo mismo, o con `aria-label` en botones que solo tienen ícono
 | 1.1b | ✅ Hecho: componentes de productos e inventario (§7.1.1), pantallas de productos, ficha, ajuste, pendientes, mis solicitudes, stock bajo, conteos y configuración |
 | 1.2 | ✅ Hecho: componentes de compras (§7.1.2), pantallas de compras, detalle, proveedores, tasa BCV, gastos frecuentes y alertas en pendientes |
 | 1.3 | ✅ Hecho: componentes de ventas y caja (§7.1.3), pantallas Vender, Ventas, Detalle de venta, Caja y Configuración > Equipos, solicitudes de descuento y alertas de venta en Pendientes |
+| 1.4 | ✅ Hecho: componentes de caja (§7.1.4), pantallas Caja con egresos, Cierre de caja, Cajas y su detalle, y alertas de caja en Pendientes |
 | 1.5 | Íconos de la app instalable (PNG 192/512 y "maskable") a partir de `icono-app.svg`; indicador de sin conexión y pendientes |
 | 1.6 | Diseño del catálogo público: tarjetas de producto, filtros, botón de WhatsApp |

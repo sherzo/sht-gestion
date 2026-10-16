@@ -24,6 +24,7 @@ import {
   Truck,
   UserCog,
   Users,
+  Vault,
   Wallet,
   X,
 } from "lucide-react";
@@ -46,6 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/vender/", label: "Vender", icon: ShoppingBag, roles: ["admin", "seller"] },
   { href: "/ventas/", label: "Ventas", icon: ReceiptText, roles: ["admin", "seller"] },
   { href: "/caja/", label: "Caja", icon: Wallet, roles: ["admin", "seller"] },
+  { href: "/cajas/", label: "Cajas", icon: Vault, roles: ["admin"] },
   { href: "/productos/", label: "Productos", icon: Package, roles: ALL_ROLES },
   { href: "/inventario/ajuste/", label: "Ajuste de inventario", icon: SlidersHorizontal, roles: ["admin", "warehouse"] },
   { href: "/inventario/stock-bajo/", label: "Stock bajo", icon: AlertTriangle, roles: ["admin", "warehouse"] },
@@ -111,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (
       (await hasPending()) &&
       !window.confirm(
-        "Hay ventas pendientes de envío en este equipo. Se enviarán cuando alguien vuelva a ingresar. ¿Cerrar sesión de todos modos?",
+        "Hay operaciones pendientes de envío en este equipo. Se enviarán cuando alguien vuelva a ingresar. ¿Cerrar sesión de todos modos?",
       )
     ) {
       return;
@@ -153,8 +155,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-3 font-semibold text-on-accent"
               >
                 <CloudUpload aria-hidden className="size-5" />
-                <span className="hidden sm:inline">Ventas pendientes de envío:</span>
-                <span className="sr-only sm:hidden">Ventas pendientes de envío:</span> {attention.length}
+                <span className="hidden sm:inline">Pendientes de envío:</span>
+                <span className="sr-only sm:hidden">Pendientes de envío:</span> {attention.length}
               </button>
             )}
             <div className="hidden text-right text-sm sm:block">
@@ -199,7 +201,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {new Date(record.createdAt).toLocaleString("es-VE", { timeZone: "America/Caracas" })}
                 </p>
                 {record.status === "pending" && waitsForOwner(record) ? (
-                  <p className="text-sm">Se enviará cuando el vendedor que la hizo vuelva a ingresar en este equipo.</p>
+                  <p className="text-sm">Se enviará cuando el usuario que la hizo vuelva a ingresar en este equipo.</p>
                 ) : record.status === "pending" ? (
                   <p className="text-sm">Se enviará al haber conexión ({record.attempts} intentos).</p>
                 ) : (
@@ -226,4 +228,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 const OPERATION_LABELS: Record<string, string> = {
   "sale.create": "Venta",
   "cash_session.open": "Apertura de caja",
+  "cash_outflow.create": "Egreso de caja",
+  "cash_session.close": "Cierre de caja",
 };

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.product_schemas import UserRef, user_ref
 from app.api.purchase_schemas import cost_str
+from app.core.clock import utcnow
 from app.db.models import (
     AppUser,
     CashSession,
@@ -23,6 +24,7 @@ from app.db.models import (
     SaleVoid,
     Unit,
 )
+from app.domain.business_time import business_date
 from app.domain.money import round_usd
 from app.domain.roles import Role
 from app.domain.units import format_quantity
@@ -50,6 +52,10 @@ class OpenCashSessionRef(BaseModel):
     opened_by: UserRef
     opened_at: datetime
     business_date: date
+    opening_float_ves: str
+    opening_float_usd: str
+    # La caja sigue abierta desde otro día de negocio (aviso de research R5, etapa 1.4).
+    opened_on_previous_day: bool
 
 
 class DeviceOut(BaseModel):
@@ -115,6 +121,9 @@ def devices_out(db: Session, devices: list[Device]) -> list[DeviceOut]:
                     opened_by=user_ref(users[session.opened_by]),
                     opened_at=session.opened_at,
                     business_date=session.business_date,
+                    opening_float_ves=str(session.opening_float_ves),
+                    opening_float_usd=str(session.opening_float_usd),
+                    opened_on_previous_day=session.business_date != business_date(utcnow()),
                 ),
             )
         )
@@ -181,10 +190,24 @@ class DeviceRef(BaseModel):
     series: str
 
 
+class RefundDeviceRef(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class RefundCashSessionRef(BaseModel):
+    """Caja que recibió la devolución: la de la venta, o la abierta del equipo desde el que
+    se anuló si la de la venta ya estaba cerrada (RF-27, FR-023)."""
+
+    id: uuid.UUID
+    device: RefundDeviceRef
+
+
 class SaleVoidOut(BaseModel):
     reason: str
     voided_by: UserRef
     voided_at: datetime
+    refund_cash_session: RefundCashSessionRef | None = None
 
 
 class SaleSeller(BaseModel):
@@ -316,6 +339,21 @@ def sales_for_role(db: Session, sales: list[Sale], role: Role) -> list[SaleSelle
     )
     items_by_sale = _grouped(items, "sale_id")
     payments_by_sale = _grouped(payments, "sale_id")
+    refund_sessions = {
+        payment.sale_id: payment.cash_session_id
+        for payment in payments
+        if payment.kind in ("void_refund", "void_change")
+    }
+    refund_devices = {
+        session_id: RefundCashSessionRef(
+            id=session_id, device=RefundDeviceRef(id=device_id, name=name)
+        )
+        for session_id, device_id, name in db.execute(
+            select(CashSession.id, Device.id, Device.name)
+            .join(Device, Device.id == CashSession.device_id)
+            .where(CashSession.id.in_(set(refund_sessions.values())))
+        )
+    }
 
     admin = role == Role.ADMIN
     result: list[SaleSeller] = []
@@ -428,6 +466,7 @@ def sales_for_role(db: Session, sales: list[Sale], role: Role) -> list[SaleSelle
                 reason=void.reason,
                 voided_by=user_ref(users[void.voided_by]),
                 voided_at=void.voided_at,
+                refund_cash_session=refund_devices.get(refund_sessions.get(sale.id)),
             ),
         }
         if admin:

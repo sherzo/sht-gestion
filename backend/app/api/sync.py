@@ -1,7 +1,9 @@
 """Cola de salida del mostrador (FR-017, FR-018; ADR-0003, research R4).
 
-Contrato: specs/004-ventas-multimoneda/contracts/api.md. Una operación por petición,
-idempotente por su `id`: reenviarla devuelve la misma respuesta, también si se rechazó.
+Contratos: specs/004-ventas-multimoneda/contracts/api.md (apertura de caja y venta) y
+specs/005-cierre-caja/contracts/api.md (egreso y cierre de caja). Una operación por
+petición, idempotente por su `id`: reenviarla devuelve la misma respuesta, también si se
+rechazó.
 """
 
 import uuid
@@ -14,6 +16,12 @@ from fastapi.responses import JSONResponse
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
 
+from app.api.cash_schemas import (
+    CashOutflowOut,
+    CashSessionClosed,
+    cash_session_detail,
+    outflows_out,
+)
 from app.api.deps import CurrentDevice, CurrentUser, DbSession, require_roles
 from app.api.sale_schemas import (
     CashSessionOut,
@@ -23,10 +31,11 @@ from app.api.sale_schemas import (
     sales_for_role,
 )
 from app.core.errors import validation_error, validation_fields
-from app.db.models import AppUser, Device, Sale
+from app.db.models import AppUser, Device, PaymentMethod, Sale
 from app.domain import sale_math
 from app.domain.money import MAX_PRICE, MAX_VES, PRICE_DECIMALS, VES_DECIMALS, validate_usd
 from app.domain.roles import Role
+from app.services import cash_outflows as cash_outflows_service
 from app.services import cash_sessions as cash_sessions_service
 from app.services import sales as sales_service
 from app.services import sync as sync_service
@@ -219,8 +228,109 @@ def replay_sale(db: Session, user: AppUser, stored: dict[str, Any]) -> dict[str,
     }
 
 
+# --- Egreso y cierre de caja (etapa 1.4; research R3, R4) ---------------------------------
+
+
+def _currency_amount(
+    db: Session, method: str, value: Decimal, field: str, *, allow_zero: bool
+) -> Decimal:
+    """Monto en la moneda del método: Bs con el tope de Bs, USD y USDT con el de USD."""
+    payment_method = db.get(PaymentMethod, method)
+    is_ves = payment_method is not None and payment_method.currency == "VES"
+    try:
+        return validate_usd(
+            value,
+            VES_DECIMALS if is_ves else PRICE_DECIMALS,
+            allow_zero=allow_zero,
+            maximum=MAX_VES if is_ves else MAX_PRICE,
+        )
+    except ValueError as exc:
+        raise validation_error({f"payload.{field}": str(exc)}) from exc
+
+
+class CashOutflowCreateInput(BaseModel):
+    """Contenido de `cash_outflow.create` (RF-32)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    id: uuid.UUID
+    cash_session_id: uuid.UUID
+    method: str = Field(min_length=1, max_length=30)
+    amount: Decimal
+    reason: str = Field(min_length=5, max_length=200)
+    reference: str | None = Field(default=None, max_length=60)
+
+
+def handle_cash_outflow_create(
+    db: Session, device: Device, user: AppUser, operation: sync_service.Operation
+) -> dict[str, Any]:
+    data = parse_payload(CashOutflowCreateInput, operation)
+    outflow = cash_outflows_service.register_outflow(
+        db,
+        device=device,
+        user=user,
+        operation_id=operation.id,
+        outflow_id=data.id,
+        cash_session_id=data.cash_session_id,
+        method_code=data.method,
+        amount=_currency_amount(db, data.method, data.amount, "amount", allow_zero=False),
+        reason=data.reason,
+        reference=data.reference or None,
+        occurred_at=operation.created_at,
+    )
+    [result] = outflows_out(db, [outflow])
+    return result.model_dump(mode="json")
+
+
+class CountIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    method: str = Field(min_length=1, max_length=30)
+    device_expected: Decimal
+    counted: Decimal
+
+
+class CashSessionCloseInput(BaseModel):
+    """Contenido de `cash_session.close` (RF-31)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    cash_session_id: uuid.UUID
+    counts: list[CountIn] = Field(max_length=6)
+    note: str | None = Field(default=None, max_length=500)
+
+
+def handle_cash_session_close(
+    db: Session, device: Device, user: AppUser, operation: sync_service.Operation
+) -> dict[str, Any]:
+    data = parse_payload(CashSessionCloseInput, operation)
+    session, alerts = cash_sessions_service.close_cash_session(
+        db,
+        session_id=data.cash_session_id,
+        actor=user,
+        counts=[
+            cash_sessions_service.CountData(
+                method=count.method, counted=count.counted, device_expected=count.device_expected
+            )
+            for count in data.counts
+        ],
+        note=data.note or None,
+        closed_at=operation.created_at,
+        device=device,
+        operation_id=operation.id,
+        outside_device=False,
+    )
+    detail = cash_session_detail(db, session)
+    return CashSessionClosed(**detail.model_dump(), alerts_created=alerts).model_dump(mode="json")
+
+
 sync_service.HANDLERS.update(
-    {"cash_session.open": handle_cash_session_open, "sale.create": handle_sale_create}
+    {
+        "cash_session.open": handle_cash_session_open,
+        "sale.create": handle_sale_create,
+        "cash_outflow.create": handle_cash_outflow_create,
+        "cash_session.close": handle_cash_session_close,
+    }
 )
 sync_service.REPLAYS.update({"sale.create": replay_sale})
 
@@ -239,7 +349,9 @@ class OutboxOperationIn(BaseModel):
     "/operations",
     response_model=None,
     # Documenta en el OpenAPI las respuestas posibles, para los tipos del frontend.
-    responses={200: {"model": SaleAdmin | SaleSeller | CashSessionOut}},
+    responses={
+        200: {"model": SaleAdmin | SaleSeller | CashSessionOut | CashOutflowOut | CashSessionClosed}
+    },
 )
 def post_operation(
     body: OutboxOperationIn, current: AdminOrSeller, device: CurrentDevice, db: DbSession

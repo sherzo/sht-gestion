@@ -1,16 +1,22 @@
 "use client";
 
-// Caja del equipo (FR-001 a FR-008; RF-18, RF-29, RF-30, RN-16): el Admin registra el equipo
-// de mostrador en este navegador y el Vendedor abre la caja con su fondo inicial. Si no hay
-// tasa BCV de hoy se avisa con la fecha de la última; sin ninguna tasa no se puede abrir.
-// Egresos, cierre y cuadre llegan en la etapa 1.4.
+// Caja del equipo (FR-001 a FR-008 de la 1.3; RF-18, RF-29 a RF-32, RN-16): el Admin
+// registra el equipo de mostrador en este navegador y el Vendedor abre la caja con su fondo
+// inicial. Si no hay tasa BCV de hoy se avisa con la fecha de la última; sin ninguna tasa no
+// se puede abrir. Con la caja abierta se ve el esperado por método, se registran egresos y
+// se va al cierre (etapa 1.4, research R13). Tras cerrar, muestra el resumen del cierre y la
+// apertura de una caja nueva.
 import { formatDate, formatDateTime, formatRate, parseDecimalInput, todayInCaracas, uuidv7 } from "@sht/shared";
-import { ShoppingBag } from "lucide-react";
+import { Lock, MinusCircle, ShoppingBag } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { OutflowDialog } from "@/components/cash/outflow-dialog";
+import { OutflowList } from "@/components/cash/outflow-list";
+import { ReconciliationTable } from "@/components/cash/reconciliation-table";
 import { RequireAuth } from "@/components/require-auth";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -19,12 +25,17 @@ import { TextField } from "@/components/ui/field";
 import { ApiError, apiFetch } from "@/lib/api/client";
 import type { Schemas } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/use-auth";
+import { getCashSession, reconcile } from "@/lib/cash";
+import type { CashSessionDetail } from "@/lib/cash";
 import { clearDevice, saveDevice } from "@/lib/device/device-store";
+import type { DeviceRecord } from "@/lib/device/device-store";
 import { useCounterDevice } from "@/lib/device/use-device";
 import { enqueue, waitFor } from "@/lib/outbox/outbox";
 
 type Registered = Schemas["DeviceRegistered"];
 type ApplicableRate = Schemas["ApplicableRateOut"];
+
+const LINK_BUTTON = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 font-semibold";
 
 function RegisterDevice({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("Mostrador principal");
@@ -109,10 +120,92 @@ function OpenCashSession({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** Caja abierta: esperado actual por método (calculado en el equipo, FR-007), egresos y cierre. */
+function OpenSessionPanel({ device, sessionId, isAdmin }: { device: DeviceRecord; sessionId: string; isAdmin: boolean }) {
+  const [detail, setDetail] = useState<CashSessionDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [outflowOpen, setOutflowOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setDetail(await getCashSession(sessionId, device));
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "No se pudo cargar la caja");
+    }
+  }, [device, sessionId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (error) return <Alert variant="danger">{error}</Alert>;
+  if (!detail) return <p className="text-ink-muted">Cargando la caja…</p>;
+  const rows = reconcile(detail);
+  const expected = Object.fromEntries(rows.map((row) => [row.method, row.expected]));
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
+        <p>
+          Caja abierta por <strong>{detail.opened_by.full_name}</strong> desde el {formatDateTime(detail.opened_at)}.
+        </p>
+        {detail.opened_on_previous_day && (
+          <Alert variant="warning">La caja está abierta desde el {formatDate(detail.business_date)}: ciérrala cuando termines de contar.</Alert>
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link href="/vender/" className={`${LINK_BUTTON} bg-accent text-on-accent hover:bg-accent-hover`}>
+            <ShoppingBag aria-hidden className="size-5" /> Ir a vender
+          </Link>
+          <Button variant="secondary" onClick={() => setOutflowOpen(true)}>
+            <MinusCircle aria-hidden className="size-5" /> Registrar egreso
+          </Button>
+          <Link href="/caja/cierre/" className={`${LINK_BUTTON} bg-primary text-on-primary hover:bg-primary-hover`}>
+            <Lock aria-hidden className="size-5" /> Cerrar caja
+          </Link>
+        </div>
+      </div>
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-semibold">Esperado por método</h2>
+        <ReconciliationTable rows={rows} caption="Esperado de la caja por método de pago" />
+      </section>
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-semibold">Egresos</h2>
+        <OutflowList outflows={detail.outflows} canVoid={isAdmin} onChanged={() => void load()} />
+      </section>
+      <OutflowDialog open={outflowOpen} sessionId={sessionId} expected={expected} onClose={() => setOutflowOpen(false)} onDone={() => void load()} />
+    </div>
+  );
+}
+
+/** Resumen del cierre recién hecho (`?cerrada=<id>`): esperado, contado, diferencia y observación. */
+function ClosedSummary({ sessionId }: { sessionId: string }) {
+  const [detail, setDetail] = useState<CashSessionDetail | null>(null);
+
+  useEffect(() => {
+    getCashSession(sessionId)
+      .then(setDetail)
+      .catch(() => setDetail(null));
+  }, [sessionId]);
+
+  if (!detail) return null;
+  return (
+    <section className="flex flex-col gap-2">
+      <Alert variant={detail.has_differences ? "warning" : "success"}>
+        Caja cerrada por {detail.closed_by?.full_name} el {detail.closed_at ? formatDateTime(detail.closed_at) : ""}.
+        {detail.has_differences ? " Tiene diferencias: el administrador recibió una alerta." : " Cuadró sin diferencias."}
+      </Alert>
+      <ReconciliationTable rows={detail.reconciliation} caption="Cuadre del cierre" />
+      {detail.closing_note && <p>Observación: {detail.closing_note}</p>}
+    </section>
+  );
+}
+
 function CashContent() {
   const { user } = useAuth();
   const device = useCounterDevice();
   const isAdmin = user?.role === "admin";
+  const closedId = useSearchParams().get("cerrada");
 
   return (
     <AppShell>
@@ -147,21 +240,12 @@ function CashContent() {
             Equipo <strong>{device.server.name}</strong>, serie <strong>{device.server.series}</strong>.
           </p>
           {device.server.open_cash_session ? (
-            <div className="flex max-w-md flex-col gap-3 rounded-xl border border-line bg-surface p-4">
-              <p>
-                Caja abierta por <strong>{device.server.open_cash_session.opened_by.full_name}</strong> desde el{" "}
-                {formatDateTime(device.server.open_cash_session.opened_at)}.
-              </p>
-              <p className="text-sm text-ink-muted">El cierre y el cuadre de caja llegan en la próxima etapa.</p>
-              <Link
-                href="/vender/"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-accent px-4 font-semibold text-on-accent hover:bg-accent-hover"
-              >
-                <ShoppingBag aria-hidden className="size-5" /> Ir a vender
-              </Link>
-            </div>
+            <OpenSessionPanel device={device.local} sessionId={device.server.open_cash_session.id} isAdmin={isAdmin} />
           ) : (
-            <OpenCashSession onDone={() => void device.reload()} />
+            <>
+              {closedId && <ClosedSummary sessionId={closedId} />}
+              <OpenCashSession onDone={() => void device.reload()} />
+            </>
           )}
         </div>
       )}
@@ -172,7 +256,9 @@ function CashContent() {
 export default function CashPage() {
   return (
     <RequireAuth roles={["admin", "seller"]}>
-      <CashContent />
+      <Suspense fallback={null}>
+        <CashContent />
+      </Suspense>
     </RequireAuth>
   );
 }

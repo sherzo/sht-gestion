@@ -5,6 +5,10 @@
 - De la venta (etapa 1.3), una por tipo y venta: `negative_stock`, `price_mismatch`,
   `total_mismatch`, `rate_mismatch`, `discount_review` e `inactive_user_sync`. La venta se
   registra igual: el servidor nunca la rechaza por estas razones.
+- De la caja (etapa 1.4, research R11), sobre la caja: `cash_difference` (el cierre tiene
+  diferencias), `expected_mismatch` (el esperado del servidor difiere del que vio el
+  equipo) y `post_close_operation` (llegó una venta o un egreso creado antes de un cierre
+  hecho en otro lugar).
 """
 
 import uuid
@@ -15,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
 from app.core.errors import ApiError
-from app.db.models import Alert, AppUser, Sale
+from app.db.models import Alert, AppUser, CashSession, Device, Sale
 from app.services.audit import record_audit
 
 
@@ -44,6 +48,28 @@ def create_sale_alert(db: Session, *, type: str, sale: Sale, details: dict[str, 
         entity_type="sale",
         entity_id=sale.id,
         details={"sale_number": sale.number, **details},
+    )
+
+
+def create_cash_session_alert(
+    db: Session, *, type: str, session: CashSession, details: dict[str, Any]
+) -> Alert:
+    """Alerta sobre una caja, con el equipo, quién la abrió y quién la cerró para
+    mostrarla en Pendientes (research R11)."""
+    device = db.get(Device, session.device_id)
+    opener = db.get(AppUser, session.opened_by)
+    closer = db.get(AppUser, session.closed_by) if session.closed_by else None
+    return create_alert(
+        db,
+        type=type,
+        entity_type="cash_session",
+        entity_id=session.id,
+        details={
+            "device_name": device.name,
+            "opened_by": opener.full_name,
+            "closed_by": closer.full_name if closer else None,
+            **details,
+        },
     )
 
 

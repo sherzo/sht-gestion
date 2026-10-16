@@ -184,6 +184,15 @@ function SellContent() {
         </p>
       </div>
       <div className="mb-4 flex flex-col gap-2">
+        {device.server.open_cash_session.opened_on_previous_day && (
+          <Alert variant="warning">
+            La caja está abierta desde el {formatDate(device.server.open_cash_session.business_date)}.{" "}
+            <Link href="/caja/" className="font-semibold underline">
+              Ciérrala en Caja
+            </Link>{" "}
+            cuando termines de contar.
+          </Alert>
+        )}
         {rateMissing && <Alert variant="danger">No hay ninguna tasa BCV cargada: el administrador debe cargarla antes de vender.</Alert>}
         {newerRate && draft && (
           <Alert variant={rateLocked ? "warning" : "info"}>

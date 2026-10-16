@@ -12,7 +12,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.deps import CurrentUser, DbSession, require_roles
+from app.api.deps import CurrentUser, DbSession, OptionalDevice, require_roles
 from app.api.product_schemas import user_ref
 from app.api.sale_schemas import (
     SaleAdmin,
@@ -111,8 +111,14 @@ def get_sale(sale_id: uuid.UUID, current: AdminOrSeller, db: DbSession) -> SaleA
 
 
 @router.post("/{sale_id}/void")
-def void_sale(sale_id: uuid.UUID, body: VoidIn, current: Admin, db: DbSession) -> SaleAdmin:
-    sale = sales_service.void_sale(db, actor=current.user, sale_id=sale_id, reason=body.reason)
+def void_sale(
+    sale_id: uuid.UUID, body: VoidIn, current: Admin, device: OptionalDevice, db: DbSession
+) -> SaleAdmin:
+    """Si la caja de la venta ya está cerrada, la devolución va a la caja abierta del
+    equipo de `X-Device-Token` (RF-27, PRD v0.11); sin él, 409 `cash_session_required`."""
+    sale = sales_service.void_sale(
+        db, actor=current.user, sale_id=sale_id, reason=body.reason, device=device
+    )
     db.commit()
     db.expire_all()
     [result] = sales_for_role(db, [sale], Role.ADMIN)

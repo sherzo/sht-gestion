@@ -1,7 +1,8 @@
 """Endpoints de alertas para el Admin (RN-10, RN-14; research R8 de la 1.2 y R6 de la 1.3).
 
 Contratos: specs/003-proveedores-compras/contracts/api.md y
-specs/004-ventas-multimoneda/contracts/api.md (alertas de venta con su número).
+specs/004-ventas-multimoneda/contracts/api.md (alertas de venta con su número) y
+specs/005-cierre-caja/contracts/api.md (alertas de caja con el equipo, research R11).
 """
 
 import uuid
@@ -14,7 +15,7 @@ from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession, require_roles
 from app.api.product_schemas import UserRef, user_ref
-from app.db.models import Alert, Sale
+from app.db.models import Alert, CashSession, Device, Sale
 from app.domain.roles import Role
 from app.services import alerts as alerts_service
 from app.services.users import users_by_id
@@ -29,6 +30,11 @@ class SaleRef(BaseModel):
     number: str
 
 
+class CashSessionAlertRef(BaseModel):
+    id: uuid.UUID
+    device_name: str
+
+
 class AlertOut(BaseModel):
     id: uuid.UUID
     type: str
@@ -39,6 +45,7 @@ class AlertOut(BaseModel):
     resolved_at: datetime | None
     resolved_by: UserRef | None
     sale: SaleRef | None = None
+    cash_session: CashSessionAlertRef | None = None
 
 
 class AlertPage(BaseModel):
@@ -55,6 +62,15 @@ def alerts_out(db: DbSession, rows: list[Alert]) -> list[AlertOut]:
         sale_id: number
         for sale_id, number in db.execute(select(Sale.id, Sale.number).where(Sale.id.in_(sale_ids)))
     }
+    session_ids = {row.entity_id for row in rows if row.entity_type == "cash_session"}
+    devices = {
+        session_id: name
+        for session_id, name in db.execute(
+            select(CashSession.id, Device.name)
+            .join(Device, Device.id == CashSession.device_id)
+            .where(CashSession.id.in_(session_ids))
+        )
+    }
     return [
         AlertOut(
             id=row.id,
@@ -67,6 +83,9 @@ def alerts_out(db: DbSession, rows: list[Alert]) -> list[AlertOut]:
             resolved_by=user_ref(users.get(row.resolved_by)) if row.resolved_by else None,
             sale=SaleRef(id=row.entity_id, number=numbers[row.entity_id])
             if row.entity_id in numbers
+            else None,
+            cash_session=CashSessionAlertRef(id=row.entity_id, device_name=devices[row.entity_id])
+            if row.entity_id in devices
             else None,
         )
         for row in rows
