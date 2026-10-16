@@ -333,6 +333,14 @@ sync_service.HANDLERS.update(
     }
 )
 sync_service.REPLAYS.update({"sale.create": replay_sale})
+# Un egreso rechazado por equipo revocado avisa al Admin: el dinero pudo haber salido.
+sync_service.REVOKED_HOOKS.update(
+    {
+        "cash_outflow.create": lambda db, device, operation: (
+            cash_outflows_service.alert_revoked_outflow(db, device, operation.payload)
+        )
+    }
+)
 
 
 class OutboxOperationIn(BaseModel):

@@ -121,6 +121,11 @@ navegador no borre los datos locales por falta de espacio.
 - Al anular una venta de una caja ya cerrada, el dinero se revierte en la caja abierta
   del equipo desde el que anula el Admin y el cierre anterior no cambia (RF-27). En la
   1.3 la devolución iba siempre a la caja de la venta.
+- Un equipo revocado nunca envía operaciones de caja (apertura, egreso, cierre), aunque
+  digan ser anteriores a la revocación: la hora la escribe el equipo. La regla vive en un
+  solo lugar, `STRICT_TYPES` de `services/sync.py`. Un egreso rechazado así avisa al Admin
+  con la alerta `revoked_device_operation`. Las ventas anteriores a la revocación se
+  siguen aceptando con alerta, para no perder ninguna (principio III).
 
 ## Alternativas consideradas
 

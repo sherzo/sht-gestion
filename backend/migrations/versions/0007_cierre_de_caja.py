@@ -10,7 +10,8 @@ pueden depender solo del código (principio II, research R2 y R3):
 - Los egresos no se borran; solo se anulan, una vez y con la caja abierta. Un egreso con
   un método que exige referencia no se guarda sin ella (RF-24, PRD v0.12).
 
-Incluye los tipos de alerta del cierre (research R11).
+Incluye los tipos de alerta del cierre (research R11) y la de un egreso rechazado por
+equipo revocado (revisión de la etapa 1.4).
 
 Revisión: 0007
 Anterior: 0006
@@ -31,7 +32,8 @@ ALERT_TYPES_0006 = (
     "'rate_mismatch', 'discount_review', 'inactive_user_sync', 'revoked_device_sync'"
 )
 ALERT_TYPES_0007 = (
-    ALERT_TYPES_0006 + ", 'cash_difference', 'expected_mismatch', 'post_close_operation'"
+    ALERT_TYPES_0006
+    + ", 'cash_difference', 'expected_mismatch', 'post_close_operation', 'revoked_device_operation'"
 )
 
 TABLES = f"""
@@ -231,7 +233,8 @@ def downgrade() -> None:
     op.execute("ALTER TABLE alert DISABLE TRIGGER alert_guard")
     op.execute(
         "DELETE FROM alert WHERE type IN "
-        "('cash_difference', 'expected_mismatch', 'post_close_operation')"
+        "('cash_difference', 'expected_mismatch', 'post_close_operation', "
+        "'revoked_device_operation')"
     )
     op.execute("ALTER TABLE alert ENABLE TRIGGER alert_guard")
     op.execute("ALTER TABLE alert DROP CONSTRAINT ck_alert_type_valid")

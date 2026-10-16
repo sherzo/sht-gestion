@@ -259,7 +259,7 @@ def test_reloj_del_equipo_atrasado_no_marca_una_venta_normal(client, orphan) -> 
     assert {r["method"]: r for r in data["reconciliation"]}["cash_usd"]["expected"] == "44.00"
 
 
-def test_equipo_revocado_no_registra_egresos_ni_cierra(client, orphan) -> None:
+def test_equipo_revocado_no_registra_egresos_ni_cierra(client, orphan, db) -> None:
     """Revisión de seguridad de la 1.4: un equipo revocado no registra egresos ni cierra su
     caja por la cola, aunque la operación diga ser anterior a la revocación (la hora la
     escribe el equipo). Su caja la cierra el Admin desde otro equipo (FR-018)."""
@@ -267,9 +267,20 @@ def test_equipo_revocado_no_registra_egresos_ni_cierra(client, orphan) -> None:
     revoke = client.post(f"/api/v1/devices/{orphan['tablet'].id}/revoke", headers=orphan["admin"])
     assert revoke.status_code == 200, revoke.text
     headers = device_headers(orphan["seller"], orphan["token"])
-    outflow = client.post(URL, json=outflow_operation(orphan, before), headers=headers)
+    body = outflow_operation(orphan, before)
+    outflow = client.post(URL, json=body, headers=headers)
     assert outflow.status_code == 403
     assert outflow.json()["detail"]["code"] == "device_revoked"
+    # El dinero pudo haber salido antes de la revocación: el Admin recibe la alerta.
+    alert = db.scalar(select(Alert).where(Alert.type == "revoked_device_operation"))
+    assert str(alert.entity_id) == orphan["session_id"]
+    assert (alert.details["method"], alert.details["amount"]) == ("cash_usd", "5.00")
+    assert alert.details["reason"] == "Pago del delivery"
+    # Un reenvío de la misma operación repite el rechazo sin otra alerta (ADR-0003).
+    again = client.post(URL, json=body, headers=headers)
+    assert again.status_code == 403
+    alerts = db.scalars(select(Alert).where(Alert.type == "revoked_device_operation")).all()
+    assert len(alerts) == 1
     close = {
         "id": str(uuid.uuid7()),
         "operation_type": "cash_session.close",

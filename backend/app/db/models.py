@@ -853,7 +853,12 @@ class Payment(Base):
 # specs/005-cierre-caja/data-model.md; migración 0007, que impone los CHECK y la
 # inmutabilidad del cierre, de sus conteos y de los egresos (RF-33, RN-12, research R2).
 
-CASH_SESSION_ALERT_TYPES = ("cash_difference", "expected_mismatch", "post_close_operation")
+CASH_SESSION_ALERT_TYPES = (
+    "cash_difference",
+    "expected_mismatch",
+    "post_close_operation",
+    "revoked_device_operation",
+)
 
 
 class CashOutflow(Base):

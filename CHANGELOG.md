@@ -31,7 +31,8 @@ Fase 1 cierra una versión: la 1.0 es `0.1.0`, la 1.1 es `0.2.0`, la 1.2 es `0.3
     equipo desde el que anula el Admin y el cierre anterior no cambia (PRD v0.11).
   - Un equipo revocado no registra egresos ni cierra su caja por la cola, aunque la
     operación diga ser anterior a la revocación (revisión de seguridad); su caja la
-    cierra el Admin desde otro equipo.
+    cierra el Admin desde otro equipo. Un egreso rechazado así avisa al Admin con la
+    alerta `revoked_device_operation`.
   - Pantallas: Caja con esperado y egresos, Cierre de caja, Cajas (Admin, con filtros) y
     detalle de la caja; aviso de caja abierta desde otro día en Caja y Vender; alertas de
     caja en Pendientes.

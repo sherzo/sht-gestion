@@ -172,8 +172,9 @@ Tipos: `purchase_void_cost` (1.2) y, de la venta (1.3, una por tipo y venta, con
 revisión es resolver su alerta `discount_review`: la venta no cambia. De la caja (1.4, con
 `entity_type = 'cash_session'`; `details` lleva el equipo, quién abrió y quién cerró):
 `cash_difference` (cierre con diferencias), `expected_mismatch` (el esperado del servidor
-difiere del que vio el equipo) y `post_close_operation` (venta o egreso creado en el
-equipo antes de un cierre hecho en otro lugar).
+difiere del que vio el equipo), `post_close_operation` (venta o egreso creado en el
+equipo antes de un cierre hecho en otro lugar) y `revoked_device_operation` (egreso
+rechazado porque su equipo estaba revocado: el dinero pudo haber salido de la gaveta).
 
 **`sequence_counter`** (FR-008 de la etapa 1.2): `name` (PK; `purchase` y
 `device_series`), `next_number`.

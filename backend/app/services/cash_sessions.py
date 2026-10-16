@@ -45,7 +45,6 @@ from app.domain.cash_math import (
 from app.domain.roles import Role
 from app.services.alerts import create_cash_session_alert
 from app.services.audit import record_audit
-from app.services.devices import device_revoked
 from app.services.devices import open_cash_session as current_open_session
 from app.services.exchange_rates import applicable_rate, exchange_rate_missing
 
@@ -66,10 +65,8 @@ def open_cash_session(
 ) -> CashSession:
     """Abre la caja del equipo. 409 `cash_session_open` si ya hay una abierta y 409
     `exchange_rate_missing` si no hay ninguna tasa BCV cargada (RF-18)."""
-    # Un equipo revocado no abre caja, aunque la operación diga ser anterior a la revocación:
-    # la hora la escribe el equipo (hallazgo del code review).
-    if device.revoked_at is not None:
-        raise device_revoked()
+    # Un equipo revocado ya se rechazó en `services/sync.py` (`STRICT_TYPES`), sin mirar la
+    # hora de la operación.
     # El bloqueo del equipo serializa dos aperturas simultáneas en el mismo equipo.
     db.execute(select(Device.id).where(Device.id == device.id).with_for_update())
     existing = current_open_session(db, device.id)
@@ -465,14 +462,10 @@ def close_cash_session(
     Por la cola (`outside_device = False`), la caja debe ser del equipo. El Admin desde
     otro equipo (`outside_device = True`) cierra cualquier caja abierta, con observación
     siempre obligatoria. Devuelve la caja y los tipos de alerta creados."""
-    # Por la cola, un equipo revocado no cierra su caja aunque la operación diga ser
-    # anterior a la revocación: la hora la escribe el equipo (revisión de seguridad de la
-    # 1.4). La cierra el Admin desde otro equipo (FR-018). Se lee con el equipo bloqueado,
-    # para ver una revocación confirmada mientras llegaba la operación.
+    # Por la cola, un equipo revocado ya se rechazó en `services/sync.py` (`STRICT_TYPES`);
+    # su caja la cierra el Admin desde otro equipo (FR-018).
     if device is not None:
-        device = db.get(Device, device.id, with_for_update=True, populate_existing=True)
-    if not outside_device and device is not None and device.revoked_at is not None:
-        raise device_revoked()
+        db.execute(select(Device.id).where(Device.id == device.id).with_for_update())
     session = db.get(CashSession, session_id, with_for_update=True, populate_existing=True)
     if session is None:
         if outside_device:

@@ -13,7 +13,9 @@ Solo el Admin lo anula, con motivo y con la caja abierta; nunca se borra (RF-33,
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.clock import utcnow
@@ -22,7 +24,34 @@ from app.db.models import AppUser, CashOutflow, CashSession, Device, PaymentMeth
 from app.services.alerts import create_cash_session_alert
 from app.services.audit import record_audit
 from app.services.cash_sessions import expected_for
-from app.services.devices import device_revoked
+
+
+def alert_revoked_outflow(db: Session, device: Device, payload: dict[str, Any]) -> None:
+    """Un egreso de un equipo revocado se rechaza, pero el dinero pudo haber salido de la
+    gaveta antes de la revocación: el Admin recibe la alerta `revoked_device_operation` en
+    la caja, para explicar el faltante al cerrarla (revisión de la etapa 1.4). El contenido
+    no está validado: se toma solo lo que sirve para el aviso."""
+    try:
+        session_id = uuid.UUID(str(payload.get("cash_session_id")))
+    except ValueError:
+        return
+    session = db.get(CashSession, session_id)
+    if session is None or session.device_id != device.id:
+        return
+    method = db.get(PaymentMethod, str(payload.get("method", "")))
+    create_cash_session_alert(
+        db,
+        type="revoked_device_operation",
+        session=session,
+        details={
+            "operation": "cash_outflow",
+            "method": method.code if method else None,
+            "currency": method.currency if method else None,
+            "amount": str(payload.get("amount", ""))[:30],
+            "reason": str(payload.get("reason", ""))[:200],
+            "device_revoked_at": device.revoked_at.isoformat() if device.revoked_at else None,
+        },
+    )
 
 
 def register_outflow(
@@ -41,14 +70,9 @@ def register_outflow(
 ) -> CashOutflow:
     """Registra el egreso en la caja del equipo. Rechazos permanentes: 409
     `cash_session_unavailable` (caja ajena o inexistente), 409 `cash_session_closed`, 409
-    `insufficient_cash` (efectivo), 422 (método o referencia) y 403 `device_revoked`."""
-    # Un equipo revocado no registra egresos, aunque la operación diga ser anterior a la
-    # revocación: la hora la escribe el equipo (revisión de seguridad de la 1.4). Su caja la
-    # cierra el Admin desde otro equipo (FR-018). Se lee con el equipo bloqueado, para ver
-    # una revocación confirmada mientras llegaba la operación.
-    device = db.get(Device, device.id, with_for_update=True, populate_existing=True)
-    if device.revoked_at is not None:
-        raise device_revoked()
+    `insufficient_cash` (efectivo) y 422 (método o referencia). Un equipo revocado ya se
+    rechazó en `services/sync.py` (`STRICT_TYPES`); `alert_revoked_outflow` avisa al Admin."""
+    db.execute(select(Device.id).where(Device.id == device.id).with_for_update())
     session = db.get(CashSession, cash_session_id, with_for_update=True, populate_existing=True)
     if session is None or session.device_id != device.id:
         raise ApiError(

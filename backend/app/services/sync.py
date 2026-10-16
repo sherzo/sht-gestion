@@ -10,6 +10,11 @@ Cada operación trae un UUIDv7 generado en el equipo. `process_operation`:
    si se procesó como si se rechazó por una regla estructural (403 `device_revoked`, 409
    o 422). Esos rechazos son permanentes y se repiten igual en un reenvío.
 
+Un equipo revocado solo envía las ventas creadas antes de la revocación, para no perderlas
+(FR-002 de la 1.3, principio III). Las operaciones de caja (`STRICT_TYPES`) se rechazan
+siempre, sin mirar la hora, porque la escribe el equipo; si el rechazo deja dinero sin
+registrar, su gancho de `REVOKED_HOOKS` avisa al Admin (revisión de la etapa 1.4).
+
 Cualquier otro error se propaga sin guardar nada: es transitorio y el equipo reintenta.
 La fila de la cola y lo que crea el manejador se confirman en la misma transacción.
 """
@@ -41,6 +46,7 @@ class Operation:
 
 
 Handler = Callable[[Session, Device, AppUser, Operation], dict[str, Any]]
+RevokedHook = Callable[[Session, Device, Operation], None]
 Replay = Callable[[Session, AppUser, dict[str, Any]], dict[str, Any]]
 
 # Manejadores por tipo de operación. Los registra la capa de la API (`app/api/sync.py`):
@@ -50,6 +56,13 @@ HANDLERS: dict[str, Handler] = {}
 # respuesta guardada puede tener datos que su rol no debe ver (costos de una venta
 # confirmada por el Admin y reenviada con la sesión de un Vendedor, principio IV).
 REPLAYS: dict[str, Replay] = {}
+# Operaciones que un equipo revocado nunca envía, aunque digan ser anteriores a la
+# revocación (la hora la escribe el equipo): la caja la cierra el Admin desde otro equipo.
+STRICT_TYPES = frozenset({"cash_session.open", "cash_outflow.create", "cash_session.close"})
+# Qué hacer cuando se rechaza por equipo revocado una operación de `STRICT_TYPES`: corre
+# fuera del manejador revertido y se confirma con la fila de la cola (por ejemplo, avisar
+# al Admin de un egreso que no se registró).
+REVOKED_HOOKS: dict[str, RevokedHook] = {}
 
 # Errores de la base que no cambian al reintentar: un monto que desborda su columna o una
 # regla CHECK. Se guardan como rechazo para que la cola del equipo no se trabe en ellos.
@@ -80,7 +93,13 @@ def process_operation(
     received_at = utcnow()
     savepoint = db.begin_nested()
     try:
-        ensure_active(device, at=operation.created_at)
+        if operation.operation_type in STRICT_TYPES:
+            # Se relee con el equipo bloqueado, para ver una revocación confirmada mientras
+            # llegaba la operación.
+            device = db.get(Device, device.id, with_for_update=True, populate_existing=True)
+            ensure_active(device)
+        else:
+            ensure_active(device, at=operation.created_at)
         handler = HANDLERS.get(operation.operation_type)
         if handler is None:
             raise ApiError(
@@ -97,6 +116,9 @@ def process_operation(
         if not _is_permanent(exc):
             raise
         status, http_status, result, error = "rejected", exc.status_code, None, _error_body(exc)
+        hook = REVOKED_HOOKS.get(operation.operation_type)
+        if exc.code == "device_revoked" and hook is not None:
+            hook(db, device, operation)
     except DBAPIError as exc:
         savepoint.rollback()
         if not isinstance(exc.orig, PERMANENT_DB_ERRORS):

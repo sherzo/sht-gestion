@@ -162,6 +162,11 @@ el cierre anterior nunca cambia (PRD v0.11, RF-27).
   creados en el equipo antes de ese cierre se registran igual con la alerta
   `post_close_operation`; lo que el servidor registró después del cierre
   (`closed_recorded_at`) no cambia el cuadre guardado.
+- **Equipo revocado**: `services/sync.py` rechaza siempre las operaciones de caja
+  (`STRICT_TYPES`: apertura, egreso y cierre), sin mirar la hora que escribe el equipo,
+  releyendo el equipo con bloqueo. Un egreso rechazado así crea la alerta
+  `revoked_device_operation` en su caja (`REVOKED_HOOKS`), para explicar el faltante al
+  cerrarla. Solo las ventas creadas antes de la revocación se aceptan (principio III).
 
 ### 3.2 Operaciones con conexión (administración, compras, inventario)
 

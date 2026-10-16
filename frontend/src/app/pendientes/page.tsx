@@ -278,6 +278,7 @@ const CASH_ALERT_TITLES: Record<string, string> = {
   cash_difference: "Cierre de caja con diferencias",
   expected_mismatch: "Esperado distinto entre el equipo y el servidor",
   post_close_operation: "Operación posterior al cierre",
+  revoked_device_operation: "Egreso rechazado de un equipo revocado",
 };
 
 type CashAlertMethod = { method: string; currency: string; expected: string; device_expected?: string | null; counted?: string; difference?: string };
@@ -294,6 +295,8 @@ function cashAlertDetail(alert: AlertItem): string {
       return `${who} ${((details.methods as CashAlertMethod[] | undefined) ?? [])
         .map((item) => `${methodLabel(item.method)}: el equipo vio ${formatMethodAmount(item.device_expected ?? "0", item.currency)} y el servidor calculó ${formatMethodAmount(item.expected, item.currency)}`)
         .join("; ")}. Llegó una operación que el equipo no tenía al cerrar; revisa el detalle de la caja.`;
+    case "revoked_device_operation":
+      return `${who} El equipo, ya revocado, envió un egreso${details.method ? ` de ${methodLabel(String(details.method))}` : ""} por ${details.currency ? formatMethodAmount(String(details.amount), String(details.currency)) : String(details.amount)} ("${String(details.reason)}"). No se registró: si el dinero salió de la gaveta, explica el faltante al cerrar la caja.`;
     case "post_close_operation":
       return `${who} Llegó ${details.operation === "sale" ? `la venta ${String(details.sale_number)}` : "un egreso"} de ${formatMethodAmount(String(details.amount), String(details.currency))}, creada en el equipo antes del cierre. Se registró en la caja sin cambiar el cierre.`;
     default:

@@ -99,9 +99,9 @@ def list_devices(db: Session) -> list[Device]:
 
 def device_from_token(db: Session, token: str | None) -> Device:
     """Equipo del token, aunque esté revocado: la cola decide con la hora de la operación
-    (FR-002) y los demás endpoints llaman además a `ensure_active`. Apertura de caja,
-    egresos y cierre por la cola rechazan además cualquier equipo revocado, sin mirar la
-    hora (la escribe el equipo; etapa 1.4)."""
+    (FR-002) y los demás endpoints llaman además a `ensure_active`. Las operaciones de
+    caja de la cola (`STRICT_TYPES` en `services/sync.py`) rechazan cualquier equipo
+    revocado, sin mirar la hora (la escribe el equipo; etapa 1.4)."""
     if not token:
         raise device_required()
     device = db.scalar(select(Device).where(Device.token_hash == hash_token(token)))
@@ -112,8 +112,8 @@ def device_from_token(db: Session, token: str | None) -> Device:
 
 def ensure_active(device: Device, *, at: datetime | None = None) -> None:
     """Rechaza un equipo revocado, salvo para operaciones creadas antes de la revocación
-    (`at`). Solo la venta usa esa excepción: apertura, egreso y cierre de caja rechazan
-    al equipo revocado en su servicio, sin mirar la hora."""
+    (`at`). Solo la venta usa esa excepción: para apertura, egreso y cierre de caja,
+    `services/sync.py` la llama sin `at` (`STRICT_TYPES`)."""
     if device.revoked_at is not None and (at is None or at >= device.revoked_at):
         raise device_revoked()
 
